@@ -1,0 +1,222 @@
+# =============================================================================
+# NAVBAR & MULTI-VIEW PAGES
+# =============================================================================
+# Adds current_view / auto_switch_to_music globals, view-switching scripts,
+# placeholder pages for idle/calendar/climate, and the navigation bar widget.
+#
+# The nav_bar widget is defined here and moved to lv_layer_top() in on_boot so
+# it floats above all pages. It is hidden while the music page is active.
+#
+# Pages defined here are merged with music_page from device/lvgl.yaml via
+# ESPHome package merging of the `lvgl.pages` list.
+# =============================================================================
+
+globals:
+  - id: current_view    # 0=idle 1=music 2=calendar 3=climate
+    type: int
+    initial_value: '0'
+  - id: auto_switch_to_music  # true when music view was activated automatically
+    type: bool
+    initial_value: 'false'
+
+
+script:
+  - id: show_idle_view
+    mode: single
+    then:
+      - lambda: 'id(current_view) = 0;'
+      - lvgl.page.show: idle_page
+      - lvgl.widget.show: nav_bar
+
+  - id: show_music_view
+    mode: single
+    then:
+      - lambda: 'id(current_view) = 1;'
+      - lvgl.widget.hide: nav_bar
+      - lvgl.page.show: music_page
+
+  - id: show_calendar_view
+    mode: single
+    then:
+      - lambda: 'id(current_view) = 2;'
+      - lvgl.page.show: calendar_page
+      - lvgl.widget.show: nav_bar
+
+  - id: show_climate_view
+    mode: single
+    then:
+      - lambda: 'id(current_view) = 3;'
+      - lvgl.page.show: climate_page
+      - lvgl.widget.show: nav_bar
+
+
+lvgl:
+  on_boot:
+    # Move nav_bar out of its placeholder page into the LVGL top layer so it
+    # persists across all page transitions.
+    - lambda: |-
+        lv_obj_set_parent(id(nav_bar), lv_layer_top());
+    # Boot to idle page only after the device has been fully set up;
+    # first-time setup keeps music_page active so the setup prompts are visible.
+    - if:
+        condition:
+          lambda: 'return id(device_has_been_setup);'
+        then:
+          - script.execute: show_idle_view
+
+  pages:
+    # -------------------------------------------------------------------------
+    # IDLE / HOME PAGE  (placeholder — content added in Phase 3)
+    # -------------------------------------------------------------------------
+    - id: idle_page
+      scrollable: false
+      scrollbar_mode: "off"
+      width: 100%
+      height: 100%
+      bg_color: 0x111111
+      widgets:
+        - label:
+            text: "Home"
+            align: CENTER
+            text_font: roboto_light40_font
+            text_color: 0x888888
+
+    # -------------------------------------------------------------------------
+    # CALENDAR PAGE  (placeholder — content added in Phase 4)
+    # -------------------------------------------------------------------------
+    - id: calendar_page
+      scrollable: false
+      scrollbar_mode: "off"
+      width: 100%
+      height: 100%
+      bg_color: 0x111111
+      widgets:
+        - label:
+            text: "Calendar"
+            align: CENTER
+            text_font: roboto_light40_font
+            text_color: 0x888888
+
+    # -------------------------------------------------------------------------
+    # CLIMATE PAGE  (placeholder — content added in Phase 5)
+    # -------------------------------------------------------------------------
+    - id: climate_page
+      scrollable: false
+      scrollbar_mode: "off"
+      width: 100%
+      height: 100%
+      bg_color: 0x111111
+      widgets:
+        - label:
+            text: "Climate"
+            align: CENTER
+            text_font: roboto_light40_font
+            text_color: 0x888888
+
+    # -------------------------------------------------------------------------
+    # NAV LAYER PAGE — holds nav_bar; widget is reparented to lv_layer_top on boot
+    # -------------------------------------------------------------------------
+    - id: nav_layer_page
+      scrollable: false
+      scrollbar_mode: "off"
+      width: 100%
+      height: 100%
+      bg_opa: 0%
+      widgets:
+        - obj:
+            id: nav_bar
+            x: 0
+            y: 740
+            width: 1280
+            height: 60
+            bg_color: 0x1A1A1A
+            bg_opa: 95%
+            border_width: 0
+            radius: 0
+            pad_all: 0
+            hidden: true   # hidden on music page; shown by show_*_view scripts
+
+            widgets:
+              # ---- Home ----
+              - button:
+                  id: nav_home_btn
+                  x: 0
+                  y: 0
+                  width: 320
+                  height: 60
+                  bg_color: 0x1A1A1A
+                  bg_opa: 0%
+                  border_width: 0
+                  radius: 0
+                  shadow_width: 0
+                  on_click:
+                    - script.execute: show_idle_view
+                  widgets:
+                    - label:
+                        text: $icon_home
+                        text_font: icon_font
+                        text_color: 0xFFFFFF
+                        align: CENTER
+
+              # ---- Music ----
+              - button:
+                  id: nav_music_btn
+                  x: 320
+                  y: 0
+                  width: 320
+                  height: 60
+                  bg_color: 0x1A1A1A
+                  bg_opa: 0%
+                  border_width: 0
+                  radius: 0
+                  shadow_width: 0
+                  on_click:
+                    - script.execute: show_music_view
+                  widgets:
+                    - label:
+                        text: $icon_music
+                        text_font: icon_font
+                        text_color: 0xFFFFFF
+                        align: CENTER
+
+              # ---- Calendar ----
+              - button:
+                  id: nav_calendar_btn
+                  x: 640
+                  y: 0
+                  width: 320
+                  height: 60
+                  bg_color: 0x1A1A1A
+                  bg_opa: 0%
+                  border_width: 0
+                  radius: 0
+                  shadow_width: 0
+                  on_click:
+                    - script.execute: show_calendar_view
+                  widgets:
+                    - label:
+                        text: $icon_calendar
+                        text_font: icon_font
+                        text_color: 0xFFFFFF
+                        align: CENTER
+
+              # ---- Climate ----
+              - button:
+                  id: nav_climate_btn
+                  x: 960
+                  y: 0
+                  width: 320
+                  height: 60
+                  bg_color: 0x1A1A1A
+                  bg_opa: 0%
+                  border_width: 0
+                  radius: 0
+                  shadow_width: 0
+                  on_click:
+                    - script.execute: show_climate_view
+                  widgets:
+                    - label:
+                        text: $icon_thermo
+                        text_font: icon_font
+                        text_color: 0xFFFFFF
+                        align: CENTER

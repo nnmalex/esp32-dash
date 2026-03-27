@@ -19,6 +19,10 @@ font:
       - "\U000F0502"  # mdi-television
       - "\U000F0D38"  # mdi-speaker-multiple
       - "\U000F0156"  # mdi-close
+      - "\U000F02DC"  # mdi-home
+      - "\U000F075A"  # mdi-music-note
+      - "\U000F00ED"  # mdi-calendar
+      - "\U000F050F"  # mdi-thermometer
   - file: 'https://github.com/Templarian/MaterialDesign-Webfont/raw/v7.4.47/fonts/materialdesignicons-webfont.ttf'
     id: icon_font_small
     size: 28
@@ -55,3 +59,7 @@ substitutions:
   tv_icon:       "\U000F0502"
   icon_speakers: "\U000F0D38"
   icon_close:    "\U000F0156"
+  icon_home:     "\U000F02DC"
+  icon_music:    "\U000F075A"
+  icon_calendar: "\U000F00ED"
+  icon_thermo:   "\U000F050F"
