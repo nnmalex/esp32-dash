@@ -1,0 +1,33 @@
+substitutions:
+  media_player: ""
+  linked_media_player: ""
+  ha_port: "8123"
+  ha_host: "homeassistant.local"
+  ha_protocol: "http"
+  ha_verify_ssl: "true"
+  # Display rotation: 90 (default landscape) or 270 (flipped landscape)
+  # Flip to 270 if mounting with the power cable on the opposite side
+  display_rotation: "90"
+  # Touch transform (must match display_rotation):
+  #   90:  touch_mirror_x "false", touch_mirror_y "false"
+  #   270: touch_mirror_x "true",  touch_mirror_y "true"
+  touch_mirror_x: "false"
+  touch_mirror_y: "false"
+
+packages:
+  music: !include addon/music.yaml
+  accent_color: !include addon/accent_color.yaml
+  backlight: !include addon/backlight.yaml
+  time_sync: !include addon/time.yaml
+  timezone: !include addon/timezone.yaml
+  network: !include addon/network.yaml
+  speaker_group: !include addon/speaker_group.yaml
+  fonts: !include assets/fonts.yaml
+  icons: !include assets/icons.yaml
+  device: !include device/device.yaml
+  media_player_select: !include device/media_player_select.yaml
+  sensors: !include device/sensors.yaml
+  linked_sensors: !include device/linked_sensors.yaml
+  lvgl: !include device/lvgl.yaml
+  button: !include theme/button.yaml
+  firmware_update: !include addon/firmware_update.yaml

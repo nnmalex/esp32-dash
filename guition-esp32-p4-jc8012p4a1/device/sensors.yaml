@@ -1,0 +1,428 @@
+# =============================================================================
+# SENSORS - Music dashboard
+# =============================================================================
+# Template sensors receive state from dynamic subscriptions managed by
+# subscribe_media_player. Updates LVGL labels, bar, image, and play/pause
+# icon via on_value automations.
+# Album art URL is built automatically from the ha_host substitution;
+# override ha_host or ha_port in substitutions for non-standard setups.
+# =============================================================================
+
+globals:
+  - id: ha_base_url
+    type: std::string
+    initial_value: '"${ha_protocol}://${ha_host}:${ha_port}"'
+  - id: last_media_position
+    type: float
+    initial_value: '0.0'
+  - id: last_position_timestamp
+    type: int
+    initial_value: '0'
+  - id: title_received_once
+    type: bool
+    initial_value: 'false'
+  - id: ha_position_epoch
+    type: int
+    initial_value: '0'
+  - id: artist_has_content
+    type: bool
+    initial_value: 'false'
+  - id: volume_updating_from_ha
+    type: bool
+    initial_value: 'false'
+  - id: last_artwork_url
+    type: std::string
+    initial_value: '""'
+
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          float dur, pos;
+          bool playing;
+
+          if (id(is_tv_mode)) {
+            dur = id(tv_media_duration_sensor).has_state() ? id(tv_media_duration_sensor).state : 0.0f;
+            playing = id(tv_media_player_state_sensor).has_state() && id(tv_media_player_state_sensor).state == "playing";
+
+            auto t = id(ha_time).now();
+            if (playing && t.is_valid() && id(tv_ha_position_epoch) != 0 && id(tv_media_position_sensor).has_state()) {
+              pos = id(tv_media_position_sensor).state + (float)(t.timestamp - id(tv_ha_position_epoch));
+            } else if (playing && t.is_valid() && id(last_tv_position_timestamp) != 0) {
+              pos = id(last_tv_media_position) + (float)(t.timestamp - id(last_tv_position_timestamp));
+            } else {
+              pos = id(tv_media_position_sensor).has_state() ? id(tv_media_position_sensor).state : id(last_tv_media_position);
+            }
+            if (pos < 0) pos = 0;
+            if (dur > 0 && pos > dur) pos = dur;
+            id(last_tv_media_position) = pos;
+          } else {
+            dur = id(media_duration_sensor).has_state() ? id(media_duration_sensor).state : 0.0f;
+            playing = id(media_player_state_sensor).has_state() && id(media_player_state_sensor).state == "playing";
+
+            auto t = id(ha_time).now();
+            if (playing && t.is_valid() && id(ha_position_epoch) != 0 && id(media_position_sensor).has_state()) {
+              pos = id(media_position_sensor).state + (float)(t.timestamp - id(ha_position_epoch));
+            } else if (playing && t.is_valid() && id(last_position_timestamp) != 0) {
+              pos = id(last_media_position) + (float)(t.timestamp - id(last_position_timestamp));
+            } else {
+              pos = id(media_position_sensor).has_state() ? id(media_position_sensor).state : id(last_media_position);
+            }
+            if (pos < 0) pos = 0;
+            if (dur > 0 && pos > dur) pos = dur;
+            id(last_media_position) = pos;
+          }
+      - lvgl.label.update:
+            id: media_time_label
+            text: !lambda |-
+              if (id(is_tv_idle)) return std::string("");
+              float pos = id(is_tv_mode) ? id(last_tv_media_position) : id(last_media_position);
+              float dur;
+              if (id(is_tv_mode)) {
+                dur = id(tv_media_duration_sensor).has_state() ? id(tv_media_duration_sensor).state : 0.0f;
+              } else {
+                dur = id(media_duration_sensor).has_state() ? id(media_duration_sensor).state : 0.0f;
+              }
+              int e = (int)pos; if (e < 0) e = 0;
+              char buf[32];
+              if (id(show_remaining_time).state) {
+                int rem = (int)(dur - pos); if (rem < 0) rem = 0;
+                if (dur >= 3600) {
+                  snprintf(buf, sizeof(buf), "%d:%02d:%02d / -%d:%02d:%02d",
+                           e / 3600, (e % 3600) / 60, e % 60,
+                           rem / 3600, (rem % 3600) / 60, rem % 60);
+                } else {
+                  snprintf(buf, sizeof(buf), "%d:%02d / -%d:%02d", e / 60, e % 60, rem / 60, rem % 60);
+                }
+              } else {
+                int d = (int)dur; if (d < 0) d = 0;
+                if (dur >= 3600) {
+                  snprintf(buf, sizeof(buf), "%d:%02d:%02d / %d:%02d:%02d",
+                           e / 3600, (e % 3600) / 60, e % 60,
+                           d / 3600, (d % 3600) / 60, d % 60);
+                } else {
+                  snprintf(buf, sizeof(buf), "%d:%02d / %d:%02d", e / 60, e % 60, d / 60, d % 60);
+                }
+              }
+              return std::string(buf);
+      - if:
+          condition:
+            lambda: 'return !id(show_progress_bar).state || id(is_tv_idle);'
+          then:
+            - lvgl.widget.hide: media_progress_bar
+          else:
+            - lvgl.widget.show: media_progress_bar
+            - lvgl.bar.update:
+                id: media_progress_bar
+                value: !lambda |-
+                  float pos = id(is_tv_mode) ? id(last_tv_media_position) : id(last_media_position);
+                  float dur;
+                  if (id(is_tv_mode)) {
+                    dur = id(tv_media_duration_sensor).has_state() ? id(tv_media_duration_sensor).state : 0.0f;
+                  } else {
+                    dur = id(media_duration_sensor).has_state() ? id(media_duration_sensor).state : 0.0f;
+                  }
+                  if (dur > 0) return (int)((pos / dur) * 100.0f);
+                  return 0;
+
+script:
+  - id: debounce_artwork_download
+    mode: restart
+    then:
+      - delay: 300ms
+      - lvgl.widget.hide: artwork_error_label
+      - online_image.set_url:
+          id: album_art_background
+          url: !lambda 'return id(last_artwork_url);'
+
+  - id: delayed_idle_cleanup
+    mode: restart
+    then:
+      - delay: 2s
+      - lvgl.label.update:
+          id: media_title_label
+          text: "—"
+      - lambda: 'id(artist_has_content) = false;'
+      - lvgl.widget.hide: media_artist_label
+      - lvgl.label.update:
+          id: media_time_label
+          text: "0:00"
+      - lvgl.bar.update:
+          id: media_progress_bar
+          value: 0
+      - lambda: |-
+          id(last_media_position) = 0.0f;
+          id(ha_position_epoch) = 0;
+          id(last_position_timestamp) = 0;
+          id(last_artwork_url) = "";
+      - lvgl.image.update:
+          id: album_art_background_widget
+          src: album_art_placeholder
+      - lvgl.widget.update:
+          id: album_art_background_widget
+          opa: 50%
+      - lvgl.widget.hide: artwork_error_label
+      - lvgl.widget.show:
+          id: media_play_icon
+      - lvgl.widget.hide:
+          id: media_pause_icon
+      - script.execute: show_track_view
+      - script.execute: backlight_wake_timeout
+
+text_sensor:
+  - platform: template
+    id: media_title_sensor
+    on_value:
+      - if:
+          condition:
+            lambda: 'return id(is_tv_mode) && x != "TV" && x != "Line-in";'
+          then:
+            - lambda: 'id(media_source_sensor).publish_state("");'
+      - if:
+          condition:
+            lambda: 'return !id(is_tv_mode) && !x.empty();'
+          then:
+            - lvgl.widget.hide: artwork_error_label
+            - lvgl.label.update:
+                id: media_title_label
+                text: !lambda 'return x;'
+            - if:
+                condition:
+                  lambda: 'return id(title_received_once);'
+                then:
+                  - lambda: |-
+                      id(last_media_position) = 0.0f;
+                      id(ha_position_epoch) = 0;
+                      auto t = id(ha_time).now();
+                      if (t.is_valid()) {
+                        id(last_position_timestamp) = t.timestamp;
+                      }
+                  - lvgl.label.update:
+                      id: media_time_label
+                      text: !lambda |-
+                        return id(show_remaining_time).state
+                            ? std::string("0:00 / -0:00")
+                            : std::string("0:00 / 0:00");
+                  - lvgl.bar.update:
+                      id: media_progress_bar
+                      value: 0
+                else:
+                  - lambda: 'id(title_received_once) = true;'
+
+  - platform: template
+    id: media_artist_sensor
+    on_value:
+      - if:
+          condition:
+            lambda: |-
+              return !id(is_tv_mode) && !x.empty() && x != "\xe2\x80\x94";
+          then:
+            - lambda: 'id(artist_has_content) = true;'
+            - lvgl.label.update:
+                id: media_artist_label
+                text: !lambda 'return x;'
+            - lvgl.widget.show: media_artist_label
+
+  - platform: template
+    id: media_entity_picture_sensor
+    on_value:
+      - if:
+          condition:
+            lambda: |-
+              if (id(is_tv_mode) || x.empty()) return false;
+              std::string path = x;
+              while (!path.empty() && (path.back() == '\n' || path.back() == '\r' || path.back() == ' ')) path.pop_back();
+              std::string new_url = (path.substr(0, 7) == "http://" || path.substr(0, 8) == "https://") ? path : (id(ha_base_url) + path);
+              new_url = esphome::online_image::cap_artwork_url(new_url);
+              if (new_url == id(last_artwork_url)) return false;
+              id(last_artwork_url) = new_url;
+              return true;
+          then:
+            - script.execute: debounce_artwork_download
+
+  - platform: template
+    id: media_player_state_sensor
+    on_value:
+      - if:
+          condition:
+            lambda: 'return id(is_tv_mode) && id(is_tv_idle) && x == "playing";'
+          then:
+            - lambda: 'id(media_source_sensor).publish_state("");'
+      - if:
+          condition:
+            lambda: 'return !id(is_tv_mode);'
+          then:
+            - if:
+                condition:
+                  lambda: 'return x == "playing";'
+                then:
+                  - script.stop: delayed_idle_cleanup
+                  - script.stop: backlight_wake_timeout
+                  - lvgl.resume:
+                  - lvgl.widget.hide:
+                      id: media_play_icon
+                  - lvgl.widget.show:
+                      id: media_pause_icon
+                  - light.turn_on:
+                      id: backlight
+                      brightness: 100%
+                  - if:
+                      condition:
+                        lambda: 'return id(is_screen_dimmed);'
+                      then:
+                        - lambda: 'id(is_screen_dimmed) = false;'
+                        - script.execute: hide_clock_view
+                        - script.execute: show_track_view
+                  - if:
+                      condition:
+                        lambda: |-
+                          return id(media_title_sensor).has_state()
+                              && !id(media_title_sensor).state.empty();
+                      then:
+                        - lvgl.label.update:
+                            id: media_title_label
+                            text: !lambda 'return id(media_title_sensor).state;'
+                  - if:
+                      condition:
+                        lambda: |-
+                          return id(media_artist_sensor).has_state()
+                              && !id(media_artist_sensor).state.empty()
+                              && id(media_artist_sensor).state != "\xe2\x80\x94";
+                      then:
+                        - lambda: 'id(artist_has_content) = true;'
+                        - lvgl.label.update:
+                            id: media_artist_label
+                            text: !lambda 'return id(media_artist_sensor).state;'
+                        - lvgl.widget.show: media_artist_label
+                  - if:
+                      condition:
+                        lambda: |-
+                          return id(last_artwork_url).empty()
+                              && id(media_entity_picture_sensor).has_state()
+                              && !id(media_entity_picture_sensor).state.empty();
+                      then:
+                        - lambda: |-
+                            std::string path = id(media_entity_picture_sensor).state;
+                            while (!path.empty() && (path.back() == '\n' || path.back() == '\r' || path.back() == ' ')) path.pop_back();
+                            id(last_artwork_url) = (path.substr(0, 7) == "http://" || path.substr(0, 8) == "https://") ? path : (id(ha_base_url) + path);
+                            id(last_artwork_url) = esphome::online_image::cap_artwork_url(id(last_artwork_url));
+                        - script.execute: debounce_artwork_download
+                else:
+                  - if:
+                      condition:
+                        lambda: 'return x == "idle" || x == "off" || x == "standby";'
+                      then:
+                        - script.execute: delayed_idle_cleanup
+                      else:
+                        - script.stop: delayed_idle_cleanup
+                        - script.execute: show_track_view
+                        - lvgl.widget.show:
+                            id: media_play_icon
+                        - lvgl.widget.hide:
+                            id: media_pause_icon
+                        - script.execute: backlight_wake_timeout
+
+  - platform: template
+    id: media_position_updated_at_sensor
+    on_value:
+      - if:
+          condition:
+            lambda: 'return !id(is_tv_mode);'
+          then:
+            - lambda: |-
+                int yr, mo, dy, hr, mn, sc;
+                if (sscanf(x.c_str(), "%d-%d-%dT%d:%d:%d", &yr, &mo, &dy, &hr, &mn, &sc) != 6 &&
+                    sscanf(x.c_str(), "%d-%d-%d %d:%d:%d", &yr, &mo, &dy, &hr, &mn, &sc) != 6) {
+                  return;
+                }
+                int y = yr, m = mo;
+                if (m <= 2) { y--; m += 12; }
+                long days = 365L*y + y/4 - y/100 + y/400 + (153*(m-3)+2)/5 + dy - 719469;
+                int epoch = (int)(days * 86400L + hr * 3600 + mn * 60 + sc);
+                id(ha_position_epoch) = epoch;
+                if (id(media_position_sensor).has_state()) {
+                  id(last_position_timestamp) = epoch;
+                }
+
+  - platform: template
+    id: media_source_sensor
+    on_value:
+      - if:
+          condition:
+            lambda: |-
+              return (x == "TV" || x == "Line-in") && !id(is_tv_mode);
+          then:
+            - script.execute: enter_tv_mode
+      - if:
+          condition:
+            lambda: 'return x != "TV" && x != "Line-in" && id(is_tv_mode);'
+          then:
+            - script.execute: exit_tv_mode
+
+sensor:
+  - platform: template
+    id: media_duration_sensor
+
+  - platform: template
+    id: media_position_sensor
+    on_value:
+      - if:
+          condition:
+            lambda: 'return !id(is_tv_mode);'
+          then:
+            - lambda: |-
+                id(last_media_position) = x;
+                if (id(ha_position_epoch) != 0) {
+                  id(last_position_timestamp) = id(ha_position_epoch);
+                } else {
+                  auto t = id(ha_time).now();
+                  if (t.is_valid()) id(last_position_timestamp) = t.timestamp;
+                }
+
+  - platform: template
+    id: media_volume_sensor
+    on_value:
+      - lambda: |-
+          if (id(speaker_count) <= 1) {
+            id(volume_updating_from_ha) = true;
+            lv_arc_set_value(id(volume_arc), (int)(x * 100.0f));
+            id(volume_updating_from_ha) = false;
+            int pct = (int)(x * 100.0f);
+            char buf[8];
+            snprintf(buf, sizeof(buf), "%d%%", pct);
+            lv_label_set_text(id(volume_pct_label), buf);
+            id(speaker_volumes)[0] = x;
+            lv_label_set_text(id(speaker_vol_label_0), buf);
+          }
+
+number:
+  - platform: template
+    name: "Speakers: Auto-Close Timeout"
+    id: speaker_panel_timeout
+    min_value: 0
+    max_value: 60
+    step: 1
+    initial_value: 15
+    optimistic: true
+    restore_value: true
+    unit_of_measurement: "s"
+    icon: "mdi:timer-lock-outline"
+    entity_category: config
+    mode: box
+
+switch:
+  - platform: template
+    name: "Playback: Show Remaining Time"
+    id: show_remaining_time
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    icon: "mdi:timer-sand"
+    entity_category: config
+
+  - platform: template
+    name: "Playback: Show Progress Bar"
+    id: show_progress_bar
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    icon: "mdi:progress-clock"
+    entity_category: config
