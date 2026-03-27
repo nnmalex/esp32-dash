@@ -85,8 +85,8 @@ Four LVGL pages defined across two files (`device/lvgl.yaml` + `device/navbar.ya
   - Swipe-down (from top 200px): volume arc / speaker group overlay
   - Swipe-up: go to idle screen
   - Full-screen overlays: clock screensaver, setup prompts, loading screen
-- **`idle_page`** — placeholder (Phase 3)
-- **`calendar_page`** — placeholder (Phase 4)
+- **`idle_page`** (Phase 3 complete) — clock/date, weather card, calendar preview placeholders, 4-tile sensor row
+- **`calendar_page`** (Phase 4 complete) — date header + 3 event slots (one per HA calendar entity), coloured left accent bars
 - **`climate_page`** — placeholder (Phase 5)
 
 Navigation bar (`nav_bar`) defined in `device/navbar.yaml`, reparented to `lv_layer_top()` on boot so it floats above all pages. 60px bar at y=740, hidden on music page, four icon buttons: Home, Music, Calendar, Climate.
@@ -112,15 +112,13 @@ Media state driven by `sensors.yaml`: subscribes to HA entity attributes, interp
 
 Phase 1 (complete): scaffolding — 10" device, URLs updated, `main_page` → `music_page`.
 Phase 2 (complete): navbar, `current_view` global, auto-switching, swipe gestures scoped per view, swipe-up to idle.
+Phase 3 (complete): `device/idle_view.yaml` + `device/weather_sensors.yaml` — real idle page with clock, weather card, calendar preview placeholders, 4-tile sensor row; weather entity + 4 sensor row entities (NVS-persisted, gen-counter subscriptions).
+Phase 4 (complete): `device/calendar_view.yaml` + `device/calendar_sensors.yaml` — real calendar page; 3 calendar entity slots; populates idle_cal_event_0..2. Navbar now visible on all views including music; swipe-up-to-idle removed; progress bar moved to y=-60 (above navbar).
 
-### Next: per-view packages (Phases 3–5)
+### Next: Phase 5
 
 | Phase | New file | Contents |
 |---|---|---|
-| 3 | `device/idle_view.yaml` | LVGL `idle_page`: weather widget, calendar preview, sensor row |
-| 3 | `device/weather_sensors.yaml` | `text` entity `weather_entity`, HA subscriptions |
-| 4 | `device/calendar_view.yaml` | LVGL `calendar_page`: agenda list |
-| 4 | `device/calendar_sensors.yaml` | `text` entity `calendar_entity`, HA subscriptions |
 | 5 | `device/climate_view.yaml` | LVGL `climate_page`: climate cards + room sensors |
 | 5 | `device/climate_sensors.yaml` | `text` entities for 4× climate entities, HA subscriptions |
 
