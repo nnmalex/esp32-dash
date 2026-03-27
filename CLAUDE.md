@@ -110,23 +110,23 @@ lvgl:
 
 New file `device/navbar.yaml`, added to `packages.yaml`. A 60px bar at y=740..800, promoted to `lv_layer_top()` via lambda so it floats above all pages. Four icon buttons: Home, Music, Calendar, Climate.
 
-### New global state (Phase 2 — add to `device/device.yaml`)
+### New global state (Phase 2 — in `device/navbar.yaml`)
 
 ```yaml
 globals:
-  - id: current_view        # 0=idle 1=music 2=calendar 3=climate
+  - id: current_view    # 0=idle 1=music 2=calendar 3=climate
     type: int
     initial_value: '0'
-  - id: auto_switch_to_music
-    type: bool
-    initial_value: 'false'
 ```
 
-### Auto-switching (Phase 2 — extend `device/sensors.yaml`)
+### Auto-switching (Phase 2 — `device/sensors.yaml`)
 
 `media_player_state_sensor` on_value:
-- `"playing"` + `current_view == 0` → show `music_page`, set `auto_switch_to_music = true`
-- `"idle"/"off"` + `auto_switch_to_music` → show `idle_page`, clear flag
+- `"playing"` + `current_view == 0` → show `music_page`
+- `"idle"/"off"/"standby"` → `delayed_idle_cleanup` runs → `current_view == 1` → show `idle_page`
+
+Note: `"paused"` state stops `delayed_idle_cleanup` (player is paused, not stopped — stay on music page).
+When player eventually goes idle/off, the cleanup runs and switches back to idle.
 
 ### Per-view packages (Phases 3–5)
 
