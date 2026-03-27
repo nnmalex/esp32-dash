@@ -170,9 +170,8 @@ script:
       - script.execute: backlight_wake_timeout
       - if:
           condition:
-            lambda: 'return id(auto_switch_to_music);'
+            lambda: 'return id(current_view) == 1;'
           then:
-            - lambda: 'id(auto_switch_to_music) = false;'
             - script.execute: show_idle_view
 
 text_sensor:
@@ -318,7 +317,6 @@ text_sensor:
                       condition:
                         lambda: 'return id(current_view) == 0;'
                       then:
-                        - lambda: 'id(auto_switch_to_music) = true;'
                         - script.execute: show_music_view
                 else:
                   - if:

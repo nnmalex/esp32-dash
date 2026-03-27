@@ -15,9 +15,6 @@ globals:
   - id: current_view    # 0=idle 1=music 2=calendar 3=climate
     type: int
     initial_value: '0'
-  - id: auto_switch_to_music  # true when music view was activated automatically
-    type: bool
-    initial_value: 'false'
 
 
 script:
