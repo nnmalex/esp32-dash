@@ -168,11 +168,11 @@ lvgl:
                         }
               - logger.log: "Media: play_pause"
 
-        # Progress bar at the very bottom
+        # Progress bar just above the navbar (navbar is 60px at y=740)
         - bar:
             id: media_progress_bar
             align: bottom_mid
-            y: 0
+            y: -60
             width: 1280
             height: 6
             bg_color: 0x000000

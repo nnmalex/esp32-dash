@@ -30,5 +30,9 @@ packages:
   linked_sensors: !include device/linked_sensors.yaml
   lvgl: !include device/lvgl.yaml
   navbar: !include device/navbar.yaml
+  idle_view: !include device/idle_view.yaml
+  weather_sensors: !include device/weather_sensors.yaml
+  calendar_view: !include device/calendar_view.yaml
+  calendar_sensors: !include device/calendar_sensors.yaml
   button: !include theme/button.yaml
   firmware_update: !include addon/firmware_update.yaml

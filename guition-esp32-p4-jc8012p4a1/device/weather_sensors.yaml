@@ -1,0 +1,478 @@
+# =============================================================================
+# WEATHER & SENSOR ROW — Idle view data sources
+# =============================================================================
+# Provides runtime-configurable HA entity subscriptions for the idle page:
+#
+#   weather_entity_select — a single weather.* entity; drives the weather card.
+#   idle_sensor_entity_0..3 — four arbitrary HA entities; drive the sensor row.
+#
+# All entity IDs are NVS-persisted so the device remembers them across reboots.
+# Subscription follows the same generation-counter pattern as media_player_select.yaml:
+# bumping the counter makes callbacks from old subscriptions silently discard
+# their updates, preventing stale state after an entity change.
+#
+# On boot:  each text entity fires on_value with its restored value.
+# On reconnect: api.on_client_connected re-runs all subscription scripts so HA
+#               state streams resume after a WiFi drop or HA restart.
+# =============================================================================
+
+substitutions:
+  weather_entity: ""
+  idle_sensor_1: ""
+  idle_sensor_2: ""
+  idle_sensor_3: ""
+  idle_sensor_4: ""
+
+
+# -----------------------------------------------------------------------------
+# Generation counters — increment to invalidate stale subscription callbacks
+# -----------------------------------------------------------------------------
+globals:
+  - id: weather_sub_gen
+    type: int
+    initial_value: '0'
+
+  - id: idle_sensor_gen_0
+    type: int
+    initial_value: '0'
+  - id: idle_sensor_gen_1
+    type: int
+    initial_value: '0'
+  - id: idle_sensor_gen_2
+    type: int
+    initial_value: '0'
+  - id: idle_sensor_gen_3
+    type: int
+    initial_value: '0'
+
+
+# -----------------------------------------------------------------------------
+# Entity selector text entities (NVS-persisted, visible in device settings)
+# -----------------------------------------------------------------------------
+text:
+  - platform: template
+    name: "Weather Entity"
+    id: weather_entity_select
+    entity_category: config
+    icon: "mdi:weather-partly-cloudy"
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${weather_entity}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: subscribe_weather
+
+  - platform: template
+    name: "Sensor Row: Slot 1"
+    id: idle_sensor_entity_0
+    entity_category: config
+    icon: "mdi:eye"
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${idle_sensor_1}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: subscribe_idle_sensor_0
+
+  - platform: template
+    name: "Sensor Row: Slot 2"
+    id: idle_sensor_entity_1
+    entity_category: config
+    icon: "mdi:eye"
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${idle_sensor_2}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: subscribe_idle_sensor_1
+
+  - platform: template
+    name: "Sensor Row: Slot 3"
+    id: idle_sensor_entity_2
+    entity_category: config
+    icon: "mdi:eye"
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${idle_sensor_3}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: subscribe_idle_sensor_2
+
+  - platform: template
+    name: "Sensor Row: Slot 4"
+    id: idle_sensor_entity_3
+    entity_category: config
+    icon: "mdi:eye"
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${idle_sensor_4}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: subscribe_idle_sensor_3
+
+
+# -----------------------------------------------------------------------------
+# Template text sensors — receive HA state/attributes via subscriptions
+# -----------------------------------------------------------------------------
+text_sensor:
+
+  # Weather condition  e.g. "partlycloudy" → "Partly Cloudy"
+  - platform: template
+    id: idle_weather_condition_sensor
+    on_value:
+      - lvgl.label.update:
+          id: idle_weather_condition_label
+          text: !lambda |-
+            std::string s = x;
+            bool cap = true;
+            for (char &c : s) {
+              if (c == '-' || c == '_') { c = ' '; cap = true; }
+              else if (cap && isalpha((unsigned char)c)) { c = toupper(c); cap = false; }
+              else { cap = false; }
+            }
+            return s;
+
+  # Weather temperature  e.g. "21.7" → "22°"
+  - platform: template
+    id: idle_weather_temp_sensor
+    on_value:
+      - lvgl.label.update:
+          id: idle_weather_temp_label
+          text: !lambda |-
+            auto v = esphome::parse_number<float>(x);
+            if (!v.has_value()) return std::string("—");
+            char buf[16];
+            snprintf(buf, sizeof(buf), "%d\xc2\xb0", (int)(v.value() + 0.5f));
+            return std::string(buf);
+
+  # Weather humidity  e.g. "65" → "Humidity: 65%"
+  - platform: template
+    id: idle_weather_humidity_sensor
+    on_value:
+      - lvgl.label.update:
+          id: idle_weather_humidity_label
+          text: !lambda |-
+            auto v = esphome::parse_number<float>(x);
+            if (!v.has_value()) return std::string("Humidity: —");
+            char buf[32];
+            snprintf(buf, sizeof(buf), "Humidity: %d%%", (int)(v.value() + 0.5f));
+            return std::string(buf);
+
+  # Weather wind speed  e.g. "14.9" → "Wind: 15"
+  - platform: template
+    id: idle_weather_wind_sensor
+    on_value:
+      - lvgl.label.update:
+          id: idle_weather_wind_label
+          text: !lambda |-
+            auto v = esphome::parse_number<float>(x);
+            if (!v.has_value()) return std::string("Wind: —");
+            char buf[32];
+            snprintf(buf, sizeof(buf), "Wind: %d", (int)(v.value() + 0.5f));
+            return std::string(buf);
+
+  # Sensor row states
+  - platform: template
+    id: idle_sensor_state_0
+    on_value:
+      - lvgl.label.update:
+          id: idle_sensor_value_0
+          text: !lambda 'return x.empty() ? std::string("—") : x;'
+
+  - platform: template
+    id: idle_sensor_state_1
+    on_value:
+      - lvgl.label.update:
+          id: idle_sensor_value_1
+          text: !lambda 'return x.empty() ? std::string("—") : x;'
+
+  - platform: template
+    id: idle_sensor_state_2
+    on_value:
+      - lvgl.label.update:
+          id: idle_sensor_value_2
+          text: !lambda 'return x.empty() ? std::string("—") : x;'
+
+  - platform: template
+    id: idle_sensor_state_3
+    on_value:
+      - lvgl.label.update:
+          id: idle_sensor_value_3
+          text: !lambda 'return x.empty() ? std::string("—") : x;'
+
+
+# -----------------------------------------------------------------------------
+# Subscription scripts
+# -----------------------------------------------------------------------------
+script:
+
+  # ---------------------------------------------------------------------------
+  # subscribe_weather: subscribes to state + key attributes of a weather entity.
+  # Shows the placeholder when entity is empty/invalid; hides it otherwise.
+  # ---------------------------------------------------------------------------
+  - id: subscribe_weather
+    mode: restart
+    then:
+      - lambda: |-
+          std::string entity = id(weather_entity_select).state;
+
+          if (entity.empty() || entity.substr(0, 8) != "weather.") {
+            // Show placeholder and reset labels
+            lv_obj_clear_flag(id(idle_weather_placeholder), LV_OBJ_FLAG_HIDDEN);
+            if (!entity.empty()) {
+              ESP_LOGW("weather", "Invalid entity '%s' — must start with 'weather.'", entity.c_str());
+            }
+            return;
+          }
+
+          lv_obj_add_flag(id(idle_weather_placeholder), LV_OBJ_FLAG_HIDDEN);
+
+          if (esphome::api::global_api_server == nullptr) return;
+
+          id(weather_sub_gen) += 1;
+          int gen = id(weather_sub_gen);
+          int *gen_ptr = &id(weather_sub_gen);
+
+          auto *api = esphome::api::global_api_server;
+          using str_cb = std::function<void(const std::string &)>;
+
+          // State = condition string (e.g. "partlycloudy")
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                id(idle_weather_condition_sensor).publish_state(state);
+              }));
+
+          // temperature attribute
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("temperature"),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                id(idle_weather_temp_sensor).publish_state(state);
+              }));
+
+          // humidity attribute
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("humidity"),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                id(idle_weather_humidity_sensor).publish_state(state);
+              }));
+
+          // wind_speed attribute
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("wind_speed"),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                id(idle_weather_wind_sensor).publish_state(state);
+              }));
+
+          ESP_LOGI("weather", "Subscribed to '%s'", entity.c_str());
+
+  # ---------------------------------------------------------------------------
+  # subscribe_idle_sensor_N: subscribes to state + friendly_name of sensor N.
+  # Resets tile to "—" when entity is empty.
+  # ---------------------------------------------------------------------------
+  - id: subscribe_idle_sensor_0
+    mode: restart
+    then:
+      - lambda: |-
+          std::string entity = id(idle_sensor_entity_0).state;
+
+          if (entity.empty()) {
+            lv_label_set_text(id(idle_sensor_name_0), "\xe2\x80\x94");
+            lv_label_set_text(id(idle_sensor_value_0), "\xe2\x80\x94");
+            return;
+          }
+
+          // Derive display name from entity_id until friendly_name arrives
+          std::string name = entity;
+          size_t dot = name.rfind('.');
+          if (dot != std::string::npos) name = name.substr(dot + 1);
+          bool cap = true;
+          for (char &c : name) {
+            if (c == '_') { c = ' '; cap = true; }
+            else if (cap && isalpha((unsigned char)c)) { c = toupper(c); cap = false; }
+            else { cap = false; }
+          }
+          lv_label_set_text(id(idle_sensor_name_0), name.c_str());
+
+          if (esphome::api::global_api_server == nullptr) return;
+
+          id(idle_sensor_gen_0) += 1;
+          int gen = id(idle_sensor_gen_0);
+          int *gen_ptr = &id(idle_sensor_gen_0);
+
+          auto *api = esphome::api::global_api_server;
+          using str_cb = std::function<void(const std::string &)>;
+
+          // Entity state → value label (via text sensor on_value)
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                id(idle_sensor_state_0).publish_state(state);
+              }));
+
+          // friendly_name attribute → name label (direct update)
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                if (!state.empty()) lv_label_set_text(id(idle_sensor_name_0), state.c_str());
+              }));
+
+          ESP_LOGI("idle_sensors", "Sensor 0: subscribed to '%s'", entity.c_str());
+
+  - id: subscribe_idle_sensor_1
+    mode: restart
+    then:
+      - lambda: |-
+          std::string entity = id(idle_sensor_entity_1).state;
+
+          if (entity.empty()) {
+            lv_label_set_text(id(idle_sensor_name_1), "\xe2\x80\x94");
+            lv_label_set_text(id(idle_sensor_value_1), "\xe2\x80\x94");
+            return;
+          }
+
+          std::string name = entity;
+          size_t dot = name.rfind('.');
+          if (dot != std::string::npos) name = name.substr(dot + 1);
+          bool cap = true;
+          for (char &c : name) {
+            if (c == '_') { c = ' '; cap = true; }
+            else if (cap && isalpha((unsigned char)c)) { c = toupper(c); cap = false; }
+            else { cap = false; }
+          }
+          lv_label_set_text(id(idle_sensor_name_1), name.c_str());
+
+          if (esphome::api::global_api_server == nullptr) return;
+
+          id(idle_sensor_gen_1) += 1;
+          int gen = id(idle_sensor_gen_1);
+          int *gen_ptr = &id(idle_sensor_gen_1);
+
+          auto *api = esphome::api::global_api_server;
+          using str_cb = std::function<void(const std::string &)>;
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                id(idle_sensor_state_1).publish_state(state);
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                if (!state.empty()) lv_label_set_text(id(idle_sensor_name_1), state.c_str());
+              }));
+
+          ESP_LOGI("idle_sensors", "Sensor 1: subscribed to '%s'", entity.c_str());
+
+  - id: subscribe_idle_sensor_2
+    mode: restart
+    then:
+      - lambda: |-
+          std::string entity = id(idle_sensor_entity_2).state;
+
+          if (entity.empty()) {
+            lv_label_set_text(id(idle_sensor_name_2), "\xe2\x80\x94");
+            lv_label_set_text(id(idle_sensor_value_2), "\xe2\x80\x94");
+            return;
+          }
+
+          std::string name = entity;
+          size_t dot = name.rfind('.');
+          if (dot != std::string::npos) name = name.substr(dot + 1);
+          bool cap = true;
+          for (char &c : name) {
+            if (c == '_') { c = ' '; cap = true; }
+            else if (cap && isalpha((unsigned char)c)) { c = toupper(c); cap = false; }
+            else { cap = false; }
+          }
+          lv_label_set_text(id(idle_sensor_name_2), name.c_str());
+
+          if (esphome::api::global_api_server == nullptr) return;
+
+          id(idle_sensor_gen_2) += 1;
+          int gen = id(idle_sensor_gen_2);
+          int *gen_ptr = &id(idle_sensor_gen_2);
+
+          auto *api = esphome::api::global_api_server;
+          using str_cb = std::function<void(const std::string &)>;
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                id(idle_sensor_state_2).publish_state(state);
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                if (!state.empty()) lv_label_set_text(id(idle_sensor_name_2), state.c_str());
+              }));
+
+          ESP_LOGI("idle_sensors", "Sensor 2: subscribed to '%s'", entity.c_str());
+
+  - id: subscribe_idle_sensor_3
+    mode: restart
+    then:
+      - lambda: |-
+          std::string entity = id(idle_sensor_entity_3).state;
+
+          if (entity.empty()) {
+            lv_label_set_text(id(idle_sensor_name_3), "\xe2\x80\x94");
+            lv_label_set_text(id(idle_sensor_value_3), "\xe2\x80\x94");
+            return;
+          }
+
+          std::string name = entity;
+          size_t dot = name.rfind('.');
+          if (dot != std::string::npos) name = name.substr(dot + 1);
+          bool cap = true;
+          for (char &c : name) {
+            if (c == '_') { c = ' '; cap = true; }
+            else if (cap && isalpha((unsigned char)c)) { c = toupper(c); cap = false; }
+            else { cap = false; }
+          }
+          lv_label_set_text(id(idle_sensor_name_3), name.c_str());
+
+          if (esphome::api::global_api_server == nullptr) return;
+
+          id(idle_sensor_gen_3) += 1;
+          int gen = id(idle_sensor_gen_3);
+          int *gen_ptr = &id(idle_sensor_gen_3);
+
+          auto *api = esphome::api::global_api_server;
+          using str_cb = std::function<void(const std::string &)>;
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                id(idle_sensor_state_3).publish_state(state);
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                if (!state.empty()) lv_label_set_text(id(idle_sensor_name_3), state.c_str());
+              }));
+
+          ESP_LOGI("idle_sensors", "Sensor 3: subscribed to '%s'", entity.c_str());
+
+
+# Re-subscribe after HA reconnect (merged with api block in device.yaml)
+api:
+  on_client_connected:
+    - script.execute: subscribe_weather
+    - script.execute: subscribe_idle_sensor_0
+    - script.execute: subscribe_idle_sensor_1
+    - script.execute: subscribe_idle_sensor_2
+    - script.execute: subscribe_idle_sensor_3

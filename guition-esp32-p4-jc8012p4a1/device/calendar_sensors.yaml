@@ -1,0 +1,431 @@
+# =============================================================================
+# CALENDAR SENSORS — HA subscription for up to three calendar entities
+# =============================================================================
+# Each slot subscribes to a calendar.* entity's state + attributes:
+#   message   → event title
+#   start_time → "YYYY-MM-DD HH:MM:SS" → formatted to "H:MM AM"
+#   end_time  → stored (for future use)
+#   all_day   → "True"/"False"
+#   location  → description line
+#
+# Updates calendar page labels (cal_time_label_N, cal_title_label_N,
+# cal_desc_label_N) AND idle page labels (idle_cal_event_0..2).
+#
+# Follows the generation-counter pattern from media_player_select.yaml.
+# =============================================================================
+
+substitutions:
+  calendar_entity_1: ""
+  calendar_entity_2: ""
+  calendar_entity_3: ""
+
+
+# -----------------------------------------------------------------------------
+# Raw attribute storage — updated by subscription callbacks before label render
+# -----------------------------------------------------------------------------
+globals:
+  - id: cal_title_0
+    type: std::string
+    initial_value: '""'
+  - id: cal_start_0
+    type: std::string
+    initial_value: '""'
+  - id: cal_all_day_0
+    type: std::string
+    initial_value: '""'
+
+  - id: cal_title_1
+    type: std::string
+    initial_value: '""'
+  - id: cal_start_1
+    type: std::string
+    initial_value: '""'
+  - id: cal_all_day_1
+    type: std::string
+    initial_value: '""'
+
+  - id: cal_title_2
+    type: std::string
+    initial_value: '""'
+  - id: cal_start_2
+    type: std::string
+    initial_value: '""'
+  - id: cal_all_day_2
+    type: std::string
+    initial_value: '""'
+
+  - id: cal_sub_gen_0
+    type: int
+    initial_value: '0'
+  - id: cal_sub_gen_1
+    type: int
+    initial_value: '0'
+  - id: cal_sub_gen_2
+    type: int
+    initial_value: '0'
+
+
+# -----------------------------------------------------------------------------
+# Entity selector text entities (NVS-persisted, visible in device settings)
+# -----------------------------------------------------------------------------
+text:
+  - platform: template
+    name: "Calendar 1 Entity"
+    id: calendar_entity_select_0
+    entity_category: config
+    icon: "mdi:calendar"
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${calendar_entity_1}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: subscribe_calendar_0
+
+  - platform: template
+    name: "Calendar 2 Entity"
+    id: calendar_entity_select_1
+    entity_category: config
+    icon: "mdi:calendar"
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${calendar_entity_2}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: subscribe_calendar_1
+
+  - platform: template
+    name: "Calendar 3 Entity"
+    id: calendar_entity_select_2
+    entity_category: config
+    icon: "mdi:calendar"
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${calendar_entity_3}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: subscribe_calendar_2
+
+
+# -----------------------------------------------------------------------------
+# Subscription scripts
+# -----------------------------------------------------------------------------
+script:
+
+  # ---------------------------------------------------------------------------
+  # subscribe_calendar_0
+  # ---------------------------------------------------------------------------
+  - id: subscribe_calendar_0
+    mode: restart
+    then:
+      - lambda: |-
+          std::string entity = id(calendar_entity_select_0).state;
+
+          // Reset slot to unconfigured state
+          if (entity.empty() || entity.substr(0, 9) != "calendar.") {
+            id(cal_title_0) = "";
+            id(cal_start_0) = "";
+            id(cal_all_day_0) = "";
+            lv_label_set_text(id(cal_time_label_0), "\xe2\x80\x94");
+            lv_label_set_text(id(cal_title_label_0), "No calendar set");
+            lv_label_set_text(id(cal_desc_label_0), "");
+            lv_label_set_text(id(idle_cal_event_0), "\xe2\x80\x94");
+            if (!entity.empty()) {
+              ESP_LOGW("calendar", "Slot 0: '%s' must start with 'calendar.'", entity.c_str());
+            }
+            return;
+          }
+
+          if (esphome::api::global_api_server == nullptr) return;
+
+          id(cal_sub_gen_0) += 1;
+          int gen = id(cal_sub_gen_0);
+          int *gen_ptr = &id(cal_sub_gen_0);
+
+          // Pointers to globals for capture
+          std::string *title_ptr  = &id(cal_title_0);
+          std::string *start_ptr  = &id(cal_start_0);
+          std::string *allday_ptr = &id(cal_all_day_0);
+
+          auto *api = esphome::api::global_api_server;
+          using str_cb = std::function<void(const std::string &)>;
+
+          // ---- Helper: format HH:MM:SS or YYYY-MM-DD HH:MM:SS → "H:MM AM" ----
+          auto fmt_time = [](const std::string &start, const std::string &all_day) -> std::string {
+            if (all_day == "True" || all_day == "true" || all_day == "1") return std::string("All Day");
+            // start may be "YYYY-MM-DD HH:MM:SS" (length >= 16) or empty
+            if (start.length() < 16) return std::string("");
+            int hour   = atoi(start.substr(11, 2).c_str());
+            int minute = atoi(start.substr(14, 2).c_str());
+            const char *ap = hour >= 12 ? "PM" : "AM";
+            int h12 = hour % 12; if (h12 == 0) h12 = 12;
+            char buf[16];
+            snprintf(buf, sizeof(buf), "%d:%02d %s", h12, minute, ap);
+            return std::string(buf);
+          };
+
+          // ---- Helper: update idle_cal_event_0 from current globals ----
+          auto update_idle = [title_ptr, start_ptr, allday_ptr, fmt_time]() {
+            std::string title   = *title_ptr;
+            std::string time_s  = fmt_time(*start_ptr, *allday_ptr);
+            std::string result;
+            if (title.empty()) {
+              result = "\xe2\x80\x94";
+            } else if (time_s.empty()) {
+              result = title;
+            } else if (time_s == "All Day") {
+              result = title;
+            } else {
+              char buf[128];
+              snprintf(buf, sizeof(buf), "%s \xe2\x80\x94 %s", time_s.c_str(), title.c_str());
+              result = std::string(buf);
+            }
+            lv_label_set_text(id(idle_cal_event_0), result.c_str());
+          };
+
+          // message → title
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("message"),
+              str_cb([gen, gen_ptr, title_ptr, fmt_time, update_idle](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                *title_ptr = state;
+                lv_label_set_text(id(cal_title_label_0),
+                    state.empty() ? "No upcoming events" : state.c_str());
+                update_idle();
+              }));
+
+          // start_time → time label
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("start_time"),
+              str_cb([gen, gen_ptr, start_ptr, allday_ptr, fmt_time, update_idle](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                *start_ptr = state;
+                std::string ts = fmt_time(state, *allday_ptr);
+                lv_label_set_text(id(cal_time_label_0), ts.empty() ? "\xe2\x80\x94" : ts.c_str());
+                update_idle();
+              }));
+
+          // all_day → update time label (may change it to "All Day")
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("all_day"),
+              str_cb([gen, gen_ptr, allday_ptr, start_ptr, fmt_time](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                *allday_ptr = state;
+                std::string ts = fmt_time(*start_ptr, state);
+                lv_label_set_text(id(cal_time_label_0), ts.empty() ? "\xe2\x80\x94" : ts.c_str());
+              }));
+
+          // location → description label
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("location"),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                lv_label_set_text(id(cal_desc_label_0), state.c_str());
+              }));
+
+          ESP_LOGI("calendar", "Slot 0: subscribed to '%s'", entity.c_str());
+
+  # ---------------------------------------------------------------------------
+  # subscribe_calendar_1
+  # ---------------------------------------------------------------------------
+  - id: subscribe_calendar_1
+    mode: restart
+    then:
+      - lambda: |-
+          std::string entity = id(calendar_entity_select_1).state;
+
+          if (entity.empty() || entity.substr(0, 9) != "calendar.") {
+            id(cal_title_1) = "";
+            id(cal_start_1) = "";
+            id(cal_all_day_1) = "";
+            lv_label_set_text(id(cal_time_label_1), "\xe2\x80\x94");
+            lv_label_set_text(id(cal_title_label_1), "No calendar set");
+            lv_label_set_text(id(cal_desc_label_1), "");
+            lv_label_set_text(id(idle_cal_event_1), "\xe2\x80\x94");
+            if (!entity.empty()) {
+              ESP_LOGW("calendar", "Slot 1: '%s' must start with 'calendar.'", entity.c_str());
+            }
+            return;
+          }
+
+          if (esphome::api::global_api_server == nullptr) return;
+
+          id(cal_sub_gen_1) += 1;
+          int gen = id(cal_sub_gen_1);
+          int *gen_ptr = &id(cal_sub_gen_1);
+
+          std::string *title_ptr  = &id(cal_title_1);
+          std::string *start_ptr  = &id(cal_start_1);
+          std::string *allday_ptr = &id(cal_all_day_1);
+
+          auto *api = esphome::api::global_api_server;
+          using str_cb = std::function<void(const std::string &)>;
+
+          auto fmt_time = [](const std::string &start, const std::string &all_day) -> std::string {
+            if (all_day == "True" || all_day == "true" || all_day == "1") return std::string("All Day");
+            if (start.length() < 16) return std::string("");
+            int hour   = atoi(start.substr(11, 2).c_str());
+            int minute = atoi(start.substr(14, 2).c_str());
+            const char *ap = hour >= 12 ? "PM" : "AM";
+            int h12 = hour % 12; if (h12 == 0) h12 = 12;
+            char buf[16];
+            snprintf(buf, sizeof(buf), "%d:%02d %s", h12, minute, ap);
+            return std::string(buf);
+          };
+
+          auto update_idle = [title_ptr, start_ptr, allday_ptr, fmt_time]() {
+            std::string title  = *title_ptr;
+            std::string time_s = fmt_time(*start_ptr, *allday_ptr);
+            std::string result;
+            if (title.empty()) {
+              result = "\xe2\x80\x94";
+            } else if (time_s.empty() || time_s == "All Day") {
+              result = title;
+            } else {
+              char buf[128];
+              snprintf(buf, sizeof(buf), "%s \xe2\x80\x94 %s", time_s.c_str(), title.c_str());
+              result = std::string(buf);
+            }
+            lv_label_set_text(id(idle_cal_event_1), result.c_str());
+          };
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("message"),
+              str_cb([gen, gen_ptr, title_ptr, fmt_time, update_idle](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                *title_ptr = state;
+                lv_label_set_text(id(cal_title_label_1),
+                    state.empty() ? "No upcoming events" : state.c_str());
+                update_idle();
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("start_time"),
+              str_cb([gen, gen_ptr, start_ptr, allday_ptr, fmt_time, update_idle](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                *start_ptr = state;
+                std::string ts = fmt_time(state, *allday_ptr);
+                lv_label_set_text(id(cal_time_label_1), ts.empty() ? "\xe2\x80\x94" : ts.c_str());
+                update_idle();
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("all_day"),
+              str_cb([gen, gen_ptr, allday_ptr, start_ptr, fmt_time](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                *allday_ptr = state;
+                std::string ts = fmt_time(*start_ptr, state);
+                lv_label_set_text(id(cal_time_label_1), ts.empty() ? "\xe2\x80\x94" : ts.c_str());
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("location"),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                lv_label_set_text(id(cal_desc_label_1), state.c_str());
+              }));
+
+          ESP_LOGI("calendar", "Slot 1: subscribed to '%s'", entity.c_str());
+
+  # ---------------------------------------------------------------------------
+  # subscribe_calendar_2
+  # ---------------------------------------------------------------------------
+  - id: subscribe_calendar_2
+    mode: restart
+    then:
+      - lambda: |-
+          std::string entity = id(calendar_entity_select_2).state;
+
+          if (entity.empty() || entity.substr(0, 9) != "calendar.") {
+            id(cal_title_2) = "";
+            id(cal_start_2) = "";
+            id(cal_all_day_2) = "";
+            lv_label_set_text(id(cal_time_label_2), "\xe2\x80\x94");
+            lv_label_set_text(id(cal_title_label_2), "No calendar set");
+            lv_label_set_text(id(cal_desc_label_2), "");
+            lv_label_set_text(id(idle_cal_event_2), "\xe2\x80\x94");
+            if (!entity.empty()) {
+              ESP_LOGW("calendar", "Slot 2: '%s' must start with 'calendar.'", entity.c_str());
+            }
+            return;
+          }
+
+          if (esphome::api::global_api_server == nullptr) return;
+
+          id(cal_sub_gen_2) += 1;
+          int gen = id(cal_sub_gen_2);
+          int *gen_ptr = &id(cal_sub_gen_2);
+
+          std::string *title_ptr  = &id(cal_title_2);
+          std::string *start_ptr  = &id(cal_start_2);
+          std::string *allday_ptr = &id(cal_all_day_2);
+
+          auto *api = esphome::api::global_api_server;
+          using str_cb = std::function<void(const std::string &)>;
+
+          auto fmt_time = [](const std::string &start, const std::string &all_day) -> std::string {
+            if (all_day == "True" || all_day == "true" || all_day == "1") return std::string("All Day");
+            if (start.length() < 16) return std::string("");
+            int hour   = atoi(start.substr(11, 2).c_str());
+            int minute = atoi(start.substr(14, 2).c_str());
+            const char *ap = hour >= 12 ? "PM" : "AM";
+            int h12 = hour % 12; if (h12 == 0) h12 = 12;
+            char buf[16];
+            snprintf(buf, sizeof(buf), "%d:%02d %s", h12, minute, ap);
+            return std::string(buf);
+          };
+
+          auto update_idle = [title_ptr, start_ptr, allday_ptr, fmt_time]() {
+            std::string title  = *title_ptr;
+            std::string time_s = fmt_time(*start_ptr, *allday_ptr);
+            std::string result;
+            if (title.empty()) {
+              result = "\xe2\x80\x94";
+            } else if (time_s.empty() || time_s == "All Day") {
+              result = title;
+            } else {
+              char buf[128];
+              snprintf(buf, sizeof(buf), "%s \xe2\x80\x94 %s", time_s.c_str(), title.c_str());
+              result = std::string(buf);
+            }
+            lv_label_set_text(id(idle_cal_event_2), result.c_str());
+          };
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("message"),
+              str_cb([gen, gen_ptr, title_ptr, fmt_time, update_idle](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                *title_ptr = state;
+                lv_label_set_text(id(cal_title_label_2),
+                    state.empty() ? "No upcoming events" : state.c_str());
+                update_idle();
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("start_time"),
+              str_cb([gen, gen_ptr, start_ptr, allday_ptr, fmt_time, update_idle](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                *start_ptr = state;
+                std::string ts = fmt_time(state, *allday_ptr);
+                lv_label_set_text(id(cal_time_label_2), ts.empty() ? "\xe2\x80\x94" : ts.c_str());
+                update_idle();
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("all_day"),
+              str_cb([gen, gen_ptr, allday_ptr, start_ptr, fmt_time](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                *allday_ptr = state;
+                std::string ts = fmt_time(*start_ptr, state);
+                lv_label_set_text(id(cal_time_label_2), ts.empty() ? "\xe2\x80\x94" : ts.c_str());
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("location"),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                lv_label_set_text(id(cal_desc_label_2), state.c_str());
+              }));
+
+          ESP_LOGI("calendar", "Slot 2: subscribed to '%s'", entity.c_str());
+
+
+# Re-subscribe after HA reconnect (merged with api block in device.yaml)
+api:
+  on_client_connected:
+    - script.execute: subscribe_calendar_0
+    - script.execute: subscribe_calendar_1
+    - script.execute: subscribe_calendar_2
