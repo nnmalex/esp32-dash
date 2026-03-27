@@ -76,59 +76,44 @@ packages:
 
 ## Architecture: LVGL state machine
 
-All UI lives in `device/lvgl.yaml`. Currently a single page (`music_page`, 1280×800):
+Four LVGL pages defined across two files (`device/lvgl.yaml` + `device/navbar.yaml`):
 
-- **Left 800px** — album art panel (`album_art_background_widget`)
-- **Right 480px** — track info (title, artist, time, play/pause button)
-- **Bottom** — 6px progress bar
-- **Swipe-down overlay** — volume arc / speaker group panel
-- **Full-screen overlays** — clock screensaver, setup prompts, loading screen
+- **`music_page`** (1280×800) — existing media player UI
+  - Left 800px: album art panel (`album_art_background_widget`)
+  - Right 480px: track info (title, artist, time, play/pause button)
+  - Bottom: 6px progress bar
+  - Swipe-down (from top 200px): volume arc / speaker group overlay
+  - Swipe-up: go to idle screen
+  - Full-screen overlays: clock screensaver, setup prompts, loading screen
+- **`idle_page`** — placeholder (Phase 3)
+- **`calendar_page`** — placeholder (Phase 4)
+- **`climate_page`** — placeholder (Phase 5)
+
+Navigation bar (`nav_bar`) defined in `device/navbar.yaml`, reparented to `lv_layer_top()` on boot so it floats above all pages. 60px bar at y=740, hidden on music page, four icon buttons: Home, Music, Calendar, Climate.
 
 Global state flags in `device/device.yaml`:
 - `is_screen_dimmed`, `is_clock_screensaver_showing` — backlight stages
 - `is_tv_mode` — switches to linked media player
 - `setup_done`, `is_wifi_setup_done` — boot flow
 
+Global state in `device/navbar.yaml`:
+- `current_view` (int) — 0=idle, 1=music, 2=calendar, 3=climate
+
+View-switching scripts in `device/navbar.yaml`: `show_idle_view`, `show_music_view`, `show_calendar_view`, `show_climate_view`.
+
+Auto-switching driven by `sensors.yaml`:
+- `"playing"` + `current_view == 0` → `show_music_view`
+- `"idle"/"off"/"standby"` → `delayed_idle_cleanup` → `current_view == 1` → `show_idle_view`
+- `"paused"` stops `delayed_idle_cleanup` (stay on music page until actually idle)
+
 Media state driven by `sensors.yaml`: subscribes to HA entity attributes, interpolates playback position every 1 second between HA updates.
 
 ## Roadmap: multi-view architecture
 
-The project is being extended to support four views. `music_page` is the renamed original `main_page` — this rename is the only structural change made in Phase 1.
+Phase 1 (complete): scaffolding — 10" device, URLs updated, `main_page` → `music_page`.
+Phase 2 (complete): navbar, `current_view` global, auto-switching, swipe gestures scoped per view, swipe-up to idle.
 
-### Planned LVGL pages
-
-```yaml
-lvgl:
-  pages:
-    - id: music_page     # done — existing media player
-    - id: idle_page      # Phase 3 — weather + calendar preview + HA sensors
-    - id: calendar_page  # Phase 4 — full agenda
-    - id: climate_page   # Phase 5 — climate controls + room sensors
-```
-
-### Navigation bar (Phase 2)
-
-New file `device/navbar.yaml`, added to `packages.yaml`. A 60px bar at y=740..800, promoted to `lv_layer_top()` via lambda so it floats above all pages. Four icon buttons: Home, Music, Calendar, Climate.
-
-### New global state (Phase 2 — in `device/navbar.yaml`)
-
-```yaml
-globals:
-  - id: current_view    # 0=idle 1=music 2=calendar 3=climate
-    type: int
-    initial_value: '0'
-```
-
-### Auto-switching (Phase 2 — `device/sensors.yaml`)
-
-`media_player_state_sensor` on_value:
-- `"playing"` + `current_view == 0` → show `music_page`
-- `"idle"/"off"/"standby"` → `delayed_idle_cleanup` runs → `current_view == 1` → show `idle_page`
-
-Note: `"paused"` state stops `delayed_idle_cleanup` (player is paused, not stopped — stay on music page).
-When player eventually goes idle/off, the cleanup runs and switches back to idle.
-
-### Per-view packages (Phases 3–5)
+### Next: per-view packages (Phases 3–5)
 
 | Phase | New file | Contents |
 |---|---|---|
