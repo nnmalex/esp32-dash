@@ -10,6 +10,12 @@ font:
     bpp: 4
     glyphs: " 0123456789:"
 
+  - file: "gfonts://Roboto@Thin"
+    id: roboto_thin100_font
+    size: 100
+    bpp: 4
+    glyphs: " 0123456789:"
+
   - file: "gfonts://Roboto@Light"
     id: roboto_light88_font
     size: 88

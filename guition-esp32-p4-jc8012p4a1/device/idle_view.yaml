@@ -22,7 +22,7 @@ script:
           id: idle_clock_label
           text: !lambda |-
             auto t = id(ha_time).now();
-            if (!t.is_valid()) return std::string("--:--");
+            if (!t.is_valid()) return std::string(" ");
             char buf[8];
             snprintf(buf, sizeof(buf), "%d:%02d", t.hour, t.minute);
             return std::string(buf);
@@ -79,18 +79,18 @@ lvgl:
         - label:
             id: idle_clock_label
             x: 0
-            y: 40
+            y: 90
             width: 624
-            text_font: roboto_thin300_font
+            text_font: roboto_thin100_font
             text_color: 0xFFFFFF
             text_align: center
-            text: "--:--"
+            text: " "
 
         # Day name (e.g. "Monday")
         - label:
             id: idle_day_label
             x: 0
-            y: 360
+            y: 218
             width: 624
             text_font: roboto_light40_font
             text_color: 0xAAAAAA
@@ -101,7 +101,7 @@ lvgl:
         - label:
             id: idle_date_label
             x: 0
-            y: 410
+            y: 268
             width: 624
             text_font: roboto_light40_font
             text_color: 0xAAAAAA
@@ -111,7 +111,7 @@ lvgl:
         # Calendar preview header
         - label:
             x: 48
-            y: 496
+            y: 390
             width: 584
             text_font: roboto_light26_font
             text_color: 0x555555
@@ -122,7 +122,7 @@ lvgl:
         - label:
             id: idle_cal_event_0
             x: 48
-            y: 530
+            y: 426
             width: 584
             text_font: roboto_light26_font
             text_color: 0x888888
@@ -132,7 +132,7 @@ lvgl:
         - label:
             id: idle_cal_event_1
             x: 48
-            y: 566
+            y: 462
             width: 584
             text_font: roboto_light26_font
             text_color: 0x888888
@@ -142,7 +142,7 @@ lvgl:
         - label:
             id: idle_cal_event_2
             x: 48
-            y: 602
+            y: 498
             width: 584
             text_font: roboto_light26_font
             text_color: 0x888888
