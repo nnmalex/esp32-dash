@@ -269,8 +269,8 @@ touchscreen:
             return;
           }
 
-          // --- Vertical swipe: settings panel open (only from top 200px) ---
-          if (dy > 30 && sy < 200 && abs(dy) > abs(dx) * 2 && !id(is_panel_open)) {
+          // --- Vertical swipe: settings panel open (only from top 200px, music page only) ---
+          if (dy > 30 && sy < 200 && abs(dy) > abs(dx) * 2 && !id(is_panel_open) && id(current_view) == 1) {
             id(open_settings_panel).execute();
             return;
           }
@@ -278,8 +278,8 @@ touchscreen:
             return;
           }
 
-          // --- Horizontal swipe: track navigation (works when playing or paused) ---
-          if (abs(dx) > 80 && abs(dx) > abs(dy) * 2) {
+          // --- Horizontal swipe: track navigation (music page only) ---
+          if (abs(dx) > 80 && abs(dx) > abs(dy) * 2 && id(current_view) == 1) {
             bool can_skip = false;
             if (id(is_tv_mode)) {
               std::string e = id(linked_media_player_entity).state;

@@ -168,6 +168,12 @@ script:
           id: media_pause_icon
       - script.execute: show_track_view
       - script.execute: backlight_wake_timeout
+      - if:
+          condition:
+            lambda: 'return id(auto_switch_to_music);'
+          then:
+            - lambda: 'id(auto_switch_to_music) = false;'
+            - script.execute: show_idle_view
 
 text_sensor:
   - platform: template
@@ -307,6 +313,13 @@ text_sensor:
                             id(last_artwork_url) = (path.substr(0, 7) == "http://" || path.substr(0, 8) == "https://") ? path : (id(ha_base_url) + path);
                             id(last_artwork_url) = esphome::online_image::cap_artwork_url(id(last_artwork_url));
                         - script.execute: debounce_artwork_download
+                  # Auto-switch to music page when playing starts from idle view
+                  - if:
+                      condition:
+                        lambda: 'return id(current_view) == 0;'
+                      then:
+                        - lambda: 'id(auto_switch_to_music) = true;'
+                        - script.execute: show_music_view
                 else:
                   - if:
                       condition:

@@ -29,5 +29,6 @@ packages:
   sensors: !include device/sensors.yaml
   linked_sensors: !include device/linked_sensors.yaml
   lvgl: !include device/lvgl.yaml
+  navbar: !include device/navbar.yaml
   button: !include theme/button.yaml
   firmware_update: !include addon/firmware_update.yaml
