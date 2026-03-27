@@ -278,6 +278,12 @@ touchscreen:
             return;
           }
 
+          // --- Swipe up: go to idle screen (music page only) ---
+          if (dy < -80 && abs(dy) > abs(dx) * 2 && id(current_view) == 1) {
+            id(show_idle_view).execute();
+            return;
+          }
+
           // --- Horizontal swipe: track navigation (music page only) ---
           if (abs(dx) > 80 && abs(dx) > abs(dy) * 2 && id(current_view) == 1) {
             bool can_skip = false;
