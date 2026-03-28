@@ -41,7 +41,7 @@ script:
               "Sunday","Monday","Tuesday","Wednesday",
               "Thursday","Friday","Saturday"
             };
-            return std::string(days[t.day_of_week]);
+            return std::string(days[t.day_of_week - 1]);
       - lvgl.label.update:
           id: idle_date_label
           text: !lambda |-
