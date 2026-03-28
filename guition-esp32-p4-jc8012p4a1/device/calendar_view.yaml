@@ -76,7 +76,7 @@ script:
               (offset >= 2)  ? 80 : 255, 0);
 
           // Reset scroll to 6 AM
-          lv_obj_scroll_to_y(id(cal_grid_scroll), 6 * 44, LV_ANIM_OFF);
+          lv_obj_scroll_to_y(id(cal_grid_scroll), 7 * 44, LV_ANIM_OFF);
 
   # ---------------------------------------------------------------------------
   # render_calendar_grid
@@ -871,7 +871,7 @@ lvgl:
                   border_width: 0
                   radius: 0
 
-              # ---- Hour labels in gutter (every 2 hours for readability) ----
+              # ---- Hour labels in gutter (every hour) ----
               - label:
                   x: 0
                   y: 2
@@ -879,7 +879,16 @@ lvgl:
                   height: 40
                   text: "12 AM"
                   text_font: roboto19_font
-                  text_color: 0x555555
+                  text_color: 0x444444
+                  text_align: right
+              - label:
+                  x: 0
+                  y: 46
+                  width: 58
+                  height: 40
+                  text: "1 AM"
+                  text_font: roboto19_font
+                  text_color: 0x444444
                   text_align: right
               - label:
                   x: 0
@@ -888,7 +897,16 @@ lvgl:
                   height: 40
                   text: "2 AM"
                   text_font: roboto19_font
-                  text_color: 0x555555
+                  text_color: 0x444444
+                  text_align: right
+              - label:
+                  x: 0
+                  y: 134
+                  width: 58
+                  height: 40
+                  text: "3 AM"
+                  text_font: roboto19_font
+                  text_color: 0x444444
                   text_align: right
               - label:
                   x: 0
@@ -897,7 +915,16 @@ lvgl:
                   height: 40
                   text: "4 AM"
                   text_font: roboto19_font
-                  text_color: 0x555555
+                  text_color: 0x444444
+                  text_align: right
+              - label:
+                  x: 0
+                  y: 222
+                  width: 58
+                  height: 40
+                  text: "5 AM"
+                  text_font: roboto19_font
+                  text_color: 0x444444
                   text_align: right
               - label:
                   x: 0
@@ -906,7 +933,16 @@ lvgl:
                   height: 40
                   text: "6 AM"
                   text_font: roboto19_font
-                  text_color: 0x777777
+                  text_color: 0x666666
+                  text_align: right
+              - label:
+                  x: 0
+                  y: 310
+                  width: 58
+                  height: 40
+                  text: "7 AM"
+                  text_font: roboto19_font
+                  text_color: 0x666666
                   text_align: right
               - label:
                   x: 0
@@ -915,7 +951,16 @@ lvgl:
                   height: 40
                   text: "8 AM"
                   text_font: roboto19_font
-                  text_color: 0x777777
+                  text_color: 0x666666
+                  text_align: right
+              - label:
+                  x: 0
+                  y: 398
+                  width: 58
+                  height: 40
+                  text: "9 AM"
+                  text_font: roboto19_font
+                  text_color: 0x666666
                   text_align: right
               - label:
                   x: 0
@@ -924,7 +969,16 @@ lvgl:
                   height: 40
                   text: "10 AM"
                   text_font: roboto19_font
-                  text_color: 0x777777
+                  text_color: 0x666666
+                  text_align: right
+              - label:
+                  x: 0
+                  y: 486
+                  width: 58
+                  height: 40
+                  text: "11 AM"
+                  text_font: roboto19_font
+                  text_color: 0x666666
                   text_align: right
               - label:
                   x: 0
@@ -933,7 +987,16 @@ lvgl:
                   height: 40
                   text: "12 PM"
                   text_font: roboto19_font
-                  text_color: 0x888888
+                  text_color: 0x777777
+                  text_align: right
+              - label:
+                  x: 0
+                  y: 574
+                  width: 58
+                  height: 40
+                  text: "1 PM"
+                  text_font: roboto19_font
+                  text_color: 0x666666
                   text_align: right
               - label:
                   x: 0
@@ -942,7 +1005,16 @@ lvgl:
                   height: 40
                   text: "2 PM"
                   text_font: roboto19_font
-                  text_color: 0x777777
+                  text_color: 0x666666
+                  text_align: right
+              - label:
+                  x: 0
+                  y: 662
+                  width: 58
+                  height: 40
+                  text: "3 PM"
+                  text_font: roboto19_font
+                  text_color: 0x666666
                   text_align: right
               - label:
                   x: 0
@@ -951,7 +1023,16 @@ lvgl:
                   height: 40
                   text: "4 PM"
                   text_font: roboto19_font
-                  text_color: 0x777777
+                  text_color: 0x666666
+                  text_align: right
+              - label:
+                  x: 0
+                  y: 750
+                  width: 58
+                  height: 40
+                  text: "5 PM"
+                  text_font: roboto19_font
+                  text_color: 0x666666
                   text_align: right
               - label:
                   x: 0
@@ -960,7 +1041,16 @@ lvgl:
                   height: 40
                   text: "6 PM"
                   text_font: roboto19_font
-                  text_color: 0x777777
+                  text_color: 0x666666
+                  text_align: right
+              - label:
+                  x: 0
+                  y: 838
+                  width: 58
+                  height: 40
+                  text: "7 PM"
+                  text_font: roboto19_font
+                  text_color: 0x666666
                   text_align: right
               - label:
                   x: 0
@@ -969,7 +1059,16 @@ lvgl:
                   height: 40
                   text: "8 PM"
                   text_font: roboto19_font
-                  text_color: 0x777777
+                  text_color: 0x666666
+                  text_align: right
+              - label:
+                  x: 0
+                  y: 926
+                  width: 58
+                  height: 40
+                  text: "9 PM"
+                  text_font: roboto19_font
+                  text_color: 0x666666
                   text_align: right
               - label:
                   x: 0
@@ -978,7 +1077,16 @@ lvgl:
                   height: 40
                   text: "10 PM"
                   text_font: roboto19_font
-                  text_color: 0x555555
+                  text_color: 0x666666
+                  text_align: right
+              - label:
+                  x: 0
+                  y: 1014
+                  width: 58
+                  height: 40
+                  text: "11 PM"
+                  text_font: roboto19_font
+                  text_color: 0x444444
                   text_align: right
 
               # ---- Current time indicator (positioned by render_calendar_grid) ----
