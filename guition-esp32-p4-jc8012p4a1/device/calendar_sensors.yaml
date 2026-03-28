@@ -77,6 +77,17 @@ globals:
     type: int
     initial_value: '0'
 
+  # HTTP fetch buffers (used by fetch_calendar_week)
+  - id: cal_events_buf
+    type: std::string
+    initial_value: '""'
+  - id: cal_fetch_start   # "YYYY-MM-DDTHH:MM:SS" for the API query start
+    type: std::string
+    initial_value: '""'
+  - id: cal_fetch_end
+    type: std::string
+    initial_value: '""'
+
 
 # -----------------------------------------------------------------------------
 # Entity selector text entities (NVS-persisted, visible in device settings)
@@ -561,14 +572,6 @@ script:
           ESP_LOGI("calendar", "Slot 2: subscribed to '%s'", entity.c_str());
 
 
-# Re-subscribe after HA reconnect (merged with api block in device.yaml)
-api:
-  on_client_connected:
-    - script.execute: subscribe_calendar_0
-    - script.execute: subscribe_calendar_1
-    - script.execute: subscribe_calendar_2
-
-
 # =============================================================================
 # WEEK GRID — HTTP fetch from HA calendar REST API
 # =============================================================================
@@ -584,22 +587,7 @@ api:
 # ha_host / ha_port / ha_protocol substitutions come from packages.yaml.
 # =============================================================================
 
-globals:
-  - id: cal_events_buf
-    type: std::string
-    initial_value: '""'
-  - id: cal_fetch_start   # "YYYY-MM-DDTHH:MM:SS" for the API query start
-    type: std::string
-    initial_value: '""'
-  - id: cal_fetch_end
-    type: std::string
-    initial_value: '""'
-
-
 # ha_token comes from the ha_token substitution (set via !secret ha_token in your config)
-
-
-script:
 
   # ---------------------------------------------------------------------------
   # fetch_calendar_week
@@ -967,3 +955,11 @@ script:
                   ESP_LOGI("cal_fetch", "cal2 parsed OK, buf len=%d", (int)id(cal_events_buf).length());
                 }
       - script.execute: render_calendar_grid
+
+
+# Re-subscribe after HA reconnect (merged with api block in device.yaml)
+api:
+  on_client_connected:
+    - script.execute: subscribe_calendar_0
+    - script.execute: subscribe_calendar_1
+    - script.execute: subscribe_calendar_2
