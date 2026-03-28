@@ -269,6 +269,20 @@ touchscreen:
             return;
           }
 
+          // --- Navbar tap (y >= 740): view switching ---
+          // Handled here because LVGL lv_layer_top() hit-testing is unreliable when
+          // the active page has opaque full-screen widgets at the same y region.
+          // Buttons: x 0-319=Home, 320-639=Music, 640-959=Calendar, 960-1279=Climate
+          if (abs(dx) < 40 && abs(dy) < 40
+              && (id(touch_y_start) + id(touch_y_end)) / 2 >= 740) {
+            int tx = (id(touch_x_start) + id(touch_x_end)) / 2;
+            if (tx < 320)      id(show_idle_view).execute();
+            else if (tx < 640) id(show_music_view).execute();
+            else if (tx < 960) id(show_calendar_view).execute();
+            else               id(show_climate_view).execute();
+            return;
+          }
+
           // --- Vertical swipe: settings panel open (only from top 200px, music page only) ---
           if (dy > 30 && sy < 200 && abs(dy) > abs(dx) * 2 && !id(is_panel_open) && id(current_view) == 1) {
             id(open_settings_panel).execute();
