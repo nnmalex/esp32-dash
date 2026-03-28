@@ -165,20 +165,20 @@ script:
           // Calendar accent colors (matching calendar page slots)
           const uint32_t CAL_COLORS[3] = {0x4A90E2, 0x5BA55A, 0xE2914A};
 
-          // Agenda item struct (defined inline — valid C++11)
+          // Agenda item struct — uses fixed char buffers to avoid heap allocation
           struct AgendaItem {
-            std::string start;      // for sorting (ISO string compare)
-            std::string title;
-            std::string time_label; // e.g. "Today · 9:00 AM"
+            char start[20];       // "YYYY-MM-DD HH:MM:SS\0" for ISO sort
+            char title[64];
+            char time_label[48];  // "Tomorrow · 12:00 PM\0"
             uint32_t accent_color;
             bool is_past;
           };
 
           AgendaItem items[3];
           int item_count = 0;
+          memset(items, 0, sizeof(items));
 
           // Populate one item from a calendar slot's globals.
-          // Returns false if the event is not today/tomorrow or title is empty.
           auto add_event = [&](
               const std::string &title,
               const std::string &start,
@@ -189,22 +189,17 @@ script:
             if (title.empty()) return;
             if (start.length() < 10) return;
 
-            std::string start_date = start.substr(0, 10);
-            bool is_today    = (start_date == std::string(today_str));
-            bool is_tomorrow = (start_date == std::string(tomorrow_str));
+            bool is_today    = (strncmp(start.c_str(), today_str, 10) == 0);
+            bool is_tomorrow = (strncmp(start.c_str(), tomorrow_str, 10) == 0);
             if (!is_today && !is_tomorrow) return;
 
             bool is_allday = (all_day_s == "True" || all_day_s == "true" || all_day_s == "1");
 
             // Determine if event has passed
             bool is_past = false;
-            if (!is_allday) {
-              if (end_s.length() >= 19) {
-                // Full datetime end: compare lexicographically (ISO strings sort correctly)
-                is_past = (end_s < std::string(now_dt));
-              }
+            if (!is_allday && end_s.length() >= 19) {
+              is_past = (strncmp(end_s.c_str(), now_dt, 19) < 0);
             }
-            // All-day events on today are never considered past
 
             // Build human-readable time label  e.g. "Today · 9:00 AM"
             const char *day_prefix = is_today ? "Today" : "Tomorrow";
@@ -212,8 +207,8 @@ script:
             if (is_allday) {
               snprintf(time_buf, sizeof(time_buf), "%s \xc2\xb7 All Day", day_prefix);
             } else if (start.length() >= 16) {
-              int sh   = atoi(start.substr(11, 2).c_str());
-              int smin = atoi(start.substr(14, 2).c_str());
+              int sh   = atoi(start.c_str() + 11);
+              int smin = atoi(start.c_str() + 14);
               const char *ap = (sh >= 12) ? "PM" : "AM";
               int h12 = sh % 12;
               if (h12 == 0) h12 = 12;
@@ -224,8 +219,12 @@ script:
             }
 
             if (item_count < 3) {
-              items[item_count++] = {start, title, std::string(time_buf),
-                                     CAL_COLORS[cal_idx], is_past};
+              AgendaItem &item = items[item_count++];
+              strncpy(item.start,      start.c_str(),      sizeof(item.start)      - 1);
+              strncpy(item.title,      title.c_str(),      sizeof(item.title)      - 1);
+              strncpy(item.time_label, time_buf,           sizeof(item.time_label) - 1);
+              item.accent_color = CAL_COLORS[cal_idx];
+              item.is_past = is_past;
             }
           };
 
@@ -236,7 +235,7 @@ script:
           // Sort by start time (ISO string comparison is correct for YYYY-MM-DD HH:MM:SS)
           for (int i = 0; i < item_count - 1; i++) {
             for (int j = i + 1; j < item_count; j++) {
-              if (items[j].start < items[i].start) {
+              if (strcmp(items[j].start, items[i].start) < 0) {
                 AgendaItem tmp = items[i];
                 items[i] = items[j];
                 items[j] = tmp;
@@ -274,8 +273,8 @@ script:
               lv_obj_set_style_bg_color(accent_objs[i], lv_color_hex(accent_col), 0);
               lv_obj_set_style_text_color(time_labels[i], lv_color_hex(time_col), 0);
               lv_obj_set_style_text_color(title_labels[i], lv_color_hex(title_col), 0);
-              lv_label_set_text(time_labels[i], item.time_label.c_str());
-              lv_label_set_text(title_labels[i], item.title.c_str());
+              lv_label_set_text(time_labels[i], item.time_label);
+              lv_label_set_text(title_labels[i], item.title);
             } else {
               lv_obj_add_flag(slot_objs[i], LV_OBJ_FLAG_HIDDEN);
             }
