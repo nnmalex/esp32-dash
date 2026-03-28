@@ -33,3 +33,42 @@ packages:
 ```
 
 After flashing, add the device in Home Assistant and set the **Media Player** entity from the device settings page.
+
+## Home screen setup
+
+The home (idle) screen has a left panel with a weather background and a right panel with a calendar agenda.
+
+### Weather & calendar entities
+
+Set these from the device's settings page in HA (or via substitutions):
+
+| Setting | Description |
+|---|---|
+| **Weather Entity** | A `weather.*` entity (e.g. `weather.openweathermap`) |
+| **Local Temperature Sensor** | Optional `sensor.*` to override the displayed temperature |
+| **Calendar 1/2/3 Entity** | Up to three `calendar.*` entities — events are merged and sorted on the home screen |
+| **Sensor Tile Slot 1–4** | Any HA entity; its state is shown as a tile on the home screen. Tiles are hidden when no entity is set. |
+
+### Weather background images
+
+The left panel displays a JPEG image that matches the current weather condition. To enable:
+
+1. Create a folder on your HA server: `<config>/www/weather-backgrounds/`
+
+2. Add JPEG images named after OpenWeatherMap condition strings:
+   ```
+   clear-night.jpg   cloudy.jpg     exceptional.jpg   fog.jpg
+   hail.jpg          lightning.jpg  lightning-rainy.jpg
+   partlycloudy.jpg  pouring.jpg    rainy.jpg
+   snowy.jpg         snowy-rainy.jpg  sunny.jpg
+   windy.jpg         windy-variant.jpg
+   ```
+   Recommended resolution: **800 × 740 px**.
+
+3. Add the path to your ESPHome configuration:
+   ```yaml
+   substitutions:
+     weather_bg_path: "/local/weather-backgrounds"
+   ```
+
+Leave `weather_bg_path` unset (default) to skip background images and show a plain dark panel instead.

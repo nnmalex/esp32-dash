@@ -25,6 +25,7 @@ script:
     then:
       - lambda: 'id(current_view) = 0;'
       - script.execute: update_idle_clock
+      - script.execute: render_idle_agenda
       - lvgl.page.show: idle_page
       - lvgl.widget.show: nav_bar
 

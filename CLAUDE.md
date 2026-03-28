@@ -85,7 +85,9 @@ Four LVGL pages defined across two files (`device/lvgl.yaml` + `device/navbar.ya
   - Swipe-down (from top 200px): volume arc / speaker group overlay
   - Swipe-up: go to idle screen
   - Full-screen overlays: clock screensaver, setup prompts, loading screen
-- **`idle_page`** (Phase 3 complete) — clock/date, weather card, calendar preview placeholders, 4-tile sensor row
+- **`idle_page`** (Phase 4b complete) — two-pane layout
+  - Left 800px: weather background image + dark overlay; clock+date top-left; condition+temp top-right; up to 4 sensor tiles stacked vertically (hidden when entity not configured)
+  - Right 480px: merged calendar agenda (today+tomorrow from all 3 calendars, sorted, past events greyed out) — 5 agenda slots (`idle_agenda_slot_0..4`)
 - **`calendar_page`** (Phase 4 complete) — date header + 3 event slots (one per HA calendar entity), coloured left accent bars
 - **`climate_page`** — placeholder (Phase 5)
 
@@ -113,7 +115,8 @@ Media state driven by `sensors.yaml`: subscribes to HA entity attributes, interp
 Phase 1 (complete): scaffolding — 10" device, URLs updated, `main_page` → `music_page`.
 Phase 2 (complete): navbar, `current_view` global, auto-switching, swipe gestures scoped per view, swipe-up to idle.
 Phase 3 (complete): `device/idle_view.yaml` + `device/weather_sensors.yaml` — real idle page with clock, weather card, calendar preview placeholders, 4-tile sensor row; weather entity + 4 sensor row entities (NVS-persisted, gen-counter subscriptions).
-Phase 4 (complete): `device/calendar_view.yaml` + `device/calendar_sensors.yaml` — real calendar page; 3 calendar entity slots; populates idle_cal_event_0..2. Navbar now visible on all views including music; swipe-up-to-idle removed; progress bar moved to y=-60 (above navbar).
+Phase 4 (complete): `device/calendar_view.yaml` + `device/calendar_sensors.yaml` — real calendar page; 3 calendar entity slots.
+Phase 4b (complete): Idle view redesign — two-pane layout (800px left + 480px right). Left pane: weather background image (online_image, loaded from HA `/local/` path by condition name), dark overlay, clock+date top-left, weather condition+temperature top-right, up to 4 sensor tiles stacked vertically (hidden when entity not configured). Right pane: merged calendar agenda (today+tomorrow from all 3 calendars, sorted, past events greyed out). New substitutions: `weather_bg_path`, `local_temp_entity`. Key new IDs: `idle_weather_bg_image` (online_image in weather_sensors.yaml), `idle_sensor_tile_0..3`, `idle_agenda_slot_0..4`, `render_idle_agenda` script.
 
 ### Next: Phase 5
 
@@ -123,3 +126,39 @@ Phase 4 (complete): `device/calendar_view.yaml` + `device/calendar_sensors.yaml`
 | 5 | `device/climate_sensors.yaml` | `text` entities for 4× climate entities, HA subscriptions |
 
 Each new `*_sensors.yaml` follows the pattern in `device/media_player_select.yaml`: a `text` entity persisted in NVS, a generation-counter subscription script, and template sensors that drive LVGL widget updates via `on_value`.
+
+## Idle page: weather background images
+
+The left pane of the idle page displays a full-panel weather background image loaded from the HA server. Set up:
+
+1. **Substitution** — add to your `packages.yaml` substitutions:
+   ```yaml
+   weather_bg_path: "/local/weather-backgrounds"
+   ```
+   Leave empty (default) to disable — the panel shows a plain dark background.
+
+2. **Images** — place JPEG files at `<HA config>/www/weather-backgrounds/` named after the OpenWeatherMap condition strings HA reports:
+   ```
+   clear-night.jpg   cloudy.jpg        exceptional.jpg   fog.jpg
+   hail.jpg          lightning.jpg     lightning-rainy.jpg
+   partlycloudy.jpg  pouring.jpg       rainy.jpg
+   snowy.jpg         snowy-rainy.jpg   sunny.jpg
+   windy.jpg         windy-variant.jpg
+   ```
+   Recommended size: 800×740 px JPEG. The `online_image` component decodes and scales the image on-device.
+
+3. **Local temperature sensor** — optionally add to substitutions:
+   ```yaml
+   local_temp_entity: "sensor.indoor_temperature"
+   ```
+   When set, this sensor's value replaces the weather entity's temperature on the idle page. Can also be configured at runtime in HA device settings.
+
+## Idle page: key substitutions summary
+
+| Substitution | Default | Purpose |
+|---|---|---|
+| `weather_entity` | `""` | `weather.*` entity for condition + temperature |
+| `local_temp_entity` | `""` | Optional `sensor.*` to override displayed temperature |
+| `weather_bg_path` | `""` | HA `/local/` path for condition background images |
+| `idle_sensor_1..4` | `""` | Up to 4 arbitrary HA entities for sensor tiles |
+| `calendar_entity_1..3` | `""` | Up to 3 `calendar.*` entities for the agenda panel |

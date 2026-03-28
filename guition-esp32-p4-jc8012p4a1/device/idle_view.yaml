@@ -1,17 +1,23 @@
 # =============================================================================
-# IDLE VIEW - Home page with clock, weather, calendar preview, and sensor row
+# IDLE VIEW — Two-pane home screen: weather panel (left) + agenda (right)
 # =============================================================================
-# Replaces the placeholder idle_page from navbar.yaml.
+# Layout (1280×800, navbar at y=740 — usable height 740px):
 #
-# Layout (1280×800, navbar at y=740):
-#   Left column  (x=0..623, w=624):  clock + date + calendar preview
-#   Divider      (x=626, w=2)
-#   Right column (x=641..1279, w=639): weather card
-#   Sensor row   (y=640..740, h=100):  four configurable HA sensor tiles
+#   Left pane  (x=0..799,   w=800): weather background image + dark overlay
+#              Top-left:  clock (large) + day + date
+#              Top-right: weather condition + temperature
+#              Middle:    up to 4 sensor tiles (hidden when no entity set)
+#   Separator  (x=799, w=1)
+#   Right pane (x=800..1279, w=480): "UPCOMING" header + 5 agenda event slots
+#              Agenda shows today + tomorrow events from all calendar entities,
+#              sorted by start time; past events are greyed out.
 #
-# update_idle_clock is called from show_idle_view (navbar.yaml) and by a
-# 60 s interval while the idle page is active. Weather and sensor data come
-# from weather_sensors.yaml.
+# Scripts called from outside:
+#   update_idle_clock — called by show_idle_view (navbar.yaml) and 60 s interval
+#   render_idle_agenda — defined in calendar_sensors.yaml; called here too
+#
+# Weather background image (idle_weather_bg_image) is defined in
+# weather_sensors.yaml as an online_image. The image widget here references it.
 # =============================================================================
 
 script:
@@ -48,6 +54,7 @@ script:
             char buf[32];
             snprintf(buf, sizeof(buf), "%s %d", months[t.month - 1], t.day_of_month);
             return std::string(buf);
+      - script.execute: render_idle_agenda
 
 
 interval:
@@ -71,300 +78,504 @@ lvgl:
       pad_all: 0
       widgets:
 
-        # ----------------------------------------------------------------
-        # LEFT COLUMN: clock + date + calendar preview (x: 0..623)
-        # ----------------------------------------------------------------
+        # ================================================================
+        # LEFT PANE (x: 0..799, w=800, h=740)
+        # ================================================================
 
-        # Clock: HH:MM
-        - label:
-            id: idle_clock_label
+        # Layer 1: weather background image (drawn first — lowest z-order)
+        - image:
+            id: idle_weather_bg_widget
             x: 0
-            y: 90
-            width: 624
-            text_font: roboto_thin100_font
-            text_color: 0xFFFFFF
-            text_align: center
-            text: " "
+            y: 0
+            width: 800
+            height: 740
+            src: idle_weather_bg_image
+            opa: 100%
 
-        # Day name (e.g. "Monday")
-        - label:
-            id: idle_day_label
-            x: 0
-            y: 218
-            width: 624
-            text_font: roboto_light40_font
-            text_color: 0xAAAAAA
-            text_align: center
-            text: ""
-
-        # Date: "March 27"
-        - label:
-            id: idle_date_label
-            x: 0
-            y: 268
-            width: 624
-            text_font: roboto_light40_font
-            text_color: 0xAAAAAA
-            text_align: center
-            text: ""
-
-        # Calendar preview header
-        - label:
-            x: 48
-            y: 390
-            width: 584
-            text_font: roboto_light26_font
-            text_color: 0x555555
-            text_align: left
-            text: "UPCOMING"
-
-        # Calendar event lines — Phase 4 populates these via calendar_sensors.yaml
-        - label:
-            id: idle_cal_event_0
-            x: 48
-            y: 426
-            width: 584
-            text_font: roboto_light26_font
-            text_color: 0x888888
-            text_align: left
-            text: "—"
-
-        - label:
-            id: idle_cal_event_1
-            x: 48
-            y: 462
-            width: 584
-            text_font: roboto_light26_font
-            text_color: 0x888888
-            text_align: left
-            text: "—"
-
-        - label:
-            id: idle_cal_event_2
-            x: 48
-            y: 498
-            width: 584
-            text_font: roboto_light26_font
-            text_color: 0x888888
-            text_align: left
-            text: "—"
-
-        # ----------------------------------------------------------------
-        # Vertical divider
-        # ----------------------------------------------------------------
+        # Layer 2: dark overlay for text readability (drawn over image)
         - obj:
-            x: 626
-            y: 20
-            width: 2
-            height: 700
-            bg_color: 0x2A2A2A
-            bg_opa: 100%
+            x: 0
+            y: 0
+            width: 800
+            height: 740
+            bg_color: 0x000000
+            bg_opa: 62%
             border_width: 0
             radius: 0
             pad_all: 0
             scrollable: false
+            clickable: false
 
-        # ----------------------------------------------------------------
-        # RIGHT COLUMN: weather (x: 641..1279)
-        # ----------------------------------------------------------------
-
-        # Temperature  e.g. "22°"
+        # ---- Clock: top-left of left pane ----
         - label:
-            id: idle_weather_temp_label
-            x: 641
-            y: 80
-            width: 639
-            text_font: roboto_light88_font
+            id: idle_clock_label
+            x: 24
+            y: 20
+            width: 360
+            text_font: roboto_thin100_font
             text_color: 0xFFFFFF
-            text_align: center
-            text: "—"
+            text_align: left
+            text: " "
+
+        # Day name  e.g. "Monday"
+        - label:
+            id: idle_day_label
+            x: 26
+            y: 138
+            width: 220
+            text_font: roboto_light30_font
+            text_color: 0xBBBBBB
+            text_align: left
+            text: ""
+
+        # Date  e.g. "March 27"
+        - label:
+            id: idle_date_label
+            x: 26
+            y: 176
+            width: 220
+            text_font: roboto_light30_font
+            text_color: 0xBBBBBB
+            text_align: left
+            text: ""
+
+        # ---- Weather: top-right of left pane ----
 
         # Condition  e.g. "Partly Cloudy"
         - label:
             id: idle_weather_condition_label
-            x: 641
-            y: 186
-            width: 639
-            text_font: roboto_light40_font
+            x: 390
+            y: 28
+            width: 390
+            text_font: roboto_light30_font
             text_color: 0xCCCCCC
-            text_align: center
+            text_align: right
             text: "—"
 
-        # Humidity  e.g. "Humidity: 65%"
+        # Temperature  e.g. "22°"
         - label:
-            id: idle_weather_humidity_label
-            x: 641
-            y: 248
-            width: 639
-            text_font: roboto_light30_font
-            text_color: 0x888888
-            text_align: center
-            text: "Humidity: —"
+            id: idle_weather_temp_label
+            x: 390
+            y: 70
+            width: 390
+            text_font: roboto_light88_font
+            text_color: 0xFFFFFF
+            text_align: right
+            text: "—"
 
-        # Wind speed  e.g. "Wind: 14"
-        - label:
-            id: idle_weather_wind_label
-            x: 641
-            y: 293
-            width: 639
-            text_font: roboto_light30_font
-            text_color: 0x888888
-            text_align: center
-            text: "Wind: —"
+        # ---- Sensor tiles (stacked, hidden by default) ----
+        # Each tile is shown/hidden by subscribe_idle_sensor_N in weather_sensors.yaml.
+        # Tiles are absolutely positioned; gaps appear when inner tiles are hidden.
 
-        # Weather placeholder — covers right column when no entity is configured.
-        # Starts hidden; subscribe_weather shows it when entity is empty/invalid.
+        # Tile 0 (y: 264..343)
         - obj:
-            id: idle_weather_placeholder
-            x: 641
-            y: 0
-            width: 639
-            height: 640
-            bg_color: 0x111111
-            bg_opa: 100%
+            id: idle_sensor_tile_0
+            x: 0
+            y: 264
+            width: 780
+            height: 80
+            bg_opa: 0%
             border_width: 0
-            radius: 0
             pad_all: 0
+            radius: 0
+            scrollable: false
             hidden: true
             widgets:
               - label:
-                  text: "Set weather entity\nin device settings"
-                  text_font: roboto_light30_font
-                  text_color: 0x444444
-                  align: CENTER
+                  id: idle_sensor_name_0
+                  x: 26
+                  y: 2
+                  width: 754
+                  text_font: roboto_light26_font
+                  text_color: 0x888888
+                  text_align: left
+                  text: ""
+              - label:
+                  id: idle_sensor_value_0
+                  x: 26
+                  y: 34
+                  width: 754
+                  text_font: roboto_light40_font
+                  text_color: 0xFFFFFF
+                  text_align: left
+                  text: "—"
 
-        # ----------------------------------------------------------------
-        # SENSOR ROW (y: 640..740) — four configurable HA sensor tiles
-        # ----------------------------------------------------------------
+        # Tile 1 (y: 364..443)
         - obj:
+            id: idle_sensor_tile_1
             x: 0
-            y: 640
-            width: 1280
-            height: 100
-            bg_color: 0x1A1A1A
+            y: 364
+            width: 780
+            height: 80
+            bg_opa: 0%
+            border_width: 0
+            pad_all: 0
+            radius: 0
+            scrollable: false
+            hidden: true
+            widgets:
+              - label:
+                  id: idle_sensor_name_1
+                  x: 26
+                  y: 2
+                  width: 754
+                  text_font: roboto_light26_font
+                  text_color: 0x888888
+                  text_align: left
+                  text: ""
+              - label:
+                  id: idle_sensor_value_1
+                  x: 26
+                  y: 34
+                  width: 754
+                  text_font: roboto_light40_font
+                  text_color: 0xFFFFFF
+                  text_align: left
+                  text: "—"
+
+        # Tile 2 (y: 464..543)
+        - obj:
+            id: idle_sensor_tile_2
+            x: 0
+            y: 464
+            width: 780
+            height: 80
+            bg_opa: 0%
+            border_width: 0
+            pad_all: 0
+            radius: 0
+            scrollable: false
+            hidden: true
+            widgets:
+              - label:
+                  id: idle_sensor_name_2
+                  x: 26
+                  y: 2
+                  width: 754
+                  text_font: roboto_light26_font
+                  text_color: 0x888888
+                  text_align: left
+                  text: ""
+              - label:
+                  id: idle_sensor_value_2
+                  x: 26
+                  y: 34
+                  width: 754
+                  text_font: roboto_light40_font
+                  text_color: 0xFFFFFF
+                  text_align: left
+                  text: "—"
+
+        # Tile 3 (y: 564..643)
+        - obj:
+            id: idle_sensor_tile_3
+            x: 0
+            y: 564
+            width: 780
+            height: 80
+            bg_opa: 0%
+            border_width: 0
+            pad_all: 0
+            radius: 0
+            scrollable: false
+            hidden: true
+            widgets:
+              - label:
+                  id: idle_sensor_name_3
+                  x: 26
+                  y: 2
+                  width: 754
+                  text_font: roboto_light26_font
+                  text_color: 0x888888
+                  text_align: left
+                  text: ""
+              - label:
+                  id: idle_sensor_value_3
+                  x: 26
+                  y: 34
+                  width: 754
+                  text_font: roboto_light40_font
+                  text_color: 0xFFFFFF
+                  text_align: left
+                  text: "—"
+
+        # ================================================================
+        # Pane separator (x=799, 1px wide)
+        # ================================================================
+        - obj:
+            x: 799
+            y: 0
+            width: 1
+            height: 740
+            bg_color: 0x222222
             bg_opa: 100%
             border_width: 0
             radius: 0
             pad_all: 0
             scrollable: false
-            widgets:
 
-              # Tile 0 (x: 0..319)
+        # ================================================================
+        # RIGHT PANE (x: 800..1279, w=480, h=740) — Calendar agenda
+        # ================================================================
+
+        # Background
+        - obj:
+            x: 800
+            y: 0
+            width: 480
+            height: 740
+            bg_color: 0x0E0E0E
+            bg_opa: 100%
+            border_width: 0
+            radius: 0
+            pad_all: 0
+            scrollable: false
+
+        # "UPCOMING" section header
+        - label:
+            x: 820
+            y: 18
+            width: 440
+            text_font: roboto_light26_font
+            text_color: 0x444444
+            text_align: left
+            text: "UPCOMING"
+
+        # Separator under header (y=60)
+        - obj:
+            x: 800
+            y: 60
+            width: 480
+            height: 1
+            bg_color: 0x282828
+            bg_opa: 100%
+            border_width: 0
+            radius: 0
+            pad_all: 0
+
+        # ---- Agenda slot 0 (y: 61..195, h=135) ----
+        # Each slot: accent bar (4px left) + time label + title label
+        # Hidden by default; render_idle_agenda shows/hides and sets content.
+        - obj:
+            id: idle_agenda_slot_0
+            x: 800
+            y: 61
+            width: 480
+            height: 135
+            bg_color: 0x0E0E0E
+            bg_opa: 100%
+            border_width: 0
+            radius: 0
+            pad_all: 0
+            scrollable: false
+            hidden: true
+            widgets:
               - obj:
+                  id: idle_agenda_accent_0
                   x: 0
                   y: 0
-                  width: 320
-                  height: 100
-                  bg_opa: 0%
+                  width: 4
+                  height: 135
+                  bg_color: 0x4A90E2
+                  bg_opa: 100%
                   border_width: 0
+                  radius: 0
                   pad_all: 0
-                  scrollable: false
-                  widgets:
-                    - label:
-                        id: idle_sensor_name_0
-                        x: 0
-                        y: 12
-                        width: 320
-                        text_font: roboto_light26_font
-                        text_color: 0x666666
-                        text_align: center
-                        text: "—"
-                    - label:
-                        id: idle_sensor_value_0
-                        x: 0
-                        y: 46
-                        width: 320
-                        text_font: roboto_light40_font
-                        text_color: 0xFFFFFF
-                        text_align: center
-                        text: "—"
+              - label:
+                  id: idle_agenda_time_0
+                  x: 16
+                  y: 22
+                  width: 456
+                  text_font: roboto_light26_font
+                  text_color: 0x4A90E2
+                  text_align: left
+                  text: ""
+              - label:
+                  id: idle_agenda_title_0
+                  x: 16
+                  y: 64
+                  width: 456
+                  text_font: roboto_light40_font
+                  text_color: 0xDDDDDD
+                  text_align: left
+                  text: ""
 
-              # Tile 1 (x: 320..639)
+        # ---- Agenda slot 1 (y: 196..330, h=135) ----
+        - obj:
+            id: idle_agenda_slot_1
+            x: 800
+            y: 196
+            width: 480
+            height: 135
+            bg_color: 0x0E0E0E
+            bg_opa: 100%
+            border_width: 0
+            radius: 0
+            pad_all: 0
+            scrollable: false
+            hidden: true
+            widgets:
               - obj:
-                  x: 320
+                  id: idle_agenda_accent_1
+                  x: 0
                   y: 0
-                  width: 320
-                  height: 100
-                  bg_opa: 0%
+                  width: 4
+                  height: 135
+                  bg_color: 0x5BA55A
+                  bg_opa: 100%
                   border_width: 0
+                  radius: 0
                   pad_all: 0
-                  scrollable: false
-                  widgets:
-                    - label:
-                        id: idle_sensor_name_1
-                        x: 0
-                        y: 12
-                        width: 320
-                        text_font: roboto_light26_font
-                        text_color: 0x666666
-                        text_align: center
-                        text: "—"
-                    - label:
-                        id: idle_sensor_value_1
-                        x: 0
-                        y: 46
-                        width: 320
-                        text_font: roboto_light40_font
-                        text_color: 0xFFFFFF
-                        text_align: center
-                        text: "—"
+              - label:
+                  id: idle_agenda_time_1
+                  x: 16
+                  y: 22
+                  width: 456
+                  text_font: roboto_light26_font
+                  text_color: 0x5BA55A
+                  text_align: left
+                  text: ""
+              - label:
+                  id: idle_agenda_title_1
+                  x: 16
+                  y: 64
+                  width: 456
+                  text_font: roboto_light40_font
+                  text_color: 0xDDDDDD
+                  text_align: left
+                  text: ""
 
-              # Tile 2 (x: 640..959)
+        # ---- Agenda slot 2 (y: 331..465, h=135) ----
+        - obj:
+            id: idle_agenda_slot_2
+            x: 800
+            y: 331
+            width: 480
+            height: 135
+            bg_color: 0x0E0E0E
+            bg_opa: 100%
+            border_width: 0
+            radius: 0
+            pad_all: 0
+            scrollable: false
+            hidden: true
+            widgets:
               - obj:
-                  x: 640
+                  id: idle_agenda_accent_2
+                  x: 0
                   y: 0
-                  width: 320
-                  height: 100
-                  bg_opa: 0%
+                  width: 4
+                  height: 135
+                  bg_color: 0xE2914A
+                  bg_opa: 100%
                   border_width: 0
+                  radius: 0
                   pad_all: 0
-                  scrollable: false
-                  widgets:
-                    - label:
-                        id: idle_sensor_name_2
-                        x: 0
-                        y: 12
-                        width: 320
-                        text_font: roboto_light26_font
-                        text_color: 0x666666
-                        text_align: center
-                        text: "—"
-                    - label:
-                        id: idle_sensor_value_2
-                        x: 0
-                        y: 46
-                        width: 320
-                        text_font: roboto_light40_font
-                        text_color: 0xFFFFFF
-                        text_align: center
-                        text: "—"
+              - label:
+                  id: idle_agenda_time_2
+                  x: 16
+                  y: 22
+                  width: 456
+                  text_font: roboto_light26_font
+                  text_color: 0xE2914A
+                  text_align: left
+                  text: ""
+              - label:
+                  id: idle_agenda_title_2
+                  x: 16
+                  y: 64
+                  width: 456
+                  text_font: roboto_light40_font
+                  text_color: 0xDDDDDD
+                  text_align: left
+                  text: ""
 
-              # Tile 3 (x: 960..1279)
+        # ---- Agenda slot 3 (y: 466..600, h=135) ----
+        - obj:
+            id: idle_agenda_slot_3
+            x: 800
+            y: 466
+            width: 480
+            height: 135
+            bg_color: 0x0E0E0E
+            bg_opa: 100%
+            border_width: 0
+            radius: 0
+            pad_all: 0
+            scrollable: false
+            hidden: true
+            widgets:
               - obj:
-                  x: 960
+                  id: idle_agenda_accent_3
+                  x: 0
                   y: 0
-                  width: 320
-                  height: 100
-                  bg_opa: 0%
+                  width: 4
+                  height: 135
+                  bg_color: 0x4A90E2
+                  bg_opa: 100%
                   border_width: 0
+                  radius: 0
                   pad_all: 0
-                  scrollable: false
-                  widgets:
-                    - label:
-                        id: idle_sensor_name_3
-                        x: 0
-                        y: 12
-                        width: 320
-                        text_font: roboto_light26_font
-                        text_color: 0x666666
-                        text_align: center
-                        text: "—"
-                    - label:
-                        id: idle_sensor_value_3
-                        x: 0
-                        y: 46
-                        width: 320
-                        text_font: roboto_light40_font
-                        text_color: 0xFFFFFF
-                        text_align: center
-                        text: "—"
+              - label:
+                  id: idle_agenda_time_3
+                  x: 16
+                  y: 22
+                  width: 456
+                  text_font: roboto_light26_font
+                  text_color: 0x4A90E2
+                  text_align: left
+                  text: ""
+              - label:
+                  id: idle_agenda_title_3
+                  x: 16
+                  y: 64
+                  width: 456
+                  text_font: roboto_light40_font
+                  text_color: 0xDDDDDD
+                  text_align: left
+                  text: ""
+
+        # ---- Agenda slot 4 (y: 601..739, h=139) ----
+        - obj:
+            id: idle_agenda_slot_4
+            x: 800
+            y: 601
+            width: 480
+            height: 139
+            bg_color: 0x0E0E0E
+            bg_opa: 100%
+            border_width: 0
+            radius: 0
+            pad_all: 0
+            scrollable: false
+            hidden: true
+            widgets:
+              - obj:
+                  id: idle_agenda_accent_4
+                  x: 0
+                  y: 0
+                  width: 4
+                  height: 139
+                  bg_color: 0x5BA55A
+                  bg_opa: 100%
+                  border_width: 0
+                  radius: 0
+                  pad_all: 0
+              - label:
+                  id: idle_agenda_time_4
+                  x: 16
+                  y: 22
+                  width: 456
+                  text_font: roboto_light26_font
+                  text_color: 0x5BA55A
+                  text_align: left
+                  text: ""
+              - label:
+                  id: idle_agenda_title_4
+                  x: 16
+                  y: 64
+                  width: 456
+                  text_font: roboto_light40_font
+                  text_color: 0xDDDDDD
+                  text_align: left
+                  text: ""
