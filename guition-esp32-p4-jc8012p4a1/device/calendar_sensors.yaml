@@ -567,3 +567,403 @@ api:
     - script.execute: subscribe_calendar_0
     - script.execute: subscribe_calendar_1
     - script.execute: subscribe_calendar_2
+
+
+# =============================================================================
+# WEEK GRID — HTTP fetch from HA calendar REST API
+# =============================================================================
+# fetch_calendar_week  fetches up to 6 days of events from all 3 calendar
+# entities via GET /api/calendars/<entity>?start=...&end=... and populates
+# cal_events_buf with pipe-delimited lines:
+#   CAL_IDX|TITLE|START_ISO|END_ISO|ALLDAY\n
+# render_calendar_grid (calendar_view.yaml) then reads that buffer.
+#
+# Requires the user to set "HA Access Token" in HA device settings to a
+# Home Assistant long-lived access token.
+#
+# ha_host / ha_port / ha_protocol substitutions come from packages.yaml.
+# =============================================================================
+
+globals:
+  - id: cal_events_buf
+    type: std::string
+    initial_value: '""'
+  - id: cal_fetch_start   # "YYYY-MM-DDTHH:MM:SS" for the API query start
+    type: std::string
+    initial_value: '""'
+  - id: cal_fetch_end
+    type: std::string
+    initial_value: '""'
+
+
+# ha_token comes from the ha_token substitution (set via !secret ha_token in your config)
+
+
+script:
+
+  # ---------------------------------------------------------------------------
+  # fetch_calendar_week
+  # Entry point called by show_calendar_view and the prev/next nav buttons.
+  # Computes the 6-day window, clears the buffer, then chains through the
+  # three per-calendar fetches sequentially before calling render_calendar_grid.
+  # ---------------------------------------------------------------------------
+  - id: fetch_calendar_week
+    mode: restart
+    then:
+      - lambda: |-
+          auto t = id(ha_time).now();
+          if (!t.is_valid()) {
+            ESP_LOGW("cal_fetch", "Time not valid, skipping fetch");
+            return;
+          }
+
+          // Compute 6-day window: [today+offset, today+offset+6)
+          int offset = id(cal_view_offset);
+          time_t base_ts = t.timestamp + (long)offset * 86400L;
+          time_t end_ts  = base_ts + 6L * 86400L;
+
+          struct tm start_tm, end_tm;
+          localtime_r(&base_ts, &start_tm);
+          localtime_r(&end_ts,  &end_tm);
+
+          char s[21], e[21];
+          snprintf(s, sizeof(s), "%04d-%02d-%02dT00:00:00",
+                   start_tm.tm_year + 1900, start_tm.tm_mon + 1, start_tm.tm_mday);
+          snprintf(e, sizeof(e), "%04d-%02d-%02dT00:00:00",
+                   end_tm.tm_year + 1900,   end_tm.tm_mon + 1,   end_tm.tm_mday);
+
+          id(cal_fetch_start) = std::string(s);
+          id(cal_fetch_end)   = std::string(e);
+          id(cal_events_buf)  = "";
+
+          ESP_LOGI("cal_fetch", "Window %s .. %s", s, e);
+      - script.execute: fetch_cal_http_0
+
+  # ---------------------------------------------------------------------------
+  # Shared inline JSON parser — used by all three fetch scripts.
+  # Reads the HA calendar API response body and appends events to cal_events_buf.
+  # Returns early (no data appended) if token/entity is not configured.
+  # ---------------------------------------------------------------------------
+
+  # ---------------------------------------------------------------------------
+  # fetch_cal_http_0  — fetch calendar entity 0
+  # ---------------------------------------------------------------------------
+  - id: fetch_cal_http_0
+    mode: single
+    then:
+      - if:
+          condition:
+            lambda: |-
+              std::string e = id(calendar_entity_select_0).state;
+              return !e.empty() && e.length() > 9 && e.substr(0,9) == "calendar."
+                     && std::string("${ha_token}").length() > 0;
+          then:
+            - lambda: |-
+                std::string entity = id(calendar_entity_select_0).state;
+                std::string token  = "${ha_token}";
+                std::string url =
+                    std::string("${ha_protocol}://${ha_host}:${ha_port}/api/calendars/") +
+                    entity +
+                    "?start=" + id(cal_fetch_start) +
+                    "&end="   + id(cal_fetch_end);
+
+                std::list<esphome::http_request::Header> hdrs;
+                std::string auth = "Bearer " + token;
+                hdrs.push_back({"Authorization", auth.c_str()});
+
+                ESP_LOGI("cal_fetch", "GET cal 0: %s", url.c_str());
+                auto container = id(http_req)->get(url, hdrs);
+                if (!container || container->status_code != 200) {
+                  ESP_LOGW("cal_fetch", "cal0 HTTP %d",
+                           container ? container->status_code : -1);
+                  if (container) container->end();
+                  id(fetch_cal_http_1).execute();
+                  return;
+                }
+
+                // Read body
+                std::string body;
+                body.reserve(8192);
+                uint8_t buf[512];
+                int n;
+                while ((n = container->read(buf, sizeof(buf))) > 0)
+                  body.append(reinterpret_cast<char*>(buf), n);
+                container->end();
+
+                // Parse JSON and append to cal_events_buf (cal_idx = 0)
+                {
+                  int cal_idx = 0;
+                  const char *p = body.c_str();
+                  int depth = 0;
+                  const char *ev_start = nullptr;
+                  while (*p) {
+                    if (*p == '{') { if (++depth == 1) ev_start = p; }
+                    else if (*p == '}' && depth-- == 1 && ev_start) {
+                      std::string ev(ev_start, p + 1);
+                      ev_start = nullptr;
+
+                      // Extract summary
+                      const char *sk = strstr(ev.c_str(), "\"summary\":");
+                      if (!sk) { p++; continue; }
+                      const char *q1 = strchr(sk + 10, '"');
+                      if (!q1) { p++; continue; }
+                      q1++;
+                      const char *q2 = q1;
+                      while (*q2 && *q2 != '"') { if (*q2 == '\\') q2++; q2++; }
+                      std::string title(q1, q2);
+                      for (auto &c : title) if (c == '|') c = ' ';
+                      if (title.empty()) { p++; continue; }
+
+                      // Extract start (prefer dateTime over date)
+                      bool allday = false;
+                      char start_val[25] = "", end_val[25] = "";
+                      const char *stk = strstr(ev.c_str(), "\"start\":");
+                      if (stk) {
+                        const char *dt = strstr(stk, "\"dateTime\":");
+                        const char *d  = strstr(stk, "\"date\":");
+                        if (dt && (!d || dt < d)) {
+                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
+                          if (v1) { const char *v2 = strchr(v1, '"');
+                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 19)); }
+                        } else if (d) {
+                          allday = true;
+                          const char *v1 = strchr(d + 7, '"'); if (v1) v1++;
+                          if (v1) { const char *v2 = strchr(v1, '"');
+                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 10)); }
+                        }
+                      }
+                      if (start_val[0] == '\0') { p++; continue; }
+
+                      // Extract end dateTime
+                      const char *enk = strstr(ev.c_str(), "\"end\":");
+                      if (enk && !allday) {
+                        const char *dt = strstr(enk, "\"dateTime\":");
+                        if (dt) {
+                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
+                          if (v1) { const char *v2 = strchr(v1, '"');
+                                    if (v2) strncpy(end_val, v1, std::min((int)(v2-v1), 19)); }
+                        }
+                      }
+
+                      char line[300];
+                      snprintf(line, sizeof(line), "%d|%s|%s|%s|%d\n",
+                               cal_idx, title.c_str(), start_val, end_val, allday ? 1 : 0);
+                      id(cal_events_buf) += line;
+                    }
+                    p++;
+                  }
+                  ESP_LOGI("cal_fetch", "cal0 parsed OK, buf len=%d", (int)id(cal_events_buf).length());
+                }
+      - script.execute: fetch_cal_http_1
+
+  # ---------------------------------------------------------------------------
+  # fetch_cal_http_1  — fetch calendar entity 1
+  # ---------------------------------------------------------------------------
+  - id: fetch_cal_http_1
+    mode: single
+    then:
+      - if:
+          condition:
+            lambda: |-
+              std::string e = id(calendar_entity_select_1).state;
+              return !e.empty() && e.length() > 9 && e.substr(0,9) == "calendar."
+                     && std::string("${ha_token}").length() > 0;
+          then:
+            - lambda: |-
+                std::string entity = id(calendar_entity_select_1).state;
+                std::string token  = "${ha_token}";
+                std::string url =
+                    std::string("${ha_protocol}://${ha_host}:${ha_port}/api/calendars/") +
+                    entity +
+                    "?start=" + id(cal_fetch_start) +
+                    "&end="   + id(cal_fetch_end);
+
+                std::list<esphome::http_request::Header> hdrs;
+                std::string auth = "Bearer " + token;
+                hdrs.push_back({"Authorization", auth.c_str()});
+
+                ESP_LOGI("cal_fetch", "GET cal 1: %s", url.c_str());
+                auto container = id(http_req)->get(url, hdrs);
+                if (!container || container->status_code != 200) {
+                  ESP_LOGW("cal_fetch", "cal1 HTTP %d",
+                           container ? container->status_code : -1);
+                  if (container) container->end();
+                  id(fetch_cal_http_2).execute();
+                  return;
+                }
+
+                std::string body;
+                body.reserve(8192);
+                uint8_t buf[512];
+                int n;
+                while ((n = container->read(buf, sizeof(buf))) > 0)
+                  body.append(reinterpret_cast<char*>(buf), n);
+                container->end();
+
+                {
+                  int cal_idx = 1;
+                  const char *p = body.c_str();
+                  int depth = 0;
+                  const char *ev_start = nullptr;
+                  while (*p) {
+                    if (*p == '{') { if (++depth == 1) ev_start = p; }
+                    else if (*p == '}' && depth-- == 1 && ev_start) {
+                      std::string ev(ev_start, p + 1);
+                      ev_start = nullptr;
+
+                      const char *sk = strstr(ev.c_str(), "\"summary\":");
+                      if (!sk) { p++; continue; }
+                      const char *q1 = strchr(sk + 10, '"');
+                      if (!q1) { p++; continue; }
+                      q1++;
+                      const char *q2 = q1;
+                      while (*q2 && *q2 != '"') { if (*q2 == '\\') q2++; q2++; }
+                      std::string title(q1, q2);
+                      for (auto &c : title) if (c == '|') c = ' ';
+                      if (title.empty()) { p++; continue; }
+
+                      bool allday = false;
+                      char start_val[25] = "", end_val[25] = "";
+                      const char *stk = strstr(ev.c_str(), "\"start\":");
+                      if (stk) {
+                        const char *dt = strstr(stk, "\"dateTime\":");
+                        const char *d  = strstr(stk, "\"date\":");
+                        if (dt && (!d || dt < d)) {
+                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
+                          if (v1) { const char *v2 = strchr(v1, '"');
+                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 19)); }
+                        } else if (d) {
+                          allday = true;
+                          const char *v1 = strchr(d + 7, '"'); if (v1) v1++;
+                          if (v1) { const char *v2 = strchr(v1, '"');
+                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 10)); }
+                        }
+                      }
+                      if (start_val[0] == '\0') { p++; continue; }
+
+                      const char *enk = strstr(ev.c_str(), "\"end\":");
+                      if (enk && !allday) {
+                        const char *dt = strstr(enk, "\"dateTime\":");
+                        if (dt) {
+                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
+                          if (v1) { const char *v2 = strchr(v1, '"');
+                                    if (v2) strncpy(end_val, v1, std::min((int)(v2-v1), 19)); }
+                        }
+                      }
+
+                      char line[300];
+                      snprintf(line, sizeof(line), "%d|%s|%s|%s|%d\n",
+                               cal_idx, title.c_str(), start_val, end_val, allday ? 1 : 0);
+                      id(cal_events_buf) += line;
+                    }
+                    p++;
+                  }
+                  ESP_LOGI("cal_fetch", "cal1 parsed OK, buf len=%d", (int)id(cal_events_buf).length());
+                }
+      - script.execute: fetch_cal_http_2
+
+  # ---------------------------------------------------------------------------
+  # fetch_cal_http_2  — fetch calendar entity 2, then render
+  # ---------------------------------------------------------------------------
+  - id: fetch_cal_http_2
+    mode: single
+    then:
+      - if:
+          condition:
+            lambda: |-
+              std::string e = id(calendar_entity_select_2).state;
+              return !e.empty() && e.length() > 9 && e.substr(0,9) == "calendar."
+                     && std::string("${ha_token}").length() > 0;
+          then:
+            - lambda: |-
+                std::string entity = id(calendar_entity_select_2).state;
+                std::string token  = "${ha_token}";
+                std::string url =
+                    std::string("${ha_protocol}://${ha_host}:${ha_port}/api/calendars/") +
+                    entity +
+                    "?start=" + id(cal_fetch_start) +
+                    "&end="   + id(cal_fetch_end);
+
+                std::list<esphome::http_request::Header> hdrs;
+                std::string auth = "Bearer " + token;
+                hdrs.push_back({"Authorization", auth.c_str()});
+
+                ESP_LOGI("cal_fetch", "GET cal 2: %s", url.c_str());
+                auto container = id(http_req)->get(url, hdrs);
+                if (!container || container->status_code != 200) {
+                  ESP_LOGW("cal_fetch", "cal2 HTTP %d",
+                           container ? container->status_code : -1);
+                  if (container) container->end();
+                  id(render_calendar_grid).execute();
+                  return;
+                }
+
+                std::string body;
+                body.reserve(8192);
+                uint8_t buf[512];
+                int n;
+                while ((n = container->read(buf, sizeof(buf))) > 0)
+                  body.append(reinterpret_cast<char*>(buf), n);
+                container->end();
+
+                {
+                  int cal_idx = 2;
+                  const char *p = body.c_str();
+                  int depth = 0;
+                  const char *ev_start = nullptr;
+                  while (*p) {
+                    if (*p == '{') { if (++depth == 1) ev_start = p; }
+                    else if (*p == '}' && depth-- == 1 && ev_start) {
+                      std::string ev(ev_start, p + 1);
+                      ev_start = nullptr;
+
+                      const char *sk = strstr(ev.c_str(), "\"summary\":");
+                      if (!sk) { p++; continue; }
+                      const char *q1 = strchr(sk + 10, '"');
+                      if (!q1) { p++; continue; }
+                      q1++;
+                      const char *q2 = q1;
+                      while (*q2 && *q2 != '"') { if (*q2 == '\\') q2++; q2++; }
+                      std::string title(q1, q2);
+                      for (auto &c : title) if (c == '|') c = ' ';
+                      if (title.empty()) { p++; continue; }
+
+                      bool allday = false;
+                      char start_val[25] = "", end_val[25] = "";
+                      const char *stk = strstr(ev.c_str(), "\"start\":");
+                      if (stk) {
+                        const char *dt = strstr(stk, "\"dateTime\":");
+                        const char *d  = strstr(stk, "\"date\":");
+                        if (dt && (!d || dt < d)) {
+                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
+                          if (v1) { const char *v2 = strchr(v1, '"');
+                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 19)); }
+                        } else if (d) {
+                          allday = true;
+                          const char *v1 = strchr(d + 7, '"'); if (v1) v1++;
+                          if (v1) { const char *v2 = strchr(v1, '"');
+                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 10)); }
+                        }
+                      }
+                      if (start_val[0] == '\0') { p++; continue; }
+
+                      const char *enk = strstr(ev.c_str(), "\"end\":");
+                      if (enk && !allday) {
+                        const char *dt = strstr(enk, "\"dateTime\":");
+                        if (dt) {
+                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
+                          if (v1) { const char *v2 = strchr(v1, '"');
+                                    if (v2) strncpy(end_val, v1, std::min((int)(v2-v1), 19)); }
+                        }
+                      }
+
+                      char line[300];
+                      snprintf(line, sizeof(line), "%d|%s|%s|%s|%d\n",
+                               cal_idx, title.c_str(), start_val, end_val, allday ? 1 : 0);
+                      id(cal_events_buf) += line;
+                    }
+                    p++;
+                  }
+                  ESP_LOGI("cal_fetch", "cal2 parsed OK, buf len=%d", (int)id(cal_events_buf).length());
+                }
+      - script.execute: render_calendar_grid

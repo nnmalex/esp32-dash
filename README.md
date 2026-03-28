@@ -72,3 +72,26 @@ The left panel displays a JPEG image that matches the current weather condition.
    ```
 
 Leave `weather_bg_path` unset (default) to skip background images and show a plain dark panel instead.
+
+## Calendar week view
+
+The calendar screen shows a 5-day grid with events from all three configured calendar entities. The view defaults to 6 AM–9 PM and can be scrolled up/down; nav arrows shift the window one day back or up to two days forward.
+
+Events are fetched from the HA REST API, which requires a long-lived access token.
+
+### Getting a token
+
+1. In HA, go to your **Profile → Security → Long-lived access tokens** and create a token.
+
+2. Add it to your `secrets.yaml`:
+   ```yaml
+   ha_token: eyJhbGc...your_token_here
+   ```
+
+3. Pass it as a substitution in your ESPHome config:
+   ```yaml
+   substitutions:
+     ha_token: !secret ha_token
+   ```
+
+The token is compiled into the firmware and never exposed in the HA device settings UI.
