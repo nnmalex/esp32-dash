@@ -12,6 +12,7 @@ substitutions:
   friendly_name: "ESP32 Dash"
   # ha_host: "homeassistant.local"  # change if HA is on a different host
   # ha_port: "8123"
+  ha_token: !secret ha_token       # long-lived token for calendar week view
   # Display rotation: 90 (default landscape) or 270 (flipped landscape)
   # display_rotation: "270"
   # Touch transform (must match display_rotation):
