@@ -381,6 +381,8 @@ script:
             lv_obj_add_flag(id(idle_sensor_tile_0), LV_OBJ_FLAG_HIDDEN);
             lv_label_set_text(id(idle_sensor_name_0), "");
             lv_label_set_text(id(idle_sensor_value_0), "\xe2\x80\x94");
+            lv_label_set_text(id(idle_sensor_icon_0), "");
+            lv_label_set_text(id(idle_sensor_unit_0), "");
             return;
           }
 
@@ -395,6 +397,8 @@ script:
             else { cap = false; }
           }
           lv_label_set_text(id(idle_sensor_name_0), name.c_str());
+          lv_label_set_text(id(idle_sensor_icon_0), "\U000F0208");  // eye fallback
+          lv_label_set_text(id(idle_sensor_unit_0), "");
           lv_obj_clear_flag(id(idle_sensor_tile_0), LV_OBJ_FLAG_HIDDEN);
 
           if (esphome::api::global_api_server == nullptr) return;
@@ -418,6 +422,36 @@ script:
                 if (!state.empty()) lv_label_set_text(id(idle_sensor_name_0), state.c_str());
               }));
 
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("unit_of_measurement"),
+              str_cb([gen, gen_ptr](const std::string &unit) {
+                if (gen != *gen_ptr) return;
+                lv_label_set_text(id(idle_sensor_unit_0), unit.c_str());
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
+              str_cb([gen, gen_ptr](const std::string &icon_attr) {
+                if (gen != *gen_ptr) return;
+                const char *ic;
+                if (icon_attr == "mdi:thermometer" ||
+                    icon_attr == "mdi:thermometer-low" ||
+                    icon_attr == "mdi:thermometer-high") {
+                  ic = "\U000F050F";
+                } else if (icon_attr == "mdi:water-percent") {
+                  ic = "\U000F07E4";
+                } else if (icon_attr == "mdi:gauge") {
+                  ic = "\U000F028A";
+                } else if (icon_attr == "mdi:water") {
+                  ic = "\U000F04E3";
+                } else if (icon_attr == "mdi:weather-windy") {
+                  ic = "\U000F059E";
+                } else if (icon_attr == "mdi:lightning-bolt") {
+                  ic = "\U000F140B";
+                } else {
+                  ic = "\U000F0208";  // mdi:eye fallback
+                }
+                lv_label_set_text(id(idle_sensor_icon_0), ic);
+              }));
+
           ESP_LOGI("idle_sensors", "Tile 0: subscribed to '%s'", entity.c_str());
 
   - id: subscribe_idle_sensor_1
@@ -430,6 +464,8 @@ script:
             lv_obj_add_flag(id(idle_sensor_tile_1), LV_OBJ_FLAG_HIDDEN);
             lv_label_set_text(id(idle_sensor_name_1), "");
             lv_label_set_text(id(idle_sensor_value_1), "\xe2\x80\x94");
+            lv_label_set_text(id(idle_sensor_icon_1), "");
+            lv_label_set_text(id(idle_sensor_unit_1), "");
             return;
           }
 
@@ -443,6 +479,8 @@ script:
             else { cap = false; }
           }
           lv_label_set_text(id(idle_sensor_name_1), name.c_str());
+          lv_label_set_text(id(idle_sensor_icon_1), "\U000F0208");  // eye fallback
+          lv_label_set_text(id(idle_sensor_unit_1), "");
           lv_obj_clear_flag(id(idle_sensor_tile_1), LV_OBJ_FLAG_HIDDEN);
 
           if (esphome::api::global_api_server == nullptr) return;
@@ -466,6 +504,36 @@ script:
                 if (!state.empty()) lv_label_set_text(id(idle_sensor_name_1), state.c_str());
               }));
 
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("unit_of_measurement"),
+              str_cb([gen, gen_ptr](const std::string &unit) {
+                if (gen != *gen_ptr) return;
+                lv_label_set_text(id(idle_sensor_unit_1), unit.c_str());
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
+              str_cb([gen, gen_ptr](const std::string &icon_attr) {
+                if (gen != *gen_ptr) return;
+                const char *ic;
+                if (icon_attr == "mdi:thermometer" ||
+                    icon_attr == "mdi:thermometer-low" ||
+                    icon_attr == "mdi:thermometer-high") {
+                  ic = "\U000F050F";
+                } else if (icon_attr == "mdi:water-percent") {
+                  ic = "\U000F07E4";
+                } else if (icon_attr == "mdi:gauge") {
+                  ic = "\U000F028A";
+                } else if (icon_attr == "mdi:water") {
+                  ic = "\U000F04E3";
+                } else if (icon_attr == "mdi:weather-windy") {
+                  ic = "\U000F059E";
+                } else if (icon_attr == "mdi:lightning-bolt") {
+                  ic = "\U000F140B";
+                } else {
+                  ic = "\U000F0208";  // mdi:eye fallback
+                }
+                lv_label_set_text(id(idle_sensor_icon_1), ic);
+              }));
+
           ESP_LOGI("idle_sensors", "Tile 1: subscribed to '%s'", entity.c_str());
 
   - id: subscribe_idle_sensor_2
@@ -478,6 +546,8 @@ script:
             lv_obj_add_flag(id(idle_sensor_tile_2), LV_OBJ_FLAG_HIDDEN);
             lv_label_set_text(id(idle_sensor_name_2), "");
             lv_label_set_text(id(idle_sensor_value_2), "\xe2\x80\x94");
+            lv_label_set_text(id(idle_sensor_icon_2), "");
+            lv_label_set_text(id(idle_sensor_unit_2), "");
             return;
           }
 
@@ -491,6 +561,8 @@ script:
             else { cap = false; }
           }
           lv_label_set_text(id(idle_sensor_name_2), name.c_str());
+          lv_label_set_text(id(idle_sensor_icon_2), "\U000F0208");  // eye fallback
+          lv_label_set_text(id(idle_sensor_unit_2), "");
           lv_obj_clear_flag(id(idle_sensor_tile_2), LV_OBJ_FLAG_HIDDEN);
 
           if (esphome::api::global_api_server == nullptr) return;
@@ -514,6 +586,36 @@ script:
                 if (!state.empty()) lv_label_set_text(id(idle_sensor_name_2), state.c_str());
               }));
 
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("unit_of_measurement"),
+              str_cb([gen, gen_ptr](const std::string &unit) {
+                if (gen != *gen_ptr) return;
+                lv_label_set_text(id(idle_sensor_unit_2), unit.c_str());
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
+              str_cb([gen, gen_ptr](const std::string &icon_attr) {
+                if (gen != *gen_ptr) return;
+                const char *ic;
+                if (icon_attr == "mdi:thermometer" ||
+                    icon_attr == "mdi:thermometer-low" ||
+                    icon_attr == "mdi:thermometer-high") {
+                  ic = "\U000F050F";
+                } else if (icon_attr == "mdi:water-percent") {
+                  ic = "\U000F07E4";
+                } else if (icon_attr == "mdi:gauge") {
+                  ic = "\U000F028A";
+                } else if (icon_attr == "mdi:water") {
+                  ic = "\U000F04E3";
+                } else if (icon_attr == "mdi:weather-windy") {
+                  ic = "\U000F059E";
+                } else if (icon_attr == "mdi:lightning-bolt") {
+                  ic = "\U000F140B";
+                } else {
+                  ic = "\U000F0208";  // mdi:eye fallback
+                }
+                lv_label_set_text(id(idle_sensor_icon_2), ic);
+              }));
+
           ESP_LOGI("idle_sensors", "Tile 2: subscribed to '%s'", entity.c_str());
 
   - id: subscribe_idle_sensor_3
@@ -526,6 +628,8 @@ script:
             lv_obj_add_flag(id(idle_sensor_tile_3), LV_OBJ_FLAG_HIDDEN);
             lv_label_set_text(id(idle_sensor_name_3), "");
             lv_label_set_text(id(idle_sensor_value_3), "\xe2\x80\x94");
+            lv_label_set_text(id(idle_sensor_icon_3), "");
+            lv_label_set_text(id(idle_sensor_unit_3), "");
             return;
           }
 
@@ -539,6 +643,8 @@ script:
             else { cap = false; }
           }
           lv_label_set_text(id(idle_sensor_name_3), name.c_str());
+          lv_label_set_text(id(idle_sensor_icon_3), "\U000F0208");  // eye fallback
+          lv_label_set_text(id(idle_sensor_unit_3), "");
           lv_obj_clear_flag(id(idle_sensor_tile_3), LV_OBJ_FLAG_HIDDEN);
 
           if (esphome::api::global_api_server == nullptr) return;
@@ -560,6 +666,36 @@ script:
               str_cb([gen, gen_ptr](const std::string &state) {
                 if (gen != *gen_ptr) return;
                 if (!state.empty()) lv_label_set_text(id(idle_sensor_name_3), state.c_str());
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("unit_of_measurement"),
+              str_cb([gen, gen_ptr](const std::string &unit) {
+                if (gen != *gen_ptr) return;
+                lv_label_set_text(id(idle_sensor_unit_3), unit.c_str());
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
+              str_cb([gen, gen_ptr](const std::string &icon_attr) {
+                if (gen != *gen_ptr) return;
+                const char *ic;
+                if (icon_attr == "mdi:thermometer" ||
+                    icon_attr == "mdi:thermometer-low" ||
+                    icon_attr == "mdi:thermometer-high") {
+                  ic = "\U000F050F";
+                } else if (icon_attr == "mdi:water-percent") {
+                  ic = "\U000F07E4";
+                } else if (icon_attr == "mdi:gauge") {
+                  ic = "\U000F028A";
+                } else if (icon_attr == "mdi:water") {
+                  ic = "\U000F04E3";
+                } else if (icon_attr == "mdi:weather-windy") {
+                  ic = "\U000F059E";
+                } else if (icon_attr == "mdi:lightning-bolt") {
+                  ic = "\U000F140B";
+                } else {
+                  ic = "\U000F0208";  // mdi:eye fallback
+                }
+                lv_label_set_text(id(idle_sensor_icon_3), ic);
               }));
 
           ESP_LOGI("idle_sensors", "Tile 3: subscribed to '%s'", entity.c_str());
