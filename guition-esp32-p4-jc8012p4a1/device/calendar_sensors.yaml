@@ -11,9 +11,11 @@
 # Updates calendar page labels (cal_time_label_N, cal_title_label_N,
 # cal_desc_label_N) AND the idle page agenda via render_idle_agenda.
 #
-# render_idle_agenda collects all three slots, filters to today+tomorrow,
-# sorts by start_time, and assigns to idle_agenda_slot_0..4 with colour
-# and greying for past events (end_time < now).
+# fetch_idle_agenda fetches today+tomorrow events from all three calendar
+# entities via the HA REST API, stores them in idle_events_buf (pipe-delimited),
+# then calls render_idle_agenda to populate idle_agenda_slot_0..4 (up to 5
+# events sorted by start_time, past events greyed). Falls back to subscription
+# globals when ha_token is not configured.
 #
 # Follows the generation-counter pattern from media_player_select.yaml.
 # =============================================================================
@@ -88,6 +90,17 @@ globals:
     type: std::string
     initial_value: '""'
 
+  # HTTP fetch buffers (used by fetch_idle_agenda — idle page agenda)
+  - id: idle_events_buf
+    type: std::string
+    initial_value: '""'
+  - id: idle_fetch_start
+    type: std::string
+    initial_value: '""'
+  - id: idle_fetch_end
+    type: std::string
+    initial_value: '""'
+
 
 # -----------------------------------------------------------------------------
 # Entity selector text entities (NVS-persisted, visible in device settings)
@@ -144,10 +157,12 @@ script:
   # ---------------------------------------------------------------------------
   # render_idle_agenda
   # ---------------------------------------------------------------------------
-  # Collects events from all 3 calendar slots, filters to today+tomorrow,
-  # sorts by start_time, and populates idle_agenda_slot_0..4.
-  # Past events (end_time < now) are greyed out.
-  # Called by show_idle_view, update_idle_clock, and each calendar callback.
+  # Populates idle_agenda_slot_0..4 from idle_events_buf (fetched by
+  # fetch_idle_agenda via HTTP API). Falls back to subscription globals
+  # (cal_title/start/end_N) when the buffer is empty (no ha_token set).
+  # Past events are greyed out; up to 20 events collected before slot capping.
+  # Called by fetch_idle_agenda (after fetch), update_idle_clock (re-render),
+  # and calendar subscription callbacks (re-render from existing buffer).
   # ---------------------------------------------------------------------------
   - id: render_idle_agenda
     mode: single
@@ -167,7 +182,7 @@ script:
           snprintf(tomorrow_str, sizeof(tomorrow_str), "%04d-%02d-%02d",
                    tm_buf.tm_year + 1900, tm_buf.tm_mon + 1, tm_buf.tm_mday);
 
-          // Build now datetime string for past-event comparison
+          // Build now datetime string for past-event comparison ("YYYY-MM-DD HH:MM:SS")
           char now_dt[20];
           snprintf(now_dt, sizeof(now_dt), "%04d-%02d-%02d %02d:%02d:%02d",
                    now_time.year, now_time.month, now_time.day_of_month,
@@ -176,37 +191,42 @@ script:
           // Calendar accent colors (matching calendar page slots)
           const uint32_t CAL_COLORS[3] = {0x4A90E2, 0x5BA55A, 0xE2914A};
 
-          // Agenda item struct — uses fixed char buffers to avoid heap allocation
+          // Agenda item struct — fixed char buffers to avoid heap allocation
           struct AgendaItem {
-            char start[20];       // "YYYY-MM-DD HH:MM:SS\0" for ISO sort
+            char start[20];       // "YYYY-MM-DD HH:MM:SS\0" (normalized, space sep)
             char title[64];
             char time_label[48];  // "Tomorrow · 12:00 PM\0"
             uint32_t accent_color;
             bool is_past;
           };
 
-          AgendaItem items[3];
+          // Allow up to 20 items (all today+tomorrow events across 3 calendars)
+          AgendaItem items[20];
           int item_count = 0;
           memset(items, 0, sizeof(items));
 
-          // Populate one item from a calendar slot's globals.
-          auto add_event = [&](
-              const std::string &title,
-              const std::string &start,
-              const std::string &end_s,
-              const std::string &all_day_s,
+          // Helper: build a time_label string and add to items[].
+          auto add_item = [&](
+              const char *title_c,
+              std::string start,   // mutable copy — we normalize T→space
+              const std::string &end_s_in,
+              bool is_allday,
               int cal_idx) {
 
-            if (title.empty()) return;
+            if (!title_c || title_c[0] == '\0') return;
             if (start.length() < 10) return;
+            if (item_count >= 20) return;
 
             bool is_today    = (strncmp(start.c_str(), today_str, 10) == 0);
             bool is_tomorrow = (strncmp(start.c_str(), tomorrow_str, 10) == 0);
             if (!is_today && !is_tomorrow) return;
 
-            bool is_allday = (all_day_s == "True" || all_day_s == "true" || all_day_s == "1");
+            // Normalize T separator → space for consistent ISO comparison
+            if (start.length() >= 11 && start[10] == 'T') start[10] = ' ';
+            std::string end_s = end_s_in;
+            if (end_s.length() >= 11 && end_s[10] == 'T') end_s[10] = ' ';
 
-            // Determine if event has passed
+            // Is past?
             bool is_past = false;
             if (!is_allday && end_s.length() >= 19) {
               is_past = (strncmp(end_s.c_str(), now_dt, 19) < 0);
@@ -229,21 +249,58 @@ script:
               snprintf(time_buf, sizeof(time_buf), "%s", day_prefix);
             }
 
-            if (item_count < 3) {
-              AgendaItem &item = items[item_count++];
-              strncpy(item.start,      start.c_str(),      sizeof(item.start)      - 1);
-              strncpy(item.title,      title.c_str(),      sizeof(item.title)      - 1);
-              strncpy(item.time_label, time_buf,           sizeof(item.time_label) - 1);
-              item.accent_color = CAL_COLORS[cal_idx];
-              item.is_past = is_past;
-            }
+            AgendaItem &item = items[item_count++];
+            strncpy(item.start,      start.c_str(),  sizeof(item.start)      - 1);
+            strncpy(item.title,      title_c,         sizeof(item.title)      - 1);
+            strncpy(item.time_label, time_buf,        sizeof(item.time_label) - 1);
+            item.accent_color = (cal_idx >= 0 && cal_idx < 3) ? CAL_COLORS[cal_idx] : 0x888888U;
+            item.is_past = is_past;
           };
 
-          add_event(id(cal_title_0), id(cal_start_0), id(cal_end_0), id(cal_all_day_0), 0);
-          add_event(id(cal_title_1), id(cal_start_1), id(cal_end_1), id(cal_all_day_1), 1);
-          add_event(id(cal_title_2), id(cal_start_2), id(cal_end_2), id(cal_all_day_2), 2);
+          if (!id(idle_events_buf).empty()) {
+            // --- Primary path: parse HTTP-fetched buffer ---
+            // Format: "CAL_IDX|TITLE|START|END|ALLDAY\n" (repeated)
+            const std::string &buf = id(idle_events_buf);
+            size_t pos = 0;
+            while (pos < buf.size() && item_count < 20) {
+              size_t nl = buf.find('\n', pos);
+              if (nl == std::string::npos) nl = buf.size();
+              if (nl > pos) {
+                std::string line = buf.substr(pos, nl - pos);
+                // Parse pipe-delimited fields
+                size_t p1 = line.find('|');
+                size_t p2 = (p1 != std::string::npos) ? line.find('|', p1 + 1) : std::string::npos;
+                size_t p3 = (p2 != std::string::npos) ? line.find('|', p2 + 1) : std::string::npos;
+                size_t p4 = (p3 != std::string::npos) ? line.find('|', p3 + 1) : std::string::npos;
+                if (p4 != std::string::npos) {
+                  int cal_idx      = atoi(line.c_str());
+                  std::string title = line.substr(p1 + 1, p2 - p1 - 1);
+                  std::string start = line.substr(p2 + 1, p3 - p2 - 1);
+                  std::string end_s = line.substr(p3 + 1, p4 - p3 - 1);
+                  bool is_allday   = (line.substr(p4 + 1) == "1");
+                  add_item(title.c_str(), start, end_s, is_allday, cal_idx);
+                }
+              }
+              pos = nl + 1;
+            }
+          } else {
+            // --- Fallback path: subscription globals (one event per calendar) ---
+            // Used when ha_token is not configured and no fetch has run.
+            auto add_sub = [&](
+                const std::string &title,
+                const std::string &start,
+                const std::string &end_s,
+                const std::string &all_day_s,
+                int cal_idx) {
+              bool is_allday = (all_day_s == "True" || all_day_s == "true" || all_day_s == "1");
+              add_item(title.c_str(), start, end_s, is_allday, cal_idx);
+            };
+            add_sub(id(cal_title_0), id(cal_start_0), id(cal_end_0), id(cal_all_day_0), 0);
+            add_sub(id(cal_title_1), id(cal_start_1), id(cal_end_1), id(cal_all_day_1), 1);
+            add_sub(id(cal_title_2), id(cal_start_2), id(cal_end_2), id(cal_all_day_2), 2);
+          }
 
-          // Sort by start time (ISO string comparison is correct for YYYY-MM-DD HH:MM:SS)
+          // Sort by start time (ISO string comparison: "YYYY-MM-DD HH:MM:SS")
           for (int i = 0; i < item_count - 1; i++) {
             for (int j = i + 1; j < item_count; j++) {
               if (strcmp(items[j].start, items[i].start) < 0) {
@@ -290,6 +347,365 @@ script:
               lv_obj_add_flag(slot_objs[i], LV_OBJ_FLAG_HIDDEN);
             }
           }
+
+  # ---------------------------------------------------------------------------
+  # fetch_idle_agenda
+  # ---------------------------------------------------------------------------
+  # Entry point for fetching all today+tomorrow events for the idle agenda.
+  # Computes a 2-day window (today T00:00:00 → day-after-tomorrow T00:00:00),
+  # clears idle_events_buf, then chains through fetch_idle_http_0/1/2 before
+  # calling render_idle_agenda.
+  # Called by show_idle_view (navbar.yaml) and hourly from idle_view.yaml.
+  # ---------------------------------------------------------------------------
+  - id: fetch_idle_agenda
+    mode: restart
+    then:
+      - lambda: |-
+          auto t = id(ha_time).now();
+          if (!t.is_valid()) {
+            ESP_LOGW("idle_fetch", "Time not valid, skipping fetch");
+            id(render_idle_agenda).execute();
+            return;
+          }
+
+          // Window: today 00:00 → day-after-tomorrow 00:00 (covers today + tomorrow)
+          time_t base_ts = t.timestamp - (t.hour * 3600 + t.minute * 60 + t.second);
+          time_t end_ts  = base_ts + 2L * 86400L;
+
+          struct tm start_tm, end_tm;
+          localtime_r(&base_ts, &start_tm);
+          localtime_r(&end_ts,  &end_tm);
+
+          char s[21], e[21];
+          snprintf(s, sizeof(s), "%04d-%02d-%02dT00:00:00",
+                   start_tm.tm_year + 1900, start_tm.tm_mon + 1, start_tm.tm_mday);
+          snprintf(e, sizeof(e), "%04d-%02d-%02dT00:00:00",
+                   end_tm.tm_year + 1900,   end_tm.tm_mon + 1,   end_tm.tm_mday);
+
+          id(idle_fetch_start) = std::string(s);
+          id(idle_fetch_end)   = std::string(e);
+          id(idle_events_buf)  = "";
+
+          ESP_LOGI("idle_fetch", "Window %s .. %s", s, e);
+      - script.execute: fetch_idle_http_0
+
+  # ---------------------------------------------------------------------------
+  # fetch_idle_http_0  — fetch calendar entity 0 for idle agenda
+  # ---------------------------------------------------------------------------
+  - id: fetch_idle_http_0
+    mode: single
+    then:
+      - if:
+          condition:
+            lambda: |-
+              std::string e = id(calendar_entity_select_0).state;
+              return !e.empty() && e.length() > 9 && e.substr(0,9) == "calendar."
+                     && std::string("${ha_token}").length() > 0;
+          then:
+            - lambda: |-
+                std::string entity = id(calendar_entity_select_0).state;
+                std::string token  = "${ha_token}";
+                std::string url =
+                    std::string("${ha_protocol}://${ha_host}:${ha_port}/api/calendars/") +
+                    entity +
+                    "?start=" + id(idle_fetch_start) +
+                    "&end="   + id(idle_fetch_end);
+
+                std::list<esphome::http_request::Header> hdrs;
+                std::string auth = "Bearer " + token;
+                hdrs.push_back({"Authorization", auth.c_str()});
+
+                ESP_LOGI("idle_fetch", "GET cal 0: %s", url.c_str());
+                auto container = id(http_req)->get(url, hdrs);
+                if (!container || container->status_code != 200) {
+                  ESP_LOGW("idle_fetch", "cal0 HTTP %d",
+                           container ? container->status_code : -1);
+                  if (container) container->end();
+                  id(fetch_idle_http_1).execute();
+                  return;
+                }
+
+                std::string body;
+                body.reserve(4096);
+                uint8_t buf[512];
+                int n;
+                while ((n = container->read(buf, sizeof(buf))) > 0)
+                  body.append(reinterpret_cast<char*>(buf), n);
+                container->end();
+
+                {
+                  int cal_idx = 0;
+                  const char *p = body.c_str();
+                  int depth = 0;
+                  const char *ev_start = nullptr;
+                  while (*p) {
+                    if (*p == '{') { if (++depth == 1) ev_start = p; }
+                    else if (*p == '}' && depth-- == 1 && ev_start) {
+                      std::string ev(ev_start, p + 1);
+                      ev_start = nullptr;
+
+                      const char *sk = strstr(ev.c_str(), "\"summary\":");
+                      if (!sk) { p++; continue; }
+                      const char *q1 = strchr(sk + 10, '"');
+                      if (!q1) { p++; continue; }
+                      q1++;
+                      const char *q2 = q1;
+                      while (*q2 && *q2 != '"') { if (*q2 == '\\') q2++; q2++; }
+                      std::string title(q1, q2);
+                      for (auto &c : title) if (c == '|') c = ' ';
+                      if (title.empty()) { p++; continue; }
+
+                      bool allday = false;
+                      char start_val[25] = "", end_val[25] = "";
+                      const char *stk = strstr(ev.c_str(), "\"start\":");
+                      if (stk) {
+                        const char *dt = strstr(stk, "\"dateTime\":");
+                        const char *d  = strstr(stk, "\"date\":");
+                        if (dt && (!d || dt < d)) {
+                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
+                          if (v1) { const char *v2 = strchr(v1, '"');
+                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 19)); }
+                        } else if (d) {
+                          allday = true;
+                          const char *v1 = strchr(d + 7, '"'); if (v1) v1++;
+                          if (v1) { const char *v2 = strchr(v1, '"');
+                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 10)); }
+                        }
+                      }
+                      if (start_val[0] == '\0') { p++; continue; }
+
+                      const char *enk = strstr(ev.c_str(), "\"end\":");
+                      if (enk && !allday) {
+                        const char *dt = strstr(enk, "\"dateTime\":");
+                        if (dt) {
+                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
+                          if (v1) { const char *v2 = strchr(v1, '"');
+                                    if (v2) strncpy(end_val, v1, std::min((int)(v2-v1), 19)); }
+                        }
+                      }
+
+                      char line[300];
+                      snprintf(line, sizeof(line), "%d|%s|%s|%s|%d\n",
+                               cal_idx, title.c_str(), start_val, end_val, allday ? 1 : 0);
+                      id(idle_events_buf) += line;
+                    }
+                    p++;
+                  }
+                  ESP_LOGI("idle_fetch", "cal0 parsed OK, buf len=%d", (int)id(idle_events_buf).length());
+                }
+      - script.execute: fetch_idle_http_1
+
+  # ---------------------------------------------------------------------------
+  # fetch_idle_http_1  — fetch calendar entity 1 for idle agenda
+  # ---------------------------------------------------------------------------
+  - id: fetch_idle_http_1
+    mode: single
+    then:
+      - if:
+          condition:
+            lambda: |-
+              std::string e = id(calendar_entity_select_1).state;
+              return !e.empty() && e.length() > 9 && e.substr(0,9) == "calendar."
+                     && std::string("${ha_token}").length() > 0;
+          then:
+            - lambda: |-
+                std::string entity = id(calendar_entity_select_1).state;
+                std::string token  = "${ha_token}";
+                std::string url =
+                    std::string("${ha_protocol}://${ha_host}:${ha_port}/api/calendars/") +
+                    entity +
+                    "?start=" + id(idle_fetch_start) +
+                    "&end="   + id(idle_fetch_end);
+
+                std::list<esphome::http_request::Header> hdrs;
+                std::string auth = "Bearer " + token;
+                hdrs.push_back({"Authorization", auth.c_str()});
+
+                ESP_LOGI("idle_fetch", "GET cal 1: %s", url.c_str());
+                auto container = id(http_req)->get(url, hdrs);
+                if (!container || container->status_code != 200) {
+                  ESP_LOGW("idle_fetch", "cal1 HTTP %d",
+                           container ? container->status_code : -1);
+                  if (container) container->end();
+                  id(fetch_idle_http_2).execute();
+                  return;
+                }
+
+                std::string body;
+                body.reserve(4096);
+                uint8_t buf[512];
+                int n;
+                while ((n = container->read(buf, sizeof(buf))) > 0)
+                  body.append(reinterpret_cast<char*>(buf), n);
+                container->end();
+
+                {
+                  int cal_idx = 1;
+                  const char *p = body.c_str();
+                  int depth = 0;
+                  const char *ev_start = nullptr;
+                  while (*p) {
+                    if (*p == '{') { if (++depth == 1) ev_start = p; }
+                    else if (*p == '}' && depth-- == 1 && ev_start) {
+                      std::string ev(ev_start, p + 1);
+                      ev_start = nullptr;
+
+                      const char *sk = strstr(ev.c_str(), "\"summary\":");
+                      if (!sk) { p++; continue; }
+                      const char *q1 = strchr(sk + 10, '"');
+                      if (!q1) { p++; continue; }
+                      q1++;
+                      const char *q2 = q1;
+                      while (*q2 && *q2 != '"') { if (*q2 == '\\') q2++; q2++; }
+                      std::string title(q1, q2);
+                      for (auto &c : title) if (c == '|') c = ' ';
+                      if (title.empty()) { p++; continue; }
+
+                      bool allday = false;
+                      char start_val[25] = "", end_val[25] = "";
+                      const char *stk = strstr(ev.c_str(), "\"start\":");
+                      if (stk) {
+                        const char *dt = strstr(stk, "\"dateTime\":");
+                        const char *d  = strstr(stk, "\"date\":");
+                        if (dt && (!d || dt < d)) {
+                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
+                          if (v1) { const char *v2 = strchr(v1, '"');
+                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 19)); }
+                        } else if (d) {
+                          allday = true;
+                          const char *v1 = strchr(d + 7, '"'); if (v1) v1++;
+                          if (v1) { const char *v2 = strchr(v1, '"');
+                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 10)); }
+                        }
+                      }
+                      if (start_val[0] == '\0') { p++; continue; }
+
+                      const char *enk = strstr(ev.c_str(), "\"end\":");
+                      if (enk && !allday) {
+                        const char *dt = strstr(enk, "\"dateTime\":");
+                        if (dt) {
+                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
+                          if (v1) { const char *v2 = strchr(v1, '"');
+                                    if (v2) strncpy(end_val, v1, std::min((int)(v2-v1), 19)); }
+                        }
+                      }
+
+                      char line[300];
+                      snprintf(line, sizeof(line), "%d|%s|%s|%s|%d\n",
+                               cal_idx, title.c_str(), start_val, end_val, allday ? 1 : 0);
+                      id(idle_events_buf) += line;
+                    }
+                    p++;
+                  }
+                  ESP_LOGI("idle_fetch", "cal1 parsed OK, buf len=%d", (int)id(idle_events_buf).length());
+                }
+      - script.execute: fetch_idle_http_2
+
+  # ---------------------------------------------------------------------------
+  # fetch_idle_http_2  — fetch calendar entity 2 for idle agenda, then render
+  # ---------------------------------------------------------------------------
+  - id: fetch_idle_http_2
+    mode: single
+    then:
+      - if:
+          condition:
+            lambda: |-
+              std::string e = id(calendar_entity_select_2).state;
+              return !e.empty() && e.length() > 9 && e.substr(0,9) == "calendar."
+                     && std::string("${ha_token}").length() > 0;
+          then:
+            - lambda: |-
+                std::string entity = id(calendar_entity_select_2).state;
+                std::string token  = "${ha_token}";
+                std::string url =
+                    std::string("${ha_protocol}://${ha_host}:${ha_port}/api/calendars/") +
+                    entity +
+                    "?start=" + id(idle_fetch_start) +
+                    "&end="   + id(idle_fetch_end);
+
+                std::list<esphome::http_request::Header> hdrs;
+                std::string auth = "Bearer " + token;
+                hdrs.push_back({"Authorization", auth.c_str()});
+
+                ESP_LOGI("idle_fetch", "GET cal 2: %s", url.c_str());
+                auto container = id(http_req)->get(url, hdrs);
+                if (!container || container->status_code != 200) {
+                  ESP_LOGW("idle_fetch", "cal2 HTTP %d",
+                           container ? container->status_code : -1);
+                  if (container) container->end();
+                  id(render_idle_agenda).execute();
+                  return;
+                }
+
+                std::string body;
+                body.reserve(4096);
+                uint8_t buf[512];
+                int n;
+                while ((n = container->read(buf, sizeof(buf))) > 0)
+                  body.append(reinterpret_cast<char*>(buf), n);
+                container->end();
+
+                {
+                  int cal_idx = 2;
+                  const char *p = body.c_str();
+                  int depth = 0;
+                  const char *ev_start = nullptr;
+                  while (*p) {
+                    if (*p == '{') { if (++depth == 1) ev_start = p; }
+                    else if (*p == '}' && depth-- == 1 && ev_start) {
+                      std::string ev(ev_start, p + 1);
+                      ev_start = nullptr;
+
+                      const char *sk = strstr(ev.c_str(), "\"summary\":");
+                      if (!sk) { p++; continue; }
+                      const char *q1 = strchr(sk + 10, '"');
+                      if (!q1) { p++; continue; }
+                      q1++;
+                      const char *q2 = q1;
+                      while (*q2 && *q2 != '"') { if (*q2 == '\\') q2++; q2++; }
+                      std::string title(q1, q2);
+                      for (auto &c : title) if (c == '|') c = ' ';
+                      if (title.empty()) { p++; continue; }
+
+                      bool allday = false;
+                      char start_val[25] = "", end_val[25] = "";
+                      const char *stk = strstr(ev.c_str(), "\"start\":");
+                      if (stk) {
+                        const char *dt = strstr(stk, "\"dateTime\":");
+                        const char *d  = strstr(stk, "\"date\":");
+                        if (dt && (!d || dt < d)) {
+                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
+                          if (v1) { const char *v2 = strchr(v1, '"');
+                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 19)); }
+                        } else if (d) {
+                          allday = true;
+                          const char *v1 = strchr(d + 7, '"'); if (v1) v1++;
+                          if (v1) { const char *v2 = strchr(v1, '"');
+                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 10)); }
+                        }
+                      }
+                      if (start_val[0] == '\0') { p++; continue; }
+
+                      const char *enk = strstr(ev.c_str(), "\"end\":");
+                      if (enk && !allday) {
+                        const char *dt = strstr(enk, "\"dateTime\":");
+                        if (dt) {
+                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
+                          if (v1) { const char *v2 = strchr(v1, '"');
+                                    if (v2) strncpy(end_val, v1, std::min((int)(v2-v1), 19)); }
+                        }
+                      }
+
+                      char line[300];
+                      snprintf(line, sizeof(line), "%d|%s|%s|%s|%d\n",
+                               cal_idx, title.c_str(), start_val, end_val, allday ? 1 : 0);
+                      id(idle_events_buf) += line;
+                    }
+                    p++;
+                  }
+                  ESP_LOGI("idle_fetch", "cal2 parsed OK, buf len=%d", (int)id(idle_events_buf).length());
+                }
+      - script.execute: render_idle_agenda
 
   # ---------------------------------------------------------------------------
   # subscribe_calendar_0
