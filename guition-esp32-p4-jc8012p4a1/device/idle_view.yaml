@@ -430,7 +430,7 @@ lvgl:
             radius: 0
             pad_all: 0
 
-        # ---- Agenda slot 0 (y: 61..195, h=135) ----
+        # ---- Agenda slot 0 (y: 61..175, h=115) ----
         # Each slot: accent bar (4px left) + time label + title label
         # Hidden by default; render_idle_agenda shows/hides and sets content.
         - obj:
@@ -438,7 +438,7 @@ lvgl:
             x: 800
             y: 61
             width: 480
-            height: 135
+            height: 115
             bg_color: 0x0E0E0E
             bg_opa: 100%
             border_width: 0
@@ -452,7 +452,7 @@ lvgl:
                   x: 0
                   y: 0
                   width: 4
-                  height: 135
+                  height: 115
                   bg_color: 0x4A90E2
                   bg_opa: 100%
                   border_width: 0
@@ -461,7 +461,7 @@ lvgl:
               - label:
                   id: idle_agenda_time_0
                   x: 16
-                  y: 22
+                  y: 10
                   width: 456
                   text_font: roboto_light26_font
                   text_color: 0x4A90E2
@@ -470,20 +470,20 @@ lvgl:
               - label:
                   id: idle_agenda_title_0
                   x: 16
-                  y: 64
+                  y: 46
                   width: 456
-                  text_font: roboto_light40_font
+                  text_font: roboto_light30_font
                   text_color: 0xDDDDDD
                   text_align: left
                   text: ""
 
-        # ---- Agenda slot 1 (y: 196..330, h=135) ----
+        # ---- Agenda slot 1 (y: 176..290, h=115) ----
         - obj:
             id: idle_agenda_slot_1
             x: 800
-            y: 196
+            y: 176
             width: 480
-            height: 135
+            height: 115
             bg_color: 0x0E0E0E
             bg_opa: 100%
             border_width: 0
@@ -497,7 +497,7 @@ lvgl:
                   x: 0
                   y: 0
                   width: 4
-                  height: 135
+                  height: 115
                   bg_color: 0x5BA55A
                   bg_opa: 100%
                   border_width: 0
@@ -506,7 +506,7 @@ lvgl:
               - label:
                   id: idle_agenda_time_1
                   x: 16
-                  y: 22
+                  y: 10
                   width: 456
                   text_font: roboto_light26_font
                   text_color: 0x5BA55A
@@ -515,20 +515,20 @@ lvgl:
               - label:
                   id: idle_agenda_title_1
                   x: 16
-                  y: 64
+                  y: 46
                   width: 456
-                  text_font: roboto_light40_font
+                  text_font: roboto_light30_font
                   text_color: 0xDDDDDD
                   text_align: left
                   text: ""
 
-        # ---- Agenda slot 2 (y: 331..465, h=135) ----
+        # ---- Agenda slot 2 (y: 291..405, h=115) ----
         - obj:
             id: idle_agenda_slot_2
             x: 800
-            y: 331
+            y: 291
             width: 480
-            height: 135
+            height: 115
             bg_color: 0x0E0E0E
             bg_opa: 100%
             border_width: 0
@@ -542,7 +542,7 @@ lvgl:
                   x: 0
                   y: 0
                   width: 4
-                  height: 135
+                  height: 115
                   bg_color: 0xE2914A
                   bg_opa: 100%
                   border_width: 0
@@ -551,7 +551,7 @@ lvgl:
               - label:
                   id: idle_agenda_time_2
                   x: 16
-                  y: 22
+                  y: 10
                   width: 456
                   text_font: roboto_light26_font
                   text_color: 0xE2914A
@@ -560,20 +560,20 @@ lvgl:
               - label:
                   id: idle_agenda_title_2
                   x: 16
-                  y: 64
+                  y: 46
                   width: 456
-                  text_font: roboto_light40_font
+                  text_font: roboto_light30_font
                   text_color: 0xDDDDDD
                   text_align: left
                   text: ""
 
-        # ---- Agenda slot 3 (y: 466..600, h=135) ----
+        # ---- Agenda slot 3 (y: 406..520, h=115) ----
         - obj:
             id: idle_agenda_slot_3
             x: 800
-            y: 466
+            y: 406
             width: 480
-            height: 135
+            height: 115
             bg_color: 0x0E0E0E
             bg_opa: 100%
             border_width: 0
@@ -587,7 +587,7 @@ lvgl:
                   x: 0
                   y: 0
                   width: 4
-                  height: 135
+                  height: 115
                   bg_color: 0x4A90E2
                   bg_opa: 100%
                   border_width: 0
@@ -596,7 +596,7 @@ lvgl:
               - label:
                   id: idle_agenda_time_3
                   x: 16
-                  y: 22
+                  y: 10
                   width: 456
                   text_font: roboto_light26_font
                   text_color: 0x4A90E2
@@ -605,20 +605,20 @@ lvgl:
               - label:
                   id: idle_agenda_title_3
                   x: 16
-                  y: 64
+                  y: 46
                   width: 456
-                  text_font: roboto_light40_font
+                  text_font: roboto_light30_font
                   text_color: 0xDDDDDD
                   text_align: left
                   text: ""
 
-        # ---- Agenda slot 4 (y: 601..739, h=139) ----
+        # ---- Agenda slot 4 (y: 521..635, h=115) ----
         - obj:
             id: idle_agenda_slot_4
             x: 800
-            y: 601
+            y: 521
             width: 480
-            height: 139
+            height: 115
             bg_color: 0x0E0E0E
             bg_opa: 100%
             border_width: 0
@@ -632,7 +632,7 @@ lvgl:
                   x: 0
                   y: 0
                   width: 4
-                  height: 139
+                  height: 115
                   bg_color: 0x5BA55A
                   bg_opa: 100%
                   border_width: 0
@@ -641,7 +641,7 @@ lvgl:
               - label:
                   id: idle_agenda_time_4
                   x: 16
-                  y: 22
+                  y: 10
                   width: 456
                   text_font: roboto_light26_font
                   text_color: 0x5BA55A
@@ -650,9 +650,9 @@ lvgl:
               - label:
                   id: idle_agenda_title_4
                   x: 16
-                  y: 64
+                  y: 46
                   width: 456
-                  text_font: roboto_light40_font
+                  text_font: roboto_light30_font
                   text_color: 0xDDDDDD
                   text_align: left
                   text: ""
