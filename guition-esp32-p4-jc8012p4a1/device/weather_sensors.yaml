@@ -241,6 +241,10 @@ text_sensor:
       - lvgl.label.update:
           id: idle_sensor_value_0
           text: !lambda 'return x.empty() ? std::string("\xe2\x80\x94") : x;'
+      - lambda: |-
+          lv_obj_update_layout(id(idle_sensor_value_0));
+          lv_obj_set_x(id(idle_sensor_unit_0),
+            lv_obj_get_x(id(idle_sensor_value_0)) + lv_obj_get_width(id(idle_sensor_value_0)) + 6);
 
   - platform: template
     id: idle_sensor_state_1
@@ -248,6 +252,10 @@ text_sensor:
       - lvgl.label.update:
           id: idle_sensor_value_1
           text: !lambda 'return x.empty() ? std::string("\xe2\x80\x94") : x;'
+      - lambda: |-
+          lv_obj_update_layout(id(idle_sensor_value_1));
+          lv_obj_set_x(id(idle_sensor_unit_1),
+            lv_obj_get_x(id(idle_sensor_value_1)) + lv_obj_get_width(id(idle_sensor_value_1)) + 6);
 
   - platform: template
     id: idle_sensor_state_2
@@ -255,6 +263,10 @@ text_sensor:
       - lvgl.label.update:
           id: idle_sensor_value_2
           text: !lambda 'return x.empty() ? std::string("\xe2\x80\x94") : x;'
+      - lambda: |-
+          lv_obj_update_layout(id(idle_sensor_value_2));
+          lv_obj_set_x(id(idle_sensor_unit_2),
+            lv_obj_get_x(id(idle_sensor_value_2)) + lv_obj_get_width(id(idle_sensor_value_2)) + 6);
 
   - platform: template
     id: idle_sensor_state_3
@@ -262,6 +274,10 @@ text_sensor:
       - lvgl.label.update:
           id: idle_sensor_value_3
           text: !lambda 'return x.empty() ? std::string("\xe2\x80\x94") : x;'
+      - lambda: |-
+          lv_obj_update_layout(id(idle_sensor_value_3));
+          lv_obj_set_x(id(idle_sensor_unit_3),
+            lv_obj_get_x(id(idle_sensor_value_3)) + lv_obj_get_width(id(idle_sensor_value_3)) + 6);
 
 
 # -----------------------------------------------------------------------------
@@ -426,6 +442,9 @@ script:
               str_cb([gen, gen_ptr](const std::string &unit) {
                 if (gen != *gen_ptr) return;
                 lv_label_set_text(id(idle_sensor_unit_0), unit.c_str());
+                lv_obj_update_layout(id(idle_sensor_value_0));
+                lv_obj_set_x(id(idle_sensor_unit_0),
+                  lv_obj_get_x(id(idle_sensor_value_0)) + lv_obj_get_width(id(idle_sensor_value_0)) + 6);
               }));
 
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
@@ -508,6 +527,9 @@ script:
               str_cb([gen, gen_ptr](const std::string &unit) {
                 if (gen != *gen_ptr) return;
                 lv_label_set_text(id(idle_sensor_unit_1), unit.c_str());
+                lv_obj_update_layout(id(idle_sensor_value_1));
+                lv_obj_set_x(id(idle_sensor_unit_1),
+                  lv_obj_get_x(id(idle_sensor_value_1)) + lv_obj_get_width(id(idle_sensor_value_1)) + 6);
               }));
 
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
@@ -590,6 +612,9 @@ script:
               str_cb([gen, gen_ptr](const std::string &unit) {
                 if (gen != *gen_ptr) return;
                 lv_label_set_text(id(idle_sensor_unit_2), unit.c_str());
+                lv_obj_update_layout(id(idle_sensor_value_2));
+                lv_obj_set_x(id(idle_sensor_unit_2),
+                  lv_obj_get_x(id(idle_sensor_value_2)) + lv_obj_get_width(id(idle_sensor_value_2)) + 6);
               }));
 
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
@@ -672,6 +697,9 @@ script:
               str_cb([gen, gen_ptr](const std::string &unit) {
                 if (gen != *gen_ptr) return;
                 lv_label_set_text(id(idle_sensor_unit_3), unit.c_str());
+                lv_obj_update_layout(id(idle_sensor_value_3));
+                lv_obj_set_x(id(idle_sensor_unit_3),
+                  lv_obj_get_x(id(idle_sensor_value_3)) + lv_obj_get_width(id(idle_sensor_value_3)) + 6);
               }));
 
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
