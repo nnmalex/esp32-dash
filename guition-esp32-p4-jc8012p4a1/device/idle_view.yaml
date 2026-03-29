@@ -182,23 +182,41 @@ lvgl:
             hidden: true
             widgets:
               - label:
-                  id: idle_sensor_name_0
+                  id: idle_sensor_icon_0
                   x: 26
                   y: 2
-                  width: 754
+                  width: 40
+                  text_font: icon_font
+                  text_color: 0x888888
+                  text_align: left
+                  text: ""
+              - label:
+                  id: idle_sensor_name_0
+                  x: 70
+                  y: 6
+                  width: 684
                   text_font: roboto_light26_font
                   text_color: 0x888888
                   text_align: left
                   text: ""
               - label:
                   id: idle_sensor_value_0
-                  x: 26
-                  y: 34
-                  width: 754
+                  x: 70
+                  y: 36
+                  width: 500
                   text_font: roboto_light40_font
                   text_color: 0xFFFFFF
                   text_align: left
                   text: "—"
+              - label:
+                  id: idle_sensor_unit_0
+                  x: 578
+                  y: 44
+                  width: 176
+                  text_font: roboto_light26_font
+                  text_color: 0x888888
+                  text_align: left
+                  text: ""
 
         # Tile 1 (y: 364..443)
         - obj:
@@ -215,23 +233,41 @@ lvgl:
             hidden: true
             widgets:
               - label:
-                  id: idle_sensor_name_1
+                  id: idle_sensor_icon_1
                   x: 26
                   y: 2
-                  width: 754
+                  width: 40
+                  text_font: icon_font
+                  text_color: 0x888888
+                  text_align: left
+                  text: ""
+              - label:
+                  id: idle_sensor_name_1
+                  x: 70
+                  y: 6
+                  width: 684
                   text_font: roboto_light26_font
                   text_color: 0x888888
                   text_align: left
                   text: ""
               - label:
                   id: idle_sensor_value_1
-                  x: 26
-                  y: 34
-                  width: 754
+                  x: 70
+                  y: 36
+                  width: 500
                   text_font: roboto_light40_font
                   text_color: 0xFFFFFF
                   text_align: left
                   text: "—"
+              - label:
+                  id: idle_sensor_unit_1
+                  x: 578
+                  y: 44
+                  width: 176
+                  text_font: roboto_light26_font
+                  text_color: 0x888888
+                  text_align: left
+                  text: ""
 
         # Tile 2 (y: 464..543)
         - obj:
@@ -248,23 +284,41 @@ lvgl:
             hidden: true
             widgets:
               - label:
-                  id: idle_sensor_name_2
+                  id: idle_sensor_icon_2
                   x: 26
                   y: 2
-                  width: 754
+                  width: 40
+                  text_font: icon_font
+                  text_color: 0x888888
+                  text_align: left
+                  text: ""
+              - label:
+                  id: idle_sensor_name_2
+                  x: 70
+                  y: 6
+                  width: 684
                   text_font: roboto_light26_font
                   text_color: 0x888888
                   text_align: left
                   text: ""
               - label:
                   id: idle_sensor_value_2
-                  x: 26
-                  y: 34
-                  width: 754
+                  x: 70
+                  y: 36
+                  width: 500
                   text_font: roboto_light40_font
                   text_color: 0xFFFFFF
                   text_align: left
                   text: "—"
+              - label:
+                  id: idle_sensor_unit_2
+                  x: 578
+                  y: 44
+                  width: 176
+                  text_font: roboto_light26_font
+                  text_color: 0x888888
+                  text_align: left
+                  text: ""
 
         # Tile 3 (y: 564..643)
         - obj:
@@ -281,23 +335,41 @@ lvgl:
             hidden: true
             widgets:
               - label:
-                  id: idle_sensor_name_3
+                  id: idle_sensor_icon_3
                   x: 26
                   y: 2
-                  width: 754
+                  width: 40
+                  text_font: icon_font
+                  text_color: 0x888888
+                  text_align: left
+                  text: ""
+              - label:
+                  id: idle_sensor_name_3
+                  x: 70
+                  y: 6
+                  width: 684
                   text_font: roboto_light26_font
                   text_color: 0x888888
                   text_align: left
                   text: ""
               - label:
                   id: idle_sensor_value_3
-                  x: 26
-                  y: 34
-                  width: 754
+                  x: 70
+                  y: 36
+                  width: 500
                   text_font: roboto_light40_font
                   text_color: 0xFFFFFF
                   text_align: left
                   text: "—"
+              - label:
+                  id: idle_sensor_unit_3
+                  x: 578
+                  y: 44
+                  width: 176
+                  text_font: roboto_light26_font
+                  text_color: 0x888888
+                  text_align: left
+                  text: ""
 
         # ================================================================
         # Pane separator (x=799, 1px wide)

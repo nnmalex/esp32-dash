@@ -23,6 +23,12 @@ font:
       - "\U000F075A"  # mdi-music-note
       - "\U000F00ED"  # mdi-calendar
       - "\U000F050F"  # mdi-thermometer
+      - "\U000F0208"  # mdi-eye (generic sensor fallback)
+      - "\U000F07E4"  # mdi-water-percent (humidity)
+      - "\U000F028A"  # mdi-gauge (pressure)
+      - "\U000F04E3"  # mdi-water
+      - "\U000F059E"  # mdi-weather-windy (wind speed)
+      - "\U000F140B"  # mdi-lightning-bolt (power / energy)
   - file: 'https://github.com/Templarian/MaterialDesign-Webfont/raw/v7.4.47/fonts/materialdesignicons-webfont.ttf'
     id: icon_font_small
     size: 28
