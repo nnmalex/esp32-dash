@@ -65,6 +65,11 @@ interval:
             lambda: 'return id(current_view) == 0;'
           then:
             - script.execute: update_idle_clock
+      - if:
+          condition:
+            lambda: 'return id(current_view) == 0 && id(ha_time).now().minute == 0;'
+          then:
+            - script.execute: fetch_idle_agenda
 
 
 lvgl:
