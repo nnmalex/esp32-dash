@@ -208,7 +208,7 @@ lvgl:
                   id: idle_sensor_value_0
                   x: 70
                   y: 36
-                  width: 500
+                  width: SIZE_CONTENT
                   text_font: roboto_light40_font
                   text_color: 0xFFFFFF
                   text_align: left
@@ -259,7 +259,7 @@ lvgl:
                   id: idle_sensor_value_1
                   x: 70
                   y: 36
-                  width: 500
+                  width: SIZE_CONTENT
                   text_font: roboto_light40_font
                   text_color: 0xFFFFFF
                   text_align: left
@@ -310,7 +310,7 @@ lvgl:
                   id: idle_sensor_value_2
                   x: 70
                   y: 36
-                  width: 500
+                  width: SIZE_CONTENT
                   text_font: roboto_light40_font
                   text_color: 0xFFFFFF
                   text_align: left
@@ -361,7 +361,7 @@ lvgl:
                   id: idle_sensor_value_3
                   x: 70
                   y: 36
-                  width: 500
+                  width: SIZE_CONTENT
                   text_font: roboto_light40_font
                   text_color: 0xFFFFFF
                   text_align: left
