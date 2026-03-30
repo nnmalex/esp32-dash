@@ -27,6 +27,12 @@ substitutions:
   idle_sensor_2: ""
   idle_sensor_3: ""
   idle_sensor_4: ""
+  # Override display precision per tile (-1 = use raw state, 0+ = decimal places).
+  # Only needed when HA does not expose suggested_display_precision as a state attribute.
+  idle_sensor_1_precision: "-1"
+  idle_sensor_2_precision: "-1"
+  idle_sensor_3_precision: "-1"
+  idle_sensor_4_precision: "-1"
   # Base path on the HA server for weather background images.
   # Example: "/local/weather-backgrounds"
   # Images named: sunny.jpg, partlycloudy.jpg, cloudy.jpg, rainy.jpg, etc.
@@ -439,7 +445,7 @@ script:
             lv_label_set_text(id(idle_sensor_value_0), "\xe2\x80\x94");
             lv_label_set_text(id(idle_sensor_icon_0), "");
             lv_label_set_text(id(idle_sensor_unit_0), "");
-            id(idle_sensor_precision_0) = -1;
+            id(idle_sensor_precision_0) = ${idle_sensor_1_precision};
             id(idle_sensor_raw_0) = "";
             return;
           }
@@ -464,6 +470,7 @@ script:
           id(idle_sensor_gen_0) += 1;
           int gen = id(idle_sensor_gen_0);
           int *gen_ptr = &id(idle_sensor_gen_0);
+          id(idle_sensor_precision_0) = ${idle_sensor_1_precision};
 
           auto *api = esphome::api::global_api_server;
           using str_cb = std::function<void(const std::string &)>;
@@ -482,6 +489,21 @@ script:
                   }
                 }
                 id(idle_sensor_state_0).publish_state(out);
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("suggested_display_precision"),
+              str_cb([gen, gen_ptr](const std::string &prec_str) {
+                if (gen != *gen_ptr) return;
+                if (prec_str.empty()) return;
+                char *ep; long p = strtol(prec_str.c_str(), &ep, 10);
+                if (ep == prec_str.c_str()) return;
+                id(idle_sensor_precision_0) = (int)p;
+                const std::string &raw = id(idle_sensor_raw_0);
+                if (raw.empty()) return;
+                char *end_ptr; float val = strtof(raw.c_str(), &end_ptr);
+                if (end_ptr == raw.c_str()) return;
+                char fbuf[32]; snprintf(fbuf, sizeof(fbuf), "%.*f", (int)p, val);
+                id(idle_sensor_state_0).publish_state(std::string(fbuf));
               }));
 
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
@@ -540,7 +562,7 @@ script:
             lv_label_set_text(id(idle_sensor_value_1), "\xe2\x80\x94");
             lv_label_set_text(id(idle_sensor_icon_1), "");
             lv_label_set_text(id(idle_sensor_unit_1), "");
-            id(idle_sensor_precision_1) = -1;
+            id(idle_sensor_precision_1) = ${idle_sensor_2_precision};
             id(idle_sensor_raw_1) = "";
             return;
           }
@@ -564,6 +586,7 @@ script:
           id(idle_sensor_gen_1) += 1;
           int gen = id(idle_sensor_gen_1);
           int *gen_ptr = &id(idle_sensor_gen_1);
+          id(idle_sensor_precision_1) = ${idle_sensor_2_precision};
 
           auto *api = esphome::api::global_api_server;
           using str_cb = std::function<void(const std::string &)>;
@@ -582,6 +605,21 @@ script:
                   }
                 }
                 id(idle_sensor_state_1).publish_state(out);
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("suggested_display_precision"),
+              str_cb([gen, gen_ptr](const std::string &prec_str) {
+                if (gen != *gen_ptr) return;
+                if (prec_str.empty()) return;
+                char *ep; long p = strtol(prec_str.c_str(), &ep, 10);
+                if (ep == prec_str.c_str()) return;
+                id(idle_sensor_precision_1) = (int)p;
+                const std::string &raw = id(idle_sensor_raw_1);
+                if (raw.empty()) return;
+                char *end_ptr; float val = strtof(raw.c_str(), &end_ptr);
+                if (end_ptr == raw.c_str()) return;
+                char fbuf[32]; snprintf(fbuf, sizeof(fbuf), "%.*f", (int)p, val);
+                id(idle_sensor_state_1).publish_state(std::string(fbuf));
               }));
 
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
@@ -640,7 +678,7 @@ script:
             lv_label_set_text(id(idle_sensor_value_2), "\xe2\x80\x94");
             lv_label_set_text(id(idle_sensor_icon_2), "");
             lv_label_set_text(id(idle_sensor_unit_2), "");
-            id(idle_sensor_precision_2) = -1;
+            id(idle_sensor_precision_2) = ${idle_sensor_3_precision};
             id(idle_sensor_raw_2) = "";
             return;
           }
@@ -664,6 +702,7 @@ script:
           id(idle_sensor_gen_2) += 1;
           int gen = id(idle_sensor_gen_2);
           int *gen_ptr = &id(idle_sensor_gen_2);
+          id(idle_sensor_precision_2) = ${idle_sensor_3_precision};
 
           auto *api = esphome::api::global_api_server;
           using str_cb = std::function<void(const std::string &)>;
@@ -682,6 +721,21 @@ script:
                   }
                 }
                 id(idle_sensor_state_2).publish_state(out);
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("suggested_display_precision"),
+              str_cb([gen, gen_ptr](const std::string &prec_str) {
+                if (gen != *gen_ptr) return;
+                if (prec_str.empty()) return;
+                char *ep; long p = strtol(prec_str.c_str(), &ep, 10);
+                if (ep == prec_str.c_str()) return;
+                id(idle_sensor_precision_2) = (int)p;
+                const std::string &raw = id(idle_sensor_raw_2);
+                if (raw.empty()) return;
+                char *end_ptr; float val = strtof(raw.c_str(), &end_ptr);
+                if (end_ptr == raw.c_str()) return;
+                char fbuf[32]; snprintf(fbuf, sizeof(fbuf), "%.*f", (int)p, val);
+                id(idle_sensor_state_2).publish_state(std::string(fbuf));
               }));
 
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
@@ -740,7 +794,7 @@ script:
             lv_label_set_text(id(idle_sensor_value_3), "\xe2\x80\x94");
             lv_label_set_text(id(idle_sensor_icon_3), "");
             lv_label_set_text(id(idle_sensor_unit_3), "");
-            id(idle_sensor_precision_3) = -1;
+            id(idle_sensor_precision_3) = ${idle_sensor_4_precision};
             id(idle_sensor_raw_3) = "";
             return;
           }
@@ -764,6 +818,7 @@ script:
           id(idle_sensor_gen_3) += 1;
           int gen = id(idle_sensor_gen_3);
           int *gen_ptr = &id(idle_sensor_gen_3);
+          id(idle_sensor_precision_3) = ${idle_sensor_4_precision};
 
           auto *api = esphome::api::global_api_server;
           using str_cb = std::function<void(const std::string &)>;
@@ -782,6 +837,21 @@ script:
                   }
                 }
                 id(idle_sensor_state_3).publish_state(out);
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("suggested_display_precision"),
+              str_cb([gen, gen_ptr](const std::string &prec_str) {
+                if (gen != *gen_ptr) return;
+                if (prec_str.empty()) return;
+                char *ep; long p = strtol(prec_str.c_str(), &ep, 10);
+                if (ep == prec_str.c_str()) return;
+                id(idle_sensor_precision_3) = (int)p;
+                const std::string &raw = id(idle_sensor_raw_3);
+                if (raw.empty()) return;
+                char *end_ptr; float val = strtof(raw.c_str(), &end_ptr);
+                if (end_ptr == raw.c_str()) return;
+                char fbuf[32]; snprintf(fbuf, sizeof(fbuf), "%.*f", (int)p, val);
+                id(idle_sensor_state_3).publish_state(std::string(fbuf));
               }));
 
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
@@ -828,309 +898,6 @@ script:
 
           ESP_LOGI("idle_sensors", "Tile 3: subscribed to '%s'", entity.c_str());
 
-  # ---------------------------------------------------------------------------
-  # fetch_sensor_precision_N: GETs /api/states/<entity_id> and parses
-  # suggested_display_precision from the attributes object in the response.
-  # (integration hint). Re-formats the last raw state value if precision changes.
-  # Only runs when ha_token is configured.
-  # ---------------------------------------------------------------------------
-  - id: fetch_sensor_precision_0
-    mode: single
-    then:
-      - lambda: |-
-          std::string entity = id(idle_sensor_entity_0).state;
-          if (entity.empty()) return;
-          std::string url = std::string("${ha_protocol}://${ha_host}:${ha_port}"
-                                        "/api/config/entity_registry");
-          std::list<esphome::http_request::Header> hdrs;
-          std::string auth = "Bearer ${ha_token}";
-          hdrs.push_back({"Authorization", auth.c_str()});
-          auto container = id(http_req)->get(url, hdrs);
-          if (!container || container->status_code != 200) {
-            ESP_LOGW("idle_sensors", "Tile 0 registry HTTP %d",
-                     container ? container->status_code : -1);
-            if (container) container->end();
-            return;
-          }
-          std::string needle = "\"entity_id\":\"" + entity + "\"";
-          std::string buf;
-          buf.reserve(1024);
-          bool found = false;
-          int extra_after = 0;
-          uint8_t chunk[256]; int n;
-          while ((n = container->read(chunk, sizeof(chunk))) > 0) {
-            buf.append(reinterpret_cast<char*>(chunk), n);
-            if (!found) {
-              if (strstr(buf.c_str(), needle.c_str())) {
-                found = true;
-              } else {
-                if (buf.size() > needle.size() + 256)
-                  buf.erase(0, buf.size() - needle.size());
-              }
-            } else {
-              extra_after += n;
-              if (extra_after >= 500) break;
-            }
-          }
-          container->end();
-          if (!found) { ESP_LOGW("idle_sensors", "Tile 0: entity not in registry"); return; }
-          const char *entity_hit = strstr(buf.c_str(), needle.c_str());
-          const char *search_start = entity_hit ? entity_hit : buf.c_str();
-          int prec = -1;
-          const char *key = strstr(search_start, "\"display_precision\":");
-          if (key) {
-            const char *v = key + 20;
-            while (*v == ' ') v++;
-            if (isdigit((unsigned char)*v)) prec = atoi(v);
-          }
-          if (prec < 0) {
-            key = strstr(search_start, "\"suggested_display_precision\":");
-            if (key) {
-              const char *v = key + 30;
-              while (*v == ' ') v++;
-              if (isdigit((unsigned char)*v)) prec = atoi(v);
-            }
-          }
-          if (prec < 0) { ESP_LOGI("idle_sensors", "Tile 0: no precision in registry"); return; }
-          id(idle_sensor_precision_0) = prec;
-          const std::string &raw = id(idle_sensor_raw_0);
-          if (raw.empty()) return;
-          std::string out = raw;
-          char *end_ptr; float val = strtof(raw.c_str(), &end_ptr);
-          if (end_ptr != raw.c_str()) {
-            char fbuf[32]; snprintf(fbuf, sizeof(fbuf), "%.*f", prec, val);
-            out = fbuf;
-          }
-          ESP_LOGI("idle_sensors", "Tile 0 precision=%d raw=%s fmt=%s", prec, raw.c_str(), out.c_str());
-          id(idle_sensor_state_0).publish_state(out);
-
-  - id: fetch_sensor_precision_1
-    mode: single
-    then:
-      - lambda: |-
-          std::string entity = id(idle_sensor_entity_1).state;
-          if (entity.empty()) return;
-          std::string url = std::string("${ha_protocol}://${ha_host}:${ha_port}"
-                                        "/api/config/entity_registry");
-          std::list<esphome::http_request::Header> hdrs;
-          std::string auth = "Bearer ${ha_token}";
-          hdrs.push_back({"Authorization", auth.c_str()});
-          auto container = id(http_req)->get(url, hdrs);
-          if (!container || container->status_code != 200) {
-            ESP_LOGW("idle_sensors", "Tile 1 registry HTTP %d",
-                     container ? container->status_code : -1);
-            if (container) container->end();
-            return;
-          }
-          std::string needle = "\"entity_id\":\"" + entity + "\"";
-          std::string buf;
-          buf.reserve(1024);
-          bool found = false;
-          int extra_after = 0;
-          uint8_t chunk[256]; int n;
-          while ((n = container->read(chunk, sizeof(chunk))) > 0) {
-            buf.append(reinterpret_cast<char*>(chunk), n);
-            if (!found) {
-              if (strstr(buf.c_str(), needle.c_str())) {
-                found = true;
-              } else {
-                if (buf.size() > needle.size() + 256)
-                  buf.erase(0, buf.size() - needle.size());
-              }
-            } else {
-              extra_after += n;
-              if (extra_after >= 500) break;
-            }
-          }
-          container->end();
-          if (!found) { ESP_LOGW("idle_sensors", "Tile 1: entity not in registry"); return; }
-          const char *entity_hit = strstr(buf.c_str(), needle.c_str());
-          const char *search_start = entity_hit ? entity_hit : buf.c_str();
-          int prec = -1;
-          const char *key = strstr(search_start, "\"display_precision\":");
-          if (key) {
-            const char *v = key + 20;
-            while (*v == ' ') v++;
-            if (isdigit((unsigned char)*v)) prec = atoi(v);
-          }
-          if (prec < 0) {
-            key = strstr(search_start, "\"suggested_display_precision\":");
-            if (key) {
-              const char *v = key + 30;
-              while (*v == ' ') v++;
-              if (isdigit((unsigned char)*v)) prec = atoi(v);
-            }
-          }
-          if (prec < 0) { ESP_LOGI("idle_sensors", "Tile 1: no precision in registry"); return; }
-          id(idle_sensor_precision_1) = prec;
-          const std::string &raw = id(idle_sensor_raw_1);
-          if (raw.empty()) return;
-          std::string out = raw;
-          char *end_ptr; float val = strtof(raw.c_str(), &end_ptr);
-          if (end_ptr != raw.c_str()) {
-            char fbuf[32]; snprintf(fbuf, sizeof(fbuf), "%.*f", prec, val);
-            out = fbuf;
-          }
-          ESP_LOGI("idle_sensors", "Tile 1 precision=%d raw=%s fmt=%s", prec, raw.c_str(), out.c_str());
-          id(idle_sensor_state_1).publish_state(out);
-
-  - id: fetch_sensor_precision_2
-    mode: single
-    then:
-      - lambda: |-
-          std::string entity = id(idle_sensor_entity_2).state;
-          if (entity.empty()) return;
-          std::string url = std::string("${ha_protocol}://${ha_host}:${ha_port}"
-                                        "/api/config/entity_registry");
-          std::list<esphome::http_request::Header> hdrs;
-          std::string auth = "Bearer ${ha_token}";
-          hdrs.push_back({"Authorization", auth.c_str()});
-          auto container = id(http_req)->get(url, hdrs);
-          if (!container || container->status_code != 200) {
-            ESP_LOGW("idle_sensors", "Tile 2 registry HTTP %d",
-                     container ? container->status_code : -1);
-            if (container) container->end();
-            return;
-          }
-          std::string needle = "\"entity_id\":\"" + entity + "\"";
-          std::string buf;
-          buf.reserve(1024);
-          bool found = false;
-          int extra_after = 0;
-          uint8_t chunk[256]; int n;
-          while ((n = container->read(chunk, sizeof(chunk))) > 0) {
-            buf.append(reinterpret_cast<char*>(chunk), n);
-            if (!found) {
-              if (strstr(buf.c_str(), needle.c_str())) {
-                found = true;
-              } else {
-                if (buf.size() > needle.size() + 256)
-                  buf.erase(0, buf.size() - needle.size());
-              }
-            } else {
-              extra_after += n;
-              if (extra_after >= 500) break;
-            }
-          }
-          container->end();
-          if (!found) { ESP_LOGW("idle_sensors", "Tile 2: entity not in registry"); return; }
-          const char *entity_hit = strstr(buf.c_str(), needle.c_str());
-          const char *search_start = entity_hit ? entity_hit : buf.c_str();
-          int prec = -1;
-          const char *key = strstr(search_start, "\"display_precision\":");
-          if (key) {
-            const char *v = key + 20;
-            while (*v == ' ') v++;
-            if (isdigit((unsigned char)*v)) prec = atoi(v);
-          }
-          if (prec < 0) {
-            key = strstr(search_start, "\"suggested_display_precision\":");
-            if (key) {
-              const char *v = key + 30;
-              while (*v == ' ') v++;
-              if (isdigit((unsigned char)*v)) prec = atoi(v);
-            }
-          }
-          if (prec < 0) { ESP_LOGI("idle_sensors", "Tile 2: no precision in registry"); return; }
-          id(idle_sensor_precision_2) = prec;
-          const std::string &raw = id(idle_sensor_raw_2);
-          if (raw.empty()) return;
-          std::string out = raw;
-          char *end_ptr; float val = strtof(raw.c_str(), &end_ptr);
-          if (end_ptr != raw.c_str()) {
-            char fbuf[32]; snprintf(fbuf, sizeof(fbuf), "%.*f", prec, val);
-            out = fbuf;
-          }
-          ESP_LOGI("idle_sensors", "Tile 2 precision=%d raw=%s fmt=%s", prec, raw.c_str(), out.c_str());
-          id(idle_sensor_state_2).publish_state(out);
-
-  - id: fetch_sensor_precision_3
-    mode: single
-    then:
-      - lambda: |-
-          std::string entity = id(idle_sensor_entity_3).state;
-          if (entity.empty()) return;
-          std::string url = std::string("${ha_protocol}://${ha_host}:${ha_port}"
-                                        "/api/config/entity_registry");
-          std::list<esphome::http_request::Header> hdrs;
-          std::string auth = "Bearer ${ha_token}";
-          hdrs.push_back({"Authorization", auth.c_str()});
-          auto container = id(http_req)->get(url, hdrs);
-          if (!container || container->status_code != 200) {
-            ESP_LOGW("idle_sensors", "Tile 3 registry HTTP %d",
-                     container ? container->status_code : -1);
-            if (container) container->end();
-            return;
-          }
-          std::string needle = "\"entity_id\":\"" + entity + "\"";
-          std::string buf;
-          buf.reserve(1024);
-          bool found = false;
-          int extra_after = 0;
-          uint8_t chunk[256]; int n;
-          while ((n = container->read(chunk, sizeof(chunk))) > 0) {
-            buf.append(reinterpret_cast<char*>(chunk), n);
-            if (!found) {
-              if (strstr(buf.c_str(), needle.c_str())) {
-                found = true;
-              } else {
-                if (buf.size() > needle.size() + 256)
-                  buf.erase(0, buf.size() - needle.size());
-              }
-            } else {
-              extra_after += n;
-              if (extra_after >= 500) break;
-            }
-          }
-          container->end();
-          if (!found) { ESP_LOGW("idle_sensors", "Tile 3: entity not in registry"); return; }
-          const char *entity_hit = strstr(buf.c_str(), needle.c_str());
-          const char *search_start = entity_hit ? entity_hit : buf.c_str();
-          int prec = -1;
-          const char *key = strstr(search_start, "\"display_precision\":");
-          if (key) {
-            const char *v = key + 20;
-            while (*v == ' ') v++;
-            if (isdigit((unsigned char)*v)) prec = atoi(v);
-          }
-          if (prec < 0) {
-            key = strstr(search_start, "\"suggested_display_precision\":");
-            if (key) {
-              const char *v = key + 30;
-              while (*v == ' ') v++;
-              if (isdigit((unsigned char)*v)) prec = atoi(v);
-            }
-          }
-          if (prec < 0) { ESP_LOGI("idle_sensors", "Tile 3: no precision in registry"); return; }
-          id(idle_sensor_precision_3) = prec;
-          const std::string &raw = id(idle_sensor_raw_3);
-          if (raw.empty()) return;
-          std::string out = raw;
-          char *end_ptr; float val = strtof(raw.c_str(), &end_ptr);
-          if (end_ptr != raw.c_str()) {
-            char fbuf[32]; snprintf(fbuf, sizeof(fbuf), "%.*f", prec, val);
-            out = fbuf;
-          }
-          ESP_LOGI("idle_sensors", "Tile 3 precision=%d raw=%s fmt=%s", prec, raw.c_str(), out.c_str());
-          id(idle_sensor_state_3).publish_state(out);
-
-  # ---------------------------------------------------------------------------
-  # schedule_precision_fetch: waits 5s after HA connect (to clear boot-time
-  # HTTP activity), then fetches entity registry precision for all 4 tiles.
-  # Only runs when ha_token is configured.
-  # ---------------------------------------------------------------------------
-  - id: schedule_precision_fetch
-    mode: restart
-    then:
-      - delay: 5s
-      - if:
-          condition:
-            lambda: 'return std::string("${ha_token}").length() > 0;'
-          then:
-            - script.execute: fetch_sensor_precision_0
-            - script.execute: fetch_sensor_precision_1
-            - script.execute: fetch_sensor_precision_2
-            - script.execute: fetch_sensor_precision_3
 
 # Re-subscribe after HA reconnect (merged with api block in device.yaml)
 api:
@@ -1141,4 +908,3 @@ api:
     - script.execute: subscribe_idle_sensor_1
     - script.execute: subscribe_idle_sensor_2
     - script.execute: subscribe_idle_sensor_3
-    - script.execute: schedule_precision_fetch
