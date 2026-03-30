@@ -528,13 +528,13 @@ script:
 
           ESP_LOGI("idle_sensors", "Tile 0: subscribed to '%s'", entity.c_str());
 
-    - if:
-        condition:
-          lambda: |-
-            return !id(idle_sensor_entity_0).state.empty()
-                && std::string("${ha_token}").length() > 0;
-        then:
-          - script.execute: fetch_sensor_precision_0
+      - if:
+          condition:
+            lambda: |-
+              return !id(idle_sensor_entity_0).state.empty()
+                  && std::string("${ha_token}").length() > 0;
+          then:
+            - script.execute: fetch_sensor_precision_0
 
   - id: subscribe_idle_sensor_1
     mode: restart
@@ -636,13 +636,13 @@ script:
 
           ESP_LOGI("idle_sensors", "Tile 1: subscribed to '%s'", entity.c_str());
 
-    - if:
-        condition:
-          lambda: |-
-            return !id(idle_sensor_entity_1).state.empty()
-                && std::string("${ha_token}").length() > 0;
-        then:
-          - script.execute: fetch_sensor_precision_1
+      - if:
+          condition:
+            lambda: |-
+              return !id(idle_sensor_entity_1).state.empty()
+                  && std::string("${ha_token}").length() > 0;
+          then:
+            - script.execute: fetch_sensor_precision_1
 
   - id: subscribe_idle_sensor_2
     mode: restart
@@ -744,13 +744,13 @@ script:
 
           ESP_LOGI("idle_sensors", "Tile 2: subscribed to '%s'", entity.c_str());
 
-    - if:
-        condition:
-          lambda: |-
-            return !id(idle_sensor_entity_2).state.empty()
-                && std::string("${ha_token}").length() > 0;
-        then:
-          - script.execute: fetch_sensor_precision_2
+      - if:
+          condition:
+            lambda: |-
+              return !id(idle_sensor_entity_2).state.empty()
+                  && std::string("${ha_token}").length() > 0;
+          then:
+            - script.execute: fetch_sensor_precision_2
 
   - id: subscribe_idle_sensor_3
     mode: restart
@@ -852,13 +852,13 @@ script:
 
           ESP_LOGI("idle_sensors", "Tile 3: subscribed to '%s'", entity.c_str());
 
-    - if:
-        condition:
-          lambda: |-
-            return !id(idle_sensor_entity_3).state.empty()
-                && std::string("${ha_token}").length() > 0;
-        then:
-          - script.execute: fetch_sensor_precision_3
+      - if:
+          condition:
+            lambda: |-
+              return !id(idle_sensor_entity_3).state.empty()
+                  && std::string("${ha_token}").length() > 0;
+          then:
+            - script.execute: fetch_sensor_precision_3
 
   # ---------------------------------------------------------------------------
   # fetch_sensor_precision_N: GETs /api/config/entity_registry/<entity_id> and
