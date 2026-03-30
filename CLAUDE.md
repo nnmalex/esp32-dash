@@ -94,9 +94,18 @@ Four LVGL pages defined across two files (`device/lvgl.yaml` + `device/navbar.ya
   - Time grid (y=84..740, scrollable 656px): 44px/hour, default scroll shows 6 AM–9 PM; 30 pre-allocated event blocks (6 per column), current-time red indicator
   - Data: fetched via HA REST API (`GET /api/calendars/<entity>?start=...&end=...`) sequential chain for 3 calendars; requires `ha_token` substitution (set via `!secret ha_token` in your config)
   - Legacy 9 labels kept hidden for idle-agenda subscription compatibility
-- **`climate_page`** — placeholder (Phase 5)
+- **`forecast_page`** — (Phase 5 complete) 7-day weather forecast
+  - 7 columns (183 px wide each); column centres at 91+i×183
+  - Header (y=0..88): day name + date number per column; today highlighted in accent blue
+  - Temperature chart (y=90..450): `lv_chart` line type, 2 series (high 0x6CB4F0, low 0x4B78B0); `pad_left/right=91` aligns points to column centres; floating temp labels above/below each dot
+  - Precipitation (y=452..608): bars scaled to daily max, opacity ∝ probability; mm + % labels
+  - Condition icons (y=614): MDI weather icons per day (14 condition glyphs added to `icon_font`)
+  - Data: `POST /api/services/weather/get_forecasts?return_response=true`; reuses `weather_entity_select` + `ha_token`
+  - Key IDs: `wf_chart`, `wf_col_bg/day/date/high_lbl/low_lbl/precip_bar/mm_lbl/pct_lbl/icon_0..6`
+  - Key scripts: `init_forecast_chart` (lvgl.on_boot), `fetch_forecast`, `render_forecast`
+  - Globals: `wf_data_buf` (pipe-delimited lines), `wf_chart_high/low` (lv_chart_series_t*), `wf_today_col`, `wf_fetch_gen`
 
-Navigation bar (`nav_bar`) defined in `device/navbar.yaml`, reparented to `lv_layer_top()` on boot so it floats above all pages. 60px bar at y=740, hidden on music page, four icon buttons: Home, Music, Calendar, Climate.
+Navigation bar (`nav_bar`) defined in `device/navbar.yaml`, reparented to `lv_layer_top()` on boot so it floats above all pages. 60px bar at y=740, hidden on music page, four icon buttons: Home, Music, Calendar, Forecast.
 
 Global state flags in `device/device.yaml`:
 - `is_screen_dimmed`, `is_clock_screensaver_showing` — backlight stages
@@ -104,9 +113,9 @@ Global state flags in `device/device.yaml`:
 - `setup_done`, `is_wifi_setup_done` — boot flow
 
 Global state in `device/navbar.yaml`:
-- `current_view` (int) — 0=idle, 1=music, 2=calendar, 3=climate
+- `current_view` (int) — 0=idle, 1=music, 2=calendar, 3=forecast
 
-View-switching scripts in `device/navbar.yaml`: `show_idle_view`, `show_music_view`, `show_calendar_view`, `show_climate_view`.
+View-switching scripts in `device/navbar.yaml`: `show_idle_view`, `show_music_view`, `show_calendar_view`, `show_forecast_view`.
 
 Auto-switching driven by `sensors.yaml`:
 - `"playing"` + `current_view == 0` → `show_music_view`
@@ -124,14 +133,12 @@ Phase 4 (complete): `device/calendar_view.yaml` + `device/calendar_sensors.yaml`
 Phase 4c (complete): Calendar view redesigned as 5-day week grid. Key IDs: `cal_grid_scroll` (scrollable time grid), `cal_col_hdr_0..4`, `cal_ev_00..29` (event blocks), `cal_ad_0..4` (all-day chips), `cal_now_line` (current time). New globals: `cal_view_offset`, `cal_events_buf`, `cal_fetch_start/end`. New scripts: `fetch_calendar_week`, `fetch_cal_http_0/1/2`, `render_calendar_grid`. New substitution: `ha_token` (HA long-lived access token, set via `!secret ha_token`).
 Phase 4b (complete): Idle view redesign — two-pane layout (800px left + 480px right). Left pane: weather background image (online_image, loaded from HA `/local/` path by condition name), dark overlay, clock+date top-left, weather condition+temperature top-right, up to 4 sensor tiles stacked vertically (hidden when entity not configured). Right pane: merged calendar agenda (today+tomorrow from all 3 calendars, sorted, past events greyed out). New substitutions: `weather_bg_path`, `local_temp_entity`. Key new IDs: `idle_weather_bg_image` (online_image in weather_sensors.yaml), `idle_sensor_tile_0..3`, `idle_agenda_slot_0..4`, `render_idle_agenda` script.
 
-### Next: Phase 5
+### Phase 5 (complete): forecast view
 
 | Phase | New file | Contents |
 |---|---|---|
-| 5 | `device/climate_view.yaml` | LVGL `climate_page`: climate cards + room sensors |
-| 5 | `device/climate_sensors.yaml` | `text` entities for 4× climate entities, HA subscriptions |
-
-Each new `*_sensors.yaml` follows the pattern in `device/media_player_select.yaml`: a `text` entity persisted in NVS, a generation-counter subscription script, and template sensors that drive LVGL widget updates via `on_value`.
+| 5 | `device/forecast_view.yaml` | LVGL `forecast_page`: 7-day chart + precipitation + condition icons |
+| 5 | `device/forecast_sensors.yaml` | `wf_data_buf` global, `fetch_forecast` (HTTP POST), 30-min interval |
 
 ## Idle page: weather background images
 

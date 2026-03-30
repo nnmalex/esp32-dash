@@ -1,8 +1,8 @@
 # =============================================================================
 # NAVBAR & MULTI-VIEW PAGES
 # =============================================================================
-# Adds current_view global, view-switching scripts, placeholder climate page,
-# and the navigation bar widget (visible on ALL views including music).
+# Adds current_view global, view-switching scripts, and the navigation bar
+# widget (visible on ALL views including music).
 # idle_page is defined in device/idle_view.yaml (Phase 3).
 # calendar_page is defined in device/calendar_view.yaml (Phase 4).
 #
@@ -14,7 +14,7 @@
 # =============================================================================
 
 globals:
-  - id: current_view    # 0=idle 1=music 2=calendar 3=climate
+  - id: current_view    # 0=idle 1=music 2=calendar 3=forecast
     type: int
     initial_value: '0'
 
@@ -45,12 +45,13 @@ script:
       - lvgl.widget.show: nav_bar
       - script.execute: fetch_calendar_week
 
-  - id: show_climate_view
+  - id: show_forecast_view
     mode: single
     then:
       - lambda: 'id(current_view) = 3;'
-      - lvgl.page.show: climate_page
+      - lvgl.page.show: forecast_page
       - lvgl.widget.show: nav_bar
+      - script.execute: fetch_forecast
 
 
 lvgl:
@@ -69,20 +70,8 @@ lvgl:
 
   pages:
     # -------------------------------------------------------------------------
-    # CLIMATE PAGE  (placeholder — content added in Phase 5)
+    # FORECAST PAGE — defined in device/forecast_view.yaml
     # -------------------------------------------------------------------------
-    - id: climate_page
-      scrollable: false
-      scrollbar_mode: "off"
-      width: 100%
-      height: 100%
-      bg_color: 0x111111
-      widgets:
-        - label:
-            text: "Climate"
-            align: CENTER
-            text_font: roboto_light40_font
-            text_color: 0x888888
 
     # -------------------------------------------------------------------------
     # NAV LAYER PAGE — holds nav_bar; widget is reparented to lv_layer_top on boot
@@ -171,9 +160,9 @@ lvgl:
                         text_color: 0xFFFFFF
                         align: CENTER
 
-              # ---- Climate ----
+              # ---- Forecast ----
               - button:
-                  id: nav_climate_btn
+                  id: nav_forecast_btn
                   x: 960
                   y: 0
                   width: 320
@@ -184,10 +173,10 @@ lvgl:
                   radius: 0
                   shadow_width: 0
                   on_click:
-                    - script.execute: show_climate_view
+                    - script.execute: show_forecast_view
                   widgets:
                     - label:
-                        text: $icon_thermo
+                        text: $icon_forecast
                         text_font: icon_font
                         text_color: 0xFFFFFF
                         align: CENTER

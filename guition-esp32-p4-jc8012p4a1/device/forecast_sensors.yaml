@@ -1,0 +1,187 @@
+# =============================================================================
+# FORECAST SENSORS — HTTP fetch + data storage for 7-day weather forecast
+# =============================================================================
+# Fetches daily forecast via HA's weather.get_forecasts service:
+#   POST /api/services/weather/get_forecasts?return_response=true
+#   Body: {"entity_id": "<weather_entity>", "type": "daily"}
+#
+# Requires: ha_token substitution (set via !secret ha_token)
+# Requires: weather_entity_select (from weather_sensors.yaml)
+# Produces: wf_data_buf — pipe-delimited lines, one per forecast day:
+#           "DAYNAME|DAYNUM|HIGH|LOW|PRECIP|PROB|COND\n"
+#           e.g. "TUE|31|15.0|4.0|0.10|54|cloudy\n"
+#
+# render_forecast (forecast_view.yaml) is called after a successful fetch.
+# Auto-refresh: every 30 minutes while forecast view is active.
+# =============================================================================
+
+globals:
+  - id: wf_data_buf
+    type: std::string
+    restore_value: false
+    initial_value: '""'
+  - id: wf_fetch_gen
+    type: int
+    restore_value: false
+    initial_value: '0'
+
+
+script:
+  # ---------------------------------------------------------------------------
+  # fetch_forecast
+  # POSTs to HA forecast service and parses the daily forecast array.
+  # Populates wf_data_buf, then calls render_forecast.
+  # ---------------------------------------------------------------------------
+  - id: fetch_forecast
+    mode: restart
+    then:
+      - lambda: |-
+          std::string entity = id(weather_entity_select).state;
+          std::string token  = "${ha_token}";
+
+          if (entity.empty() || entity.substr(0, 8) != "weather.") {
+            ESP_LOGW("forecast", "No weather entity configured — skipping fetch");
+            return;
+          }
+          if (token.empty()) {
+            ESP_LOGW("forecast", "ha_token not set — skipping fetch");
+            return;
+          }
+
+          id(wf_fetch_gen)++;
+          int my_gen = id(wf_fetch_gen);
+
+          std::string url  = std::string("${ha_protocol}://${ha_host}:${ha_port}")
+                           + "/api/services/weather/get_forecasts?return_response=true";
+          std::string body = "{\"entity_id\": \"" + entity + "\", \"type\": \"daily\"}";
+
+          std::list<esphome::http_request::Header> hdrs;
+          std::string auth = "Bearer " + token;
+          hdrs.push_back({"Authorization", auth.c_str()});
+          hdrs.push_back({"Content-Type", "application/json"});
+
+          ESP_LOGI("forecast", "Fetching forecast for %s", entity.c_str());
+          auto container = id(http_req)->post(url, body, hdrs);
+
+          if (!container || container->status_code != 200) {
+            int sc = container ? container->status_code : -1;
+            ESP_LOGW("forecast", "HTTP error %d", sc);
+            if (container) container->end();
+            return;
+          }
+
+          // Read full response body
+          std::string resp;
+          resp.reserve(8192);
+          uint8_t chunk[512];
+          int n;
+          while ((n = container->read(chunk, sizeof(chunk))) > 0)
+            resp.append(reinterpret_cast<char*>(chunk), n);
+          container->end();
+
+          if (id(wf_fetch_gen) != my_gen) return;  // superseded
+
+          // Locate "forecast":[ in the response (with optional space before [)
+          const char *fc = strstr(resp.c_str(), "\"forecast\":[");
+          if (!fc) fc = strstr(resp.c_str(), "\"forecast\": [");
+          if (!fc) {
+            ESP_LOGW("forecast", "No 'forecast' key in response — clearing display");
+            id(wf_data_buf) = "";
+            id(render_forecast).execute();
+            return;
+          }
+          // Advance past the opening [
+          while (*fc && *fc != '[') fc++;
+          if (*fc == '[') fc++;
+
+          // Parse each day object from the array
+          std::string new_buf;
+          new_buf.reserve(1024);
+          int day_count = 0;
+          const char *p = fc;
+
+          while (*p && day_count < 7) {
+            // Skip to next { (or ] to end array)
+            while (*p && *p != '{' && *p != ']') p++;
+            if (!*p || *p == ']') break;
+
+            // Capture balanced {...}
+            const char *obj_start = p;
+            int depth = 0;
+            while (*p) {
+              if (*p == '{') depth++;
+              else if (*p == '}') { if (--depth == 0) { p++; break; } }
+              p++;
+            }
+            std::string obj(obj_start, p);
+
+            // --- Field extractors ---
+            auto get_str = [&](const char *key) -> std::string {
+              std::string k = std::string("\"") + key + "\":\"";
+              const char *kp = strstr(obj.c_str(), k.c_str());
+              if (!kp) return "";
+              kp += k.size();
+              const char *ep = strchr(kp, '"');
+              return ep ? std::string(kp, ep) : "";
+            };
+            auto get_num = [&](const char *key) -> float {
+              std::string k = std::string("\"") + key + "\":";
+              const char *kp = strstr(obj.c_str(), k.c_str());
+              if (!kp) {
+                k = std::string("\"") + key + "\": ";
+                kp = strstr(obj.c_str(), k.c_str());
+                if (!kp) return 0.0f;
+              }
+              kp += k.size();
+              while (*kp == ' ') kp++;
+              if (strncmp(kp, "null", 4) == 0) return 0.0f;
+              return atof(kp);
+            };
+
+            std::string dt = get_str("datetime");
+            if (dt.size() < 10) continue;
+
+            // Parse YYYY-MM-DD → day-of-week via mktime
+            int year     = atoi(dt.c_str());
+            int month    = atoi(dt.c_str() + 5);
+            int day_num  = atoi(dt.c_str() + 8);
+
+            struct tm tm_d = {};
+            tm_d.tm_year = year - 1900;
+            tm_d.tm_mon  = month - 1;
+            tm_d.tm_mday = day_num;
+            mktime(&tm_d);
+
+            const char *day_names[] = {"SUN","MON","TUE","WED","THU","FRI","SAT"};
+            const char *day_name = day_names[tm_d.tm_wday & 7];
+
+            float high   = get_num("temperature");
+            float low    = get_num("templow");
+            float precip = get_num("precipitation");
+            int   prob   = (int)get_num("precipitation_probability");
+
+            std::string cond = get_str("condition");
+            if (cond.empty()) cond = "cloudy";
+
+            // "DAYNAME|DAYNUM|HIGH|LOW|PRECIP|PROB|COND\n"
+            char line[128];
+            snprintf(line, sizeof(line), "%s|%d|%.1f|%.1f|%.2f|%d|%s\n",
+                     day_name, day_num, high, low, precip, prob, cond.c_str());
+            new_buf += line;
+            day_count++;
+          }
+
+          ESP_LOGI("forecast", "Parsed %d days", day_count);
+          id(wf_data_buf) = new_buf;
+          id(render_forecast).execute();
+
+
+interval:
+  # Auto-refresh while forecast view is active
+  - interval: 30min
+    then:
+      - if:
+          condition:
+            lambda: 'return id(current_view) == 3;'
+          then:
+            - script.execute: fetch_forecast
