@@ -86,7 +86,7 @@ Four LVGL pages defined across two files (`device/lvgl.yaml` + `device/navbar.ya
   - Swipe-up: go to idle screen
   - Full-screen overlays: clock screensaver, setup prompts, loading screen
 - **`idle_page`** (Phase 4b complete) — two-pane layout
-  - Left 800px: weather background image + dark overlay; clock+date top-left; condition+temp top-right; up to 4 sensor tiles stacked vertically (hidden when entity not configured)
+  - Left 800px: weather background image + dark overlay; clock+date top-left; condition+temp top-right; two columns of 5 sensor tiles each (left col x=0..389 = tiles 0-4, right col x=400..789 = tiles 5-9; hidden when entity not configured)
   - Right 480px: merged calendar agenda (today+tomorrow from all 3 calendars, sorted, past events greyed out) — 5 agenda slots (`idle_agenda_slot_0..4`)
 - **`calendar_page`** (Phase 4c complete) — 5-day week grid view
   - Header (y=0..60): 5 day-column labels (day name + date), highlighted today, prev/next nav (offset -1..+2)
@@ -131,7 +131,7 @@ Phase 2 (complete): navbar, `current_view` global, auto-switching, swipe gesture
 Phase 3 (complete): `device/idle_view.yaml` + `device/weather_sensors.yaml` — real idle page with clock, weather card, calendar preview placeholders, 4-tile sensor row; weather entity + 4 sensor row entities (NVS-persisted, gen-counter subscriptions).
 Phase 4 (complete): `device/calendar_view.yaml` + `device/calendar_sensors.yaml` — real calendar page; 3 calendar entity slots.
 Phase 4c (complete): Calendar view redesigned as 5-day week grid. Key IDs: `cal_grid_scroll` (scrollable time grid), `cal_col_hdr_0..4`, `cal_ev_00..29` (event blocks), `cal_ad_0..4` (all-day chips), `cal_now_line` (current time). New globals: `cal_view_offset`, `cal_events_buf`, `cal_fetch_start/end`. New scripts: `fetch_calendar_week`, `fetch_cal_http_0/1/2`, `render_calendar_grid`. New substitution: `ha_token` (HA long-lived access token, set via `!secret ha_token`).
-Phase 4b (complete): Idle view redesign — two-pane layout (800px left + 480px right). Left pane: weather background image (online_image, loaded from HA `/local/` path by condition name), dark overlay, clock+date top-left, weather condition+temperature top-right, up to 4 sensor tiles stacked vertically (hidden when entity not configured). Right pane: merged calendar agenda (today+tomorrow from all 3 calendars, sorted, past events greyed out). New substitutions: `weather_bg_path`, `local_temp_entity`. Key new IDs: `idle_weather_bg_image` (online_image in weather_sensors.yaml), `idle_sensor_tile_0..3`, `idle_agenda_slot_0..4`, `render_idle_agenda` script.
+Phase 4b (complete): Idle view redesign — two-pane layout (800px left + 480px right). Left pane: weather background image (online_image, loaded from HA `/local/` path by condition name), dark overlay, clock+date top-left, weather condition+temperature top-right, two columns of 5 sensor tiles each (left col x=0..389 = tiles 0-4, right col x=400..789 = tiles 5-9; hidden when entity not configured). Right pane: merged calendar agenda (today+tomorrow from all 3 calendars, sorted, past events greyed out). New substitutions: `weather_bg_path`, `local_temp_entity`, `idle_sensor_1..10`. Key new IDs: `idle_weather_bg_image` (online_image in weather_sensors.yaml), `idle_sensor_tile_0..9`, `idle_agenda_slot_0..4`, `render_idle_agenda` script.
 
 ### Phase 5 (complete): forecast view
 
@@ -173,5 +173,5 @@ The left pane of the idle page displays a full-panel weather background image lo
 | `weather_entity` | `""` | `weather.*` entity for condition + temperature |
 | `local_temp_entity` | `""` | Optional `sensor.*` to override displayed temperature |
 | `weather_bg_path` | `""` | HA `/local/` path for condition background images |
-| `idle_sensor_1..4` | `""` | Up to 4 arbitrary HA entities for sensor tiles |
+| `idle_sensor_1..10` | `""` | Up to 10 arbitrary HA entities for sensor tiles (5 left + 5 right column) |
 | `calendar_entity_1..3` | `""` | Up to 3 `calendar.*` entities for the agenda panel |
