@@ -240,11 +240,15 @@ script:
             } else if (start.length() >= 16) {
               int sh   = atoi(start.c_str() + 11);
               int smin = atoi(start.c_str() + 14);
-              const char *ap = (sh >= 12) ? "PM" : "AM";
-              int h12 = sh % 12;
-              if (h12 == 0) h12 = 12;
-              snprintf(time_buf, sizeof(time_buf), "%s \xc2\xb7 %d:%02d %s",
-                       day_prefix, h12, smin, ap);
+              if (end_s.length() >= 16) {
+                int eh   = atoi(end_s.c_str() + 11);
+                int emin = atoi(end_s.c_str() + 14);
+                snprintf(time_buf, sizeof(time_buf), "%s \xc2\xb7 %02d:%02d\xe2\x80\x93%02d:%02d",
+                         day_prefix, sh, smin, eh, emin);
+              } else {
+                snprintf(time_buf, sizeof(time_buf), "%s \xc2\xb7 %02d:%02d",
+                         day_prefix, sh, smin);
+              }
             } else {
               snprintf(time_buf, sizeof(time_buf), "%s", day_prefix);
             }
