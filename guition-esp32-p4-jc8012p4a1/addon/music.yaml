@@ -66,22 +66,22 @@ script:
           int iw = img->get_width();
           int ih = img->get_height();
           auto *w = id(album_art_background_widget);
-          constexpr int display_size = 800;
-          int dim = (iw < ih) ? iw : ih;
-          if (dim > 0 && dim < display_size) {
-            int zoom = (256 * display_size + dim - 1) / dim;
+          if (iw > 0 && ih > 0) {
+            // Scale to fit within 800×740 (display width × height above navbar),
+            // maintaining aspect ratio. Zoom pivot defaults to image centre.
+            constexpr int display_w = 800;
+            constexpr int display_h = 740;
+            float scale = ((float)display_w / iw < (float)display_h / ih)
+                          ? (float)display_w / iw
+                          : (float)display_h / ih;
+            int zoom = (int)(scale * 256.0f);
+            if (zoom < 1) zoom = 1;
             lv_img_set_zoom(w, zoom);
             lv_img_set_offset_x(w, 0);
             lv_img_set_offset_y(w, 0);
             lv_obj_set_size(w, iw, ih);
-            int offset = (display_size - dim) / 2;
-            lv_obj_set_pos(w, offset, offset);
-          } else {
-            lv_img_set_zoom(w, 256);
-            lv_img_set_offset_x(w, 0);
-            lv_img_set_offset_y(w, 0);
-            lv_obj_set_size(w, iw, ih);
-            lv_obj_set_pos(w, (display_size - iw) / 2, (display_size - ih) / 2);
+            // Position so the zoom pivot (image centre) lands at display centre
+            lv_obj_set_pos(w, display_w / 2 - iw / 2, display_h / 2 - ih / 2);
           }
       - lvgl.image.update:
           id: album_art_background_widget
