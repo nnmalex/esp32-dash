@@ -652,21 +652,14 @@ text_sensor:
             0, LV_COORD_MAX, 0);
           lv_obj_set_x(id(idle_sensor_unit_4), 70 + _sz.x + 6);
 
-  # Right-column tiles (5-9): value starts at x=0 (no icon offset), so unit
-  # positioning uses _sz.x + 6 instead of the left-column's 70 + _sz.x + 6.
+  # Right-column tiles (5-9): unit is at a fixed x=290 (right-aligned layout),
+  # no dynamic repositioning needed on value update.
   - platform: template
     id: idle_sensor_state_5
     on_value:
       - lvgl.label.update:
           id: idle_sensor_value_5
           text: !lambda 'return x.empty() ? std::string("\xe2\x80\x94") : x;'
-      - lambda: |-
-          lv_point_t _sz;
-          lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_5)),
-            lv_obj_get_style_text_font(id(idle_sensor_value_5), LV_PART_MAIN),
-            lv_obj_get_style_text_letter_space(id(idle_sensor_value_5), LV_PART_MAIN),
-            0, LV_COORD_MAX, 0);
-          lv_obj_set_x(id(idle_sensor_unit_5), _sz.x + 6);
 
   - platform: template
     id: idle_sensor_state_6
@@ -674,13 +667,6 @@ text_sensor:
       - lvgl.label.update:
           id: idle_sensor_value_6
           text: !lambda 'return x.empty() ? std::string("\xe2\x80\x94") : x;'
-      - lambda: |-
-          lv_point_t _sz;
-          lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_6)),
-            lv_obj_get_style_text_font(id(idle_sensor_value_6), LV_PART_MAIN),
-            lv_obj_get_style_text_letter_space(id(idle_sensor_value_6), LV_PART_MAIN),
-            0, LV_COORD_MAX, 0);
-          lv_obj_set_x(id(idle_sensor_unit_6), _sz.x + 6);
 
   - platform: template
     id: idle_sensor_state_7
@@ -688,13 +674,6 @@ text_sensor:
       - lvgl.label.update:
           id: idle_sensor_value_7
           text: !lambda 'return x.empty() ? std::string("\xe2\x80\x94") : x;'
-      - lambda: |-
-          lv_point_t _sz;
-          lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_7)),
-            lv_obj_get_style_text_font(id(idle_sensor_value_7), LV_PART_MAIN),
-            lv_obj_get_style_text_letter_space(id(idle_sensor_value_7), LV_PART_MAIN),
-            0, LV_COORD_MAX, 0);
-          lv_obj_set_x(id(idle_sensor_unit_7), _sz.x + 6);
 
   - platform: template
     id: idle_sensor_state_8
@@ -702,13 +681,6 @@ text_sensor:
       - lvgl.label.update:
           id: idle_sensor_value_8
           text: !lambda 'return x.empty() ? std::string("\xe2\x80\x94") : x;'
-      - lambda: |-
-          lv_point_t _sz;
-          lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_8)),
-            lv_obj_get_style_text_font(id(idle_sensor_value_8), LV_PART_MAIN),
-            lv_obj_get_style_text_letter_space(id(idle_sensor_value_8), LV_PART_MAIN),
-            0, LV_COORD_MAX, 0);
-          lv_obj_set_x(id(idle_sensor_unit_8), _sz.x + 6);
 
   - platform: template
     id: idle_sensor_state_9
@@ -716,13 +688,6 @@ text_sensor:
       - lvgl.label.update:
           id: idle_sensor_value_9
           text: !lambda 'return x.empty() ? std::string("\xe2\x80\x94") : x;'
-      - lambda: |-
-          lv_point_t _sz;
-          lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_9)),
-            lv_obj_get_style_text_font(id(idle_sensor_value_9), LV_PART_MAIN),
-            lv_obj_get_style_text_letter_space(id(idle_sensor_value_9), LV_PART_MAIN),
-            0, LV_COORD_MAX, 0);
-          lv_obj_set_x(id(idle_sensor_unit_9), _sz.x + 6);
 
 
 # -----------------------------------------------------------------------------
@@ -1393,12 +1358,6 @@ script:
               str_cb([gen, gen_ptr](const std::string &unit) {
                 if (gen != *gen_ptr) return;
                 lv_label_set_text(id(idle_sensor_unit_5), unit.c_str());
-                lv_point_t _sz;
-                lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_5)),
-                  lv_obj_get_style_text_font(id(idle_sensor_value_5), LV_PART_MAIN),
-                  lv_obj_get_style_text_letter_space(id(idle_sensor_value_5), LV_PART_MAIN),
-                  0, LV_COORD_MAX, 0);
-                lv_obj_set_x(id(idle_sensor_unit_5), _sz.x + 6);
               }));
 
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
@@ -1492,12 +1451,6 @@ script:
               str_cb([gen, gen_ptr](const std::string &unit) {
                 if (gen != *gen_ptr) return;
                 lv_label_set_text(id(idle_sensor_unit_6), unit.c_str());
-                lv_point_t _sz;
-                lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_6)),
-                  lv_obj_get_style_text_font(id(idle_sensor_value_6), LV_PART_MAIN),
-                  lv_obj_get_style_text_letter_space(id(idle_sensor_value_6), LV_PART_MAIN),
-                  0, LV_COORD_MAX, 0);
-                lv_obj_set_x(id(idle_sensor_unit_6), _sz.x + 6);
               }));
 
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
@@ -1591,12 +1544,6 @@ script:
               str_cb([gen, gen_ptr](const std::string &unit) {
                 if (gen != *gen_ptr) return;
                 lv_label_set_text(id(idle_sensor_unit_7), unit.c_str());
-                lv_point_t _sz;
-                lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_7)),
-                  lv_obj_get_style_text_font(id(idle_sensor_value_7), LV_PART_MAIN),
-                  lv_obj_get_style_text_letter_space(id(idle_sensor_value_7), LV_PART_MAIN),
-                  0, LV_COORD_MAX, 0);
-                lv_obj_set_x(id(idle_sensor_unit_7), _sz.x + 6);
               }));
 
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
@@ -1690,12 +1637,6 @@ script:
               str_cb([gen, gen_ptr](const std::string &unit) {
                 if (gen != *gen_ptr) return;
                 lv_label_set_text(id(idle_sensor_unit_8), unit.c_str());
-                lv_point_t _sz;
-                lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_8)),
-                  lv_obj_get_style_text_font(id(idle_sensor_value_8), LV_PART_MAIN),
-                  lv_obj_get_style_text_letter_space(id(idle_sensor_value_8), LV_PART_MAIN),
-                  0, LV_COORD_MAX, 0);
-                lv_obj_set_x(id(idle_sensor_unit_8), _sz.x + 6);
               }));
 
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
@@ -1789,12 +1730,6 @@ script:
               str_cb([gen, gen_ptr](const std::string &unit) {
                 if (gen != *gen_ptr) return;
                 lv_label_set_text(id(idle_sensor_unit_9), unit.c_str());
-                lv_point_t _sz;
-                lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_9)),
-                  lv_obj_get_style_text_font(id(idle_sensor_value_9), LV_PART_MAIN),
-                  lv_obj_get_style_text_letter_space(id(idle_sensor_value_9), LV_PART_MAIN),
-                  0, LV_COORD_MAX, 0);
-                lv_obj_set_x(id(idle_sensor_unit_9), _sz.x + 6);
               }));
 
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
