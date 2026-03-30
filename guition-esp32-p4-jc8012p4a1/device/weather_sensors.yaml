@@ -829,8 +829,8 @@ script:
           ESP_LOGI("idle_sensors", "Tile 3: subscribed to '%s'", entity.c_str());
 
   # ---------------------------------------------------------------------------
-  # fetch_sensor_precision_N: GETs /api/config/entity_registry/<entity_id> and
-  # parses display_precision (user override) or suggested_display_precision
+  # fetch_sensor_precision_N: GETs /api/states/<entity_id> and parses
+  # suggested_display_precision from the attributes object in the response.
   # (integration hint). Re-formats the last raw state value if precision changes.
   # Only runs when ha_token is configured.
   # ---------------------------------------------------------------------------
@@ -841,7 +841,7 @@ script:
           std::string entity = id(idle_sensor_entity_0).state;
           if (entity.empty()) return;
           std::string url = std::string("${ha_protocol}://${ha_host}:${ha_port}"
-                                        "/api/config/entity_registry/") + entity;
+                                        "/api/states/") + entity;
           std::list<esphome::http_request::Header> hdrs;
           std::string auth = "Bearer ${ha_token}";
           hdrs.push_back({"Authorization", auth.c_str()});
@@ -853,30 +853,21 @@ script:
             return;
           }
           std::string body;
-          body.reserve(512);
+          body.reserve(1024);
           uint8_t buf[256];
           int n;
           while ((n = container->read(buf, sizeof(buf))) > 0)
             body.append(reinterpret_cast<char*>(buf), n);
           container->end();
 
-          // Prefer user-set display_precision; fall back to suggested
           int prec = -1;
-          const char *key = strstr(body.c_str(), "\"display_precision\":");
+          const char *key = strstr(body.c_str(), "\"suggested_display_precision\":");
           if (key) {
-            const char *v = key + 20;
+            const char *v = key + 30;
             while (*v == ' ') v++;
             if (isdigit((unsigned char)*v)) prec = atoi(v);
           }
-          if (prec < 0) {
-            key = strstr(body.c_str(), "\"suggested_display_precision\":");
-            if (key) {
-              const char *v = key + 30;
-              while (*v == ' ') v++;
-              if (isdigit((unsigned char)*v)) prec = atoi(v);
-            }
-          }
-          if (prec < 0) { ESP_LOGI("idle_sensors", "Tile 0: no precision in registry"); return; }
+          if (prec < 0) { ESP_LOGI("idle_sensors", "Tile 0: no suggested_display_precision in state"); return; }
           id(idle_sensor_precision_0) = prec;
           const std::string &raw = id(idle_sensor_raw_0);
           if (raw.empty()) return;
@@ -896,7 +887,7 @@ script:
           std::string entity = id(idle_sensor_entity_1).state;
           if (entity.empty()) return;
           std::string url = std::string("${ha_protocol}://${ha_host}:${ha_port}"
-                                        "/api/config/entity_registry/") + entity;
+                                        "/api/states/") + entity;
           std::list<esphome::http_request::Header> hdrs;
           std::string auth = "Bearer ${ha_token}";
           hdrs.push_back({"Authorization", auth.c_str()});
@@ -930,7 +921,7 @@ script:
               if (isdigit((unsigned char)*v)) prec = atoi(v);
             }
           }
-          if (prec < 0) { ESP_LOGI("idle_sensors", "Tile 1: no precision in registry"); return; }
+          if (prec < 0) { ESP_LOGI("idle_sensors", "Tile 1: no suggested_display_precision in state"); return; }
           id(idle_sensor_precision_1) = prec;
           const std::string &raw = id(idle_sensor_raw_1);
           if (raw.empty()) return;
@@ -950,7 +941,7 @@ script:
           std::string entity = id(idle_sensor_entity_2).state;
           if (entity.empty()) return;
           std::string url = std::string("${ha_protocol}://${ha_host}:${ha_port}"
-                                        "/api/config/entity_registry/") + entity;
+                                        "/api/states/") + entity;
           std::list<esphome::http_request::Header> hdrs;
           std::string auth = "Bearer ${ha_token}";
           hdrs.push_back({"Authorization", auth.c_str()});
@@ -984,7 +975,7 @@ script:
               if (isdigit((unsigned char)*v)) prec = atoi(v);
             }
           }
-          if (prec < 0) { ESP_LOGI("idle_sensors", "Tile 2: no precision in registry"); return; }
+          if (prec < 0) { ESP_LOGI("idle_sensors", "Tile 2: no suggested_display_precision in state"); return; }
           id(idle_sensor_precision_2) = prec;
           const std::string &raw = id(idle_sensor_raw_2);
           if (raw.empty()) return;
@@ -1004,7 +995,7 @@ script:
           std::string entity = id(idle_sensor_entity_3).state;
           if (entity.empty()) return;
           std::string url = std::string("${ha_protocol}://${ha_host}:${ha_port}"
-                                        "/api/config/entity_registry/") + entity;
+                                        "/api/states/") + entity;
           std::list<esphome::http_request::Header> hdrs;
           std::string auth = "Bearer ${ha_token}";
           hdrs.push_back({"Authorization", auth.c_str()});
@@ -1038,7 +1029,7 @@ script:
               if (isdigit((unsigned char)*v)) prec = atoi(v);
             }
           }
-          if (prec < 0) { ESP_LOGI("idle_sensors", "Tile 3: no precision in registry"); return; }
+          if (prec < 0) { ESP_LOGI("idle_sensors", "Tile 3: no suggested_display_precision in state"); return; }
           id(idle_sensor_precision_3) = prec;
           const std::string &raw = id(idle_sensor_raw_3);
           if (raw.empty()) return;
