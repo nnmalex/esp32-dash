@@ -78,6 +78,10 @@ font:
     glyphs:
       - "\U000F040A"  # mdi-play
       - "\U000F03E4"  # mdi-pause
+      - "\U000F04AE"  # mdi-skip-previous
+      - "\U000F04AD"  # mdi-skip-next
+      - "\U000F02D1"  # mdi-heart
+      - "\U000F02D5"  # mdi-heart-outline
   - file: 'https://github.com/Templarian/MaterialDesign-Webfont/raw/v7.4.47/fonts/materialdesignicons-webfont.ttf'
     id: icon_font_setup
     size: 64
@@ -100,8 +104,12 @@ substitutions:
   tv_icon:       "\U000F0502"
   icon_speakers: "\U000F0D38"
   icon_close:    "\U000F0156"
-  icon_home:     "\U000F02DC"
-  icon_music:    "\U000F075A"
-  icon_calendar: "\U000F00ED"
-  icon_thermo:   "\U000F050F"
-  icon_forecast: "\U000F0595"
+  icon_home:          "\U000F02DC"
+  icon_music:         "\U000F075A"
+  icon_calendar:      "\U000F00ED"
+  icon_thermo:        "\U000F050F"
+  icon_forecast:      "\U000F0595"
+  icon_skip_prev:     "\U000F04AE"
+  icon_skip_next:     "\U000F04AD"
+  icon_heart:         "\U000F02D1"
+  icon_heart_outline: "\U000F02D5"

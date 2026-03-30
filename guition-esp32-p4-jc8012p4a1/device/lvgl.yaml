@@ -13,6 +13,9 @@ lvgl:
         lv_obj_clear_flag(id(speakers_container), LV_OBJ_FLAG_SCROLL_MOMENTUM);
         lv_obj_clear_flag(id(speakers_container), LV_OBJ_FLAG_SCROLL_ELASTIC);
         lv_obj_set_scroll_dir(id(speakers_container), LV_DIR_VER);
+        if (strlen("$favourite_entity") > 0) {
+          lv_obj_clear_flag(id(media_favourite_button), LV_OBJ_FLAG_HIDDEN);
+        }
 
   pages:
     - id: music_page
@@ -84,7 +87,7 @@ lvgl:
             x: 840
             y: 40
             width: 400px
-            height: 720px
+            height: 700px
             bg_opa: 0%
             border_width: 0
             pad_all: 0
@@ -99,9 +102,9 @@ lvgl:
                   id: media_title_label
                   text: "—"
                   width: 100%
-                  max_height: 506px
+                  max_height: 420px
                   long_mode: wrap
-                  text_font: roboto_light88_font
+                  text_font: roboto_light70_font
                   text_color: 0xFFFFFF
                   text_align: left
                   text_line_space: 0
@@ -128,44 +131,131 @@ lvgl:
                   on_click:
                     - switch.toggle: show_remaining_time
 
-        # Play/pause button (bottom-right corner)
-        - button:
-            id: media_play_pause_button
-            align: bottom_right
-            x: -40
-            y: -40
-            width: 96px
-            height: 96px
-            radius: 48
-            styles: control_round
-            widgets:
-              - label:
-                  id: media_play_icon
-                  text_font: icon_font_large
+              # Spacer pushes controls to the bottom of the panel
+              - obj:
+                  flex_grow: 1
+                  bg_opa: 0%
+                  border_width: 0
+                  pad_all: 0
+
+              # Favourite button — shown on boot if favourite_entity substitution is set
+              - button:
+                  id: media_favourite_button
                   align: center
-                  text: $play
-                  text_color: 0xFFFFFF
-                  hidden: false
-              - label:
-                  id: media_pause_icon
-                  text_font: icon_font_large
-                  align: center
-                  text: $pause
-                  text_color: 0xFFFFFF
+                  width: 72px
+                  height: 72px
+                  radius: 36
+                  styles: control_round
                   hidden: true
-            on_press:
-              - homeassistant.service:
-                  service: media_player.media_play_pause
-                  variables:
-                    target: !lambda 'return id(media_player_entity).state;'
-                  data_template:
-                    entity_id: "{{ target }}"
-                  on_error:
-                    - lambda: |-
-                        if (!id(actions_prompt_acked)) {
-                          lv_obj_clear_flag(id(actions_prompt), LV_OBJ_FLAG_HIDDEN);
-                        }
-              - logger.log: "Media: play_pause"
+                  widgets:
+                    - label:
+                        id: media_favourite_icon
+                        text_font: icon_font_large
+                        align: center
+                        text: $icon_heart_outline
+                        text_color: 0xFFFFFF
+                  on_press:
+                    - homeassistant.service:
+                        service: button.press
+                        variables:
+                          target: !lambda 'return "$favourite_entity";'
+                        data_template:
+                          entity_id: "{{ target }}"
+                    - logger.log: "Media: favourite"
+
+              # Playback controls row: prev | play/pause | next
+              - obj:
+                  id: media_controls_row
+                  width: 100%
+                  height: content
+                  bg_opa: 0%
+                  border_width: 0
+                  pad_all: 0
+                  pad_bottom: 8px
+                  layout:
+                    type: flex
+                    flex_flow: ROW
+                    flex_align_main: CENTER
+                    flex_align_cross: CENTER
+                    flex_align_track: CENTER
+                    pad_column: 24
+                  widgets:
+                    - button:
+                        id: media_prev_button
+                        width: 64px
+                        height: 64px
+                        radius: 32
+                        styles: control_round
+                        widgets:
+                          - label:
+                              text_font: icon_font_large
+                              align: center
+                              text: $icon_skip_prev
+                              text_color: 0xFFFFFF
+                        on_press:
+                          - homeassistant.service:
+                              service: media_player.media_previous_track
+                              variables:
+                                target: !lambda 'return id(media_player_entity).state;'
+                              data_template:
+                                entity_id: "{{ target }}"
+                          - logger.log: "Media: prev_track"
+
+                    - button:
+                        id: media_play_pause_button
+                        width: 96px
+                        height: 96px
+                        radius: 48
+                        styles: control_round
+                        widgets:
+                          - label:
+                              id: media_play_icon
+                              text_font: icon_font_large
+                              align: center
+                              text: $play
+                              text_color: 0xFFFFFF
+                              hidden: false
+                          - label:
+                              id: media_pause_icon
+                              text_font: icon_font_large
+                              align: center
+                              text: $pause
+                              text_color: 0xFFFFFF
+                              hidden: true
+                        on_press:
+                          - homeassistant.service:
+                              service: media_player.media_play_pause
+                              variables:
+                                target: !lambda 'return id(media_player_entity).state;'
+                              data_template:
+                                entity_id: "{{ target }}"
+                              on_error:
+                                - lambda: |-
+                                    if (!id(actions_prompt_acked)) {
+                                      lv_obj_clear_flag(id(actions_prompt), LV_OBJ_FLAG_HIDDEN);
+                                    }
+                          - logger.log: "Media: play_pause"
+
+                    - button:
+                        id: media_next_button
+                        width: 64px
+                        height: 64px
+                        radius: 32
+                        styles: control_round
+                        widgets:
+                          - label:
+                              text_font: icon_font_large
+                              align: center
+                              text: $icon_skip_next
+                              text_color: 0xFFFFFF
+                        on_press:
+                          - homeassistant.service:
+                              service: media_player.media_next_track
+                              variables:
+                                target: !lambda 'return id(media_player_entity).state;'
+                              data_template:
+                                entity_id: "{{ target }}"
+                          - logger.log: "Media: next_track"
 
         # Progress bar just above the navbar (navbar is 60px at y=740)
         - bar:

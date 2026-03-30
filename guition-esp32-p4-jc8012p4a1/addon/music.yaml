@@ -50,7 +50,7 @@ online_image:
     byte_order: little_endian
     placeholder: album_art_placeholder
     resize: 800x800
-    buffer_size: 131072
+    buffer_size: 262144
     on_download_finished:
       - script.execute: apply_downloaded_artwork
     on_error:
