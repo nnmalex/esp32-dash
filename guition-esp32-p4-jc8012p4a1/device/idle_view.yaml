@@ -454,7 +454,7 @@ lvgl:
             widgets:
               - label:
                   id: idle_sensor_icon_5
-                  x: 348
+                  x: 324
                   y: 2
                   width: 40
                   text_font: icon_font
@@ -465,7 +465,7 @@ lvgl:
                   id: idle_sensor_name_5
                   x: 0
                   y: 6
-                  width: 340
+                  width: 316
                   text_font: roboto_light26_font
                   text_color: 0x888888
                   text_align: right
@@ -474,14 +474,14 @@ lvgl:
                   id: idle_sensor_value_5
                   x: 0
                   y: 36
-                  width: 284
+                  width: 302
                   text_font: roboto_light40_font
                   text_color: 0xFFFFFF
                   text_align: right
                   text: "—"
               - label:
                   id: idle_sensor_unit_5
-                  x: 290
+                  x: 308
                   y: 44
                   width: 56
                   text_font: roboto_light26_font
@@ -505,7 +505,7 @@ lvgl:
             widgets:
               - label:
                   id: idle_sensor_icon_6
-                  x: 348
+                  x: 324
                   y: 2
                   width: 40
                   text_font: icon_font
@@ -516,7 +516,7 @@ lvgl:
                   id: idle_sensor_name_6
                   x: 0
                   y: 6
-                  width: 340
+                  width: 316
                   text_font: roboto_light26_font
                   text_color: 0x888888
                   text_align: right
@@ -525,14 +525,14 @@ lvgl:
                   id: idle_sensor_value_6
                   x: 0
                   y: 36
-                  width: 284
+                  width: 302
                   text_font: roboto_light40_font
                   text_color: 0xFFFFFF
                   text_align: right
                   text: "—"
               - label:
                   id: idle_sensor_unit_6
-                  x: 290
+                  x: 308
                   y: 44
                   width: 56
                   text_font: roboto_light26_font
@@ -556,7 +556,7 @@ lvgl:
             widgets:
               - label:
                   id: idle_sensor_icon_7
-                  x: 348
+                  x: 324
                   y: 2
                   width: 40
                   text_font: icon_font
@@ -567,7 +567,7 @@ lvgl:
                   id: idle_sensor_name_7
                   x: 0
                   y: 6
-                  width: 340
+                  width: 316
                   text_font: roboto_light26_font
                   text_color: 0x888888
                   text_align: right
@@ -576,14 +576,14 @@ lvgl:
                   id: idle_sensor_value_7
                   x: 0
                   y: 36
-                  width: 284
+                  width: 302
                   text_font: roboto_light40_font
                   text_color: 0xFFFFFF
                   text_align: right
                   text: "—"
               - label:
                   id: idle_sensor_unit_7
-                  x: 290
+                  x: 308
                   y: 44
                   width: 56
                   text_font: roboto_light26_font
@@ -607,7 +607,7 @@ lvgl:
             widgets:
               - label:
                   id: idle_sensor_icon_8
-                  x: 348
+                  x: 324
                   y: 2
                   width: 40
                   text_font: icon_font
@@ -618,7 +618,7 @@ lvgl:
                   id: idle_sensor_name_8
                   x: 0
                   y: 6
-                  width: 340
+                  width: 316
                   text_font: roboto_light26_font
                   text_color: 0x888888
                   text_align: right
@@ -627,14 +627,14 @@ lvgl:
                   id: idle_sensor_value_8
                   x: 0
                   y: 36
-                  width: 284
+                  width: 302
                   text_font: roboto_light40_font
                   text_color: 0xFFFFFF
                   text_align: right
                   text: "—"
               - label:
                   id: idle_sensor_unit_8
-                  x: 290
+                  x: 308
                   y: 44
                   width: 56
                   text_font: roboto_light26_font
@@ -658,7 +658,7 @@ lvgl:
             widgets:
               - label:
                   id: idle_sensor_icon_9
-                  x: 348
+                  x: 324
                   y: 2
                   width: 40
                   text_font: icon_font
@@ -669,7 +669,7 @@ lvgl:
                   id: idle_sensor_name_9
                   x: 0
                   y: 6
-                  width: 340
+                  width: 316
                   text_font: roboto_light26_font
                   text_color: 0x888888
                   text_align: right
@@ -678,14 +678,14 @@ lvgl:
                   id: idle_sensor_value_9
                   x: 0
                   y: 36
-                  width: 284
+                  width: 302
                   text_font: roboto_light40_font
                   text_color: 0xFFFFFF
                   text_align: right
                   text: "—"
               - label:
                   id: idle_sensor_unit_9
-                  x: 290
+                  x: 308
                   y: 44
                   width: 56
                   text_font: roboto_light26_font
