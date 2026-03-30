@@ -97,6 +97,11 @@ sensor:
     entity_category: "diagnostic"
     device_class: ""
 
+button:
+  - platform: restart
+    name: "Restart"
+    icon: mdi:restart
+
 text_sensor:
 # Ip Address
   - platform: wifi_info
