@@ -27,12 +27,6 @@ substitutions:
   idle_sensor_2: ""
   idle_sensor_3: ""
   idle_sensor_4: ""
-  # Override display precision per tile (-1 = use raw state, 0+ = decimal places).
-  # Only needed when HA does not expose suggested_display_precision as a state attribute.
-  idle_sensor_1_precision: "-1"
-  idle_sensor_2_precision: "-1"
-  idle_sensor_3_precision: "-1"
-  idle_sensor_4_precision: "-1"
   # Base path on the HA server for weather background images.
   # Example: "/local/weather-backgrounds"
   # Images named: sunny.jpg, partlycloudy.jpg, cloudy.jpg, rainy.jpg, etc.
@@ -84,21 +78,7 @@ globals:
     type: int
     initial_value: '0'
 
-  # suggested_display_precision per tile; -1 = unset (show raw state string)
-  - id: idle_sensor_precision_0
-    type: int
-    initial_value: '-1'
-  - id: idle_sensor_precision_1
-    type: int
-    initial_value: '-1'
-  - id: idle_sensor_precision_2
-    type: int
-    initial_value: '-1'
-  - id: idle_sensor_precision_3
-    type: int
-    initial_value: '-1'
-
-  # Last raw state string per tile; needed to reformat when precision arrives late
+  # Last raw state string per tile; needed to reformat when precision changes
   - id: idle_sensor_raw_0
     type: std::string
     initial_value: '""'
@@ -221,6 +201,93 @@ text:
     max_length: 100
     on_value:
       - script.execute: subscribe_idle_sensor_3
+
+
+# -----------------------------------------------------------------------------
+# Precision controls — shown in HA device UI under Configuration.
+# -1 = show raw state string, 0+ = round to N decimal places.
+# Stored in NVS so the setting survives reboots.
+# -----------------------------------------------------------------------------
+number:
+  - platform: template
+    name: "Sensor Tile 1: Precision"
+    id: idle_sensor_prec_0
+    entity_category: config
+    icon: "mdi:decimal"
+    min_value: -1
+    max_value: 5
+    step: 1
+    optimistic: true
+    restore_value: true
+    initial_value: -1
+    set_action:
+      - lambda: |-
+          const std::string &raw = id(idle_sensor_raw_0);
+          if (raw.empty() || (int)x < 0) return;
+          char *ep; float val = strtof(raw.c_str(), &ep);
+          if (ep == raw.c_str()) return;
+          char buf[32]; snprintf(buf, sizeof(buf), "%.*f", (int)x, val);
+          id(idle_sensor_state_0).publish_state(std::string(buf));
+
+  - platform: template
+    name: "Sensor Tile 2: Precision"
+    id: idle_sensor_prec_1
+    entity_category: config
+    icon: "mdi:decimal"
+    min_value: -1
+    max_value: 5
+    step: 1
+    optimistic: true
+    restore_value: true
+    initial_value: -1
+    set_action:
+      - lambda: |-
+          const std::string &raw = id(idle_sensor_raw_1);
+          if (raw.empty() || (int)x < 0) return;
+          char *ep; float val = strtof(raw.c_str(), &ep);
+          if (ep == raw.c_str()) return;
+          char buf[32]; snprintf(buf, sizeof(buf), "%.*f", (int)x, val);
+          id(idle_sensor_state_1).publish_state(std::string(buf));
+
+  - platform: template
+    name: "Sensor Tile 3: Precision"
+    id: idle_sensor_prec_2
+    entity_category: config
+    icon: "mdi:decimal"
+    min_value: -1
+    max_value: 5
+    step: 1
+    optimistic: true
+    restore_value: true
+    initial_value: -1
+    set_action:
+      - lambda: |-
+          const std::string &raw = id(idle_sensor_raw_2);
+          if (raw.empty() || (int)x < 0) return;
+          char *ep; float val = strtof(raw.c_str(), &ep);
+          if (ep == raw.c_str()) return;
+          char buf[32]; snprintf(buf, sizeof(buf), "%.*f", (int)x, val);
+          id(idle_sensor_state_2).publish_state(std::string(buf));
+
+  - platform: template
+    name: "Sensor Tile 4: Precision"
+    id: idle_sensor_prec_3
+    entity_category: config
+    icon: "mdi:decimal"
+    min_value: -1
+    max_value: 5
+    step: 1
+    optimistic: true
+    restore_value: true
+    initial_value: -1
+    set_action:
+      - lambda: |-
+          const std::string &raw = id(idle_sensor_raw_3);
+          if (raw.empty() || (int)x < 0) return;
+          char *ep; float val = strtof(raw.c_str(), &ep);
+          if (ep == raw.c_str()) return;
+          char buf[32]; snprintf(buf, sizeof(buf), "%.*f", (int)x, val);
+          id(idle_sensor_state_3).publish_state(std::string(buf));
 
 
 # -----------------------------------------------------------------------------
@@ -445,7 +512,6 @@ script:
             lv_label_set_text(id(idle_sensor_value_0), "\xe2\x80\x94");
             lv_label_set_text(id(idle_sensor_icon_0), "");
             lv_label_set_text(id(idle_sensor_unit_0), "");
-            id(idle_sensor_precision_0) = ${idle_sensor_1_precision};
             id(idle_sensor_raw_0) = "";
             return;
           }
@@ -470,7 +536,6 @@ script:
           id(idle_sensor_gen_0) += 1;
           int gen = id(idle_sensor_gen_0);
           int *gen_ptr = &id(idle_sensor_gen_0);
-          id(idle_sensor_precision_0) = ${idle_sensor_1_precision};
 
           auto *api = esphome::api::global_api_server;
           using str_cb = std::function<void(const std::string &)>;
@@ -480,7 +545,7 @@ script:
                 if (gen != *gen_ptr) return;
                 id(idle_sensor_raw_0) = state;
                 std::string out = state;
-                int prec = id(idle_sensor_precision_0);
+                int prec = (int)id(idle_sensor_prec_0).state;
                 if (prec >= 0 && !state.empty()) {
                   char *end; float val = strtof(state.c_str(), &end);
                   if (end != state.c_str()) {
@@ -489,21 +554,6 @@ script:
                   }
                 }
                 id(idle_sensor_state_0).publish_state(out);
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("suggested_display_precision"),
-              str_cb([gen, gen_ptr](const std::string &prec_str) {
-                if (gen != *gen_ptr) return;
-                if (prec_str.empty()) return;
-                char *ep; long p = strtol(prec_str.c_str(), &ep, 10);
-                if (ep == prec_str.c_str()) return;
-                id(idle_sensor_precision_0) = (int)p;
-                const std::string &raw = id(idle_sensor_raw_0);
-                if (raw.empty()) return;
-                char *end_ptr; float val = strtof(raw.c_str(), &end_ptr);
-                if (end_ptr == raw.c_str()) return;
-                char fbuf[32]; snprintf(fbuf, sizeof(fbuf), "%.*f", (int)p, val);
-                id(idle_sensor_state_0).publish_state(std::string(fbuf));
               }));
 
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
@@ -562,7 +612,6 @@ script:
             lv_label_set_text(id(idle_sensor_value_1), "\xe2\x80\x94");
             lv_label_set_text(id(idle_sensor_icon_1), "");
             lv_label_set_text(id(idle_sensor_unit_1), "");
-            id(idle_sensor_precision_1) = ${idle_sensor_2_precision};
             id(idle_sensor_raw_1) = "";
             return;
           }
@@ -586,7 +635,6 @@ script:
           id(idle_sensor_gen_1) += 1;
           int gen = id(idle_sensor_gen_1);
           int *gen_ptr = &id(idle_sensor_gen_1);
-          id(idle_sensor_precision_1) = ${idle_sensor_2_precision};
 
           auto *api = esphome::api::global_api_server;
           using str_cb = std::function<void(const std::string &)>;
@@ -596,7 +644,7 @@ script:
                 if (gen != *gen_ptr) return;
                 id(idle_sensor_raw_1) = state;
                 std::string out = state;
-                int prec = id(idle_sensor_precision_1);
+                int prec = (int)id(idle_sensor_prec_1).state;
                 if (prec >= 0 && !state.empty()) {
                   char *end; float val = strtof(state.c_str(), &end);
                   if (end != state.c_str()) {
@@ -605,21 +653,6 @@ script:
                   }
                 }
                 id(idle_sensor_state_1).publish_state(out);
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("suggested_display_precision"),
-              str_cb([gen, gen_ptr](const std::string &prec_str) {
-                if (gen != *gen_ptr) return;
-                if (prec_str.empty()) return;
-                char *ep; long p = strtol(prec_str.c_str(), &ep, 10);
-                if (ep == prec_str.c_str()) return;
-                id(idle_sensor_precision_1) = (int)p;
-                const std::string &raw = id(idle_sensor_raw_1);
-                if (raw.empty()) return;
-                char *end_ptr; float val = strtof(raw.c_str(), &end_ptr);
-                if (end_ptr == raw.c_str()) return;
-                char fbuf[32]; snprintf(fbuf, sizeof(fbuf), "%.*f", (int)p, val);
-                id(idle_sensor_state_1).publish_state(std::string(fbuf));
               }));
 
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
@@ -678,7 +711,6 @@ script:
             lv_label_set_text(id(idle_sensor_value_2), "\xe2\x80\x94");
             lv_label_set_text(id(idle_sensor_icon_2), "");
             lv_label_set_text(id(idle_sensor_unit_2), "");
-            id(idle_sensor_precision_2) = ${idle_sensor_3_precision};
             id(idle_sensor_raw_2) = "";
             return;
           }
@@ -702,7 +734,6 @@ script:
           id(idle_sensor_gen_2) += 1;
           int gen = id(idle_sensor_gen_2);
           int *gen_ptr = &id(idle_sensor_gen_2);
-          id(idle_sensor_precision_2) = ${idle_sensor_3_precision};
 
           auto *api = esphome::api::global_api_server;
           using str_cb = std::function<void(const std::string &)>;
@@ -712,7 +743,7 @@ script:
                 if (gen != *gen_ptr) return;
                 id(idle_sensor_raw_2) = state;
                 std::string out = state;
-                int prec = id(idle_sensor_precision_2);
+                int prec = (int)id(idle_sensor_prec_2).state;
                 if (prec >= 0 && !state.empty()) {
                   char *end; float val = strtof(state.c_str(), &end);
                   if (end != state.c_str()) {
@@ -721,21 +752,6 @@ script:
                   }
                 }
                 id(idle_sensor_state_2).publish_state(out);
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("suggested_display_precision"),
-              str_cb([gen, gen_ptr](const std::string &prec_str) {
-                if (gen != *gen_ptr) return;
-                if (prec_str.empty()) return;
-                char *ep; long p = strtol(prec_str.c_str(), &ep, 10);
-                if (ep == prec_str.c_str()) return;
-                id(idle_sensor_precision_2) = (int)p;
-                const std::string &raw = id(idle_sensor_raw_2);
-                if (raw.empty()) return;
-                char *end_ptr; float val = strtof(raw.c_str(), &end_ptr);
-                if (end_ptr == raw.c_str()) return;
-                char fbuf[32]; snprintf(fbuf, sizeof(fbuf), "%.*f", (int)p, val);
-                id(idle_sensor_state_2).publish_state(std::string(fbuf));
               }));
 
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
@@ -794,7 +810,6 @@ script:
             lv_label_set_text(id(idle_sensor_value_3), "\xe2\x80\x94");
             lv_label_set_text(id(idle_sensor_icon_3), "");
             lv_label_set_text(id(idle_sensor_unit_3), "");
-            id(idle_sensor_precision_3) = ${idle_sensor_4_precision};
             id(idle_sensor_raw_3) = "";
             return;
           }
@@ -818,7 +833,6 @@ script:
           id(idle_sensor_gen_3) += 1;
           int gen = id(idle_sensor_gen_3);
           int *gen_ptr = &id(idle_sensor_gen_3);
-          id(idle_sensor_precision_3) = ${idle_sensor_4_precision};
 
           auto *api = esphome::api::global_api_server;
           using str_cb = std::function<void(const std::string &)>;
@@ -828,7 +842,7 @@ script:
                 if (gen != *gen_ptr) return;
                 id(idle_sensor_raw_3) = state;
                 std::string out = state;
-                int prec = id(idle_sensor_precision_3);
+                int prec = (int)id(idle_sensor_prec_3).state;
                 if (prec >= 0 && !state.empty()) {
                   char *end; float val = strtof(state.c_str(), &end);
                   if (end != state.c_str()) {
@@ -837,21 +851,6 @@ script:
                   }
                 }
                 id(idle_sensor_state_3).publish_state(out);
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("suggested_display_precision"),
-              str_cb([gen, gen_ptr](const std::string &prec_str) {
-                if (gen != *gen_ptr) return;
-                if (prec_str.empty()) return;
-                char *ep; long p = strtol(prec_str.c_str(), &ep, 10);
-                if (ep == prec_str.c_str()) return;
-                id(idle_sensor_precision_3) = (int)p;
-                const std::string &raw = id(idle_sensor_raw_3);
-                if (raw.empty()) return;
-                char *end_ptr; float val = strtof(raw.c_str(), &end_ptr);
-                if (end_ptr == raw.c_str()) return;
-                char fbuf[32]; snprintf(fbuf, sizeof(fbuf), "%.*f", (int)p, val);
-                id(idle_sensor_state_3).publish_state(std::string(fbuf));
               }));
 
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
