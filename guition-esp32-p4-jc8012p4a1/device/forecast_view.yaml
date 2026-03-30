@@ -142,8 +142,8 @@ script:
 
           // ── No data fallback ───────────────────────────────────────────────
           if (n_days == 0) {
-            lv_obj_add_flag(id(wf_line_high), LV_OBJ_FLAG_HIDDEN);
-            lv_obj_add_flag(id(wf_line_low),  LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(wf_line_high)->obj, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(wf_line_low)->obj,  LV_OBJ_FLAG_HIDDEN);
             for (int i = 0; i < 7; i++) {
               lv_obj_set_style_bg_opa(col_bg[i], LV_OPA_TRANSP, 0);
               lv_label_set_text(day_lbl[i],  "---");
@@ -199,10 +199,10 @@ script:
             low_pts[i]  = {(lv_coord_t)px,
                            (lv_coord_t)(130 + 300 * (chart_max - (int)roundf(days[i].low))  / range)};
           }
-          lv_line_set_points(id(wf_line_high), high_pts, n_days);
-          lv_line_set_points(id(wf_line_low),  low_pts,  n_days);
-          lv_obj_clear_flag(id(wf_line_high), LV_OBJ_FLAG_HIDDEN);
-          lv_obj_clear_flag(id(wf_line_low),  LV_OBJ_FLAG_HIDDEN);
+          lv_line_set_points(id(wf_line_high)->obj, high_pts, n_days);
+          lv_line_set_points(id(wf_line_low)->obj,  low_pts,  n_days);
+          lv_obj_clear_flag(id(wf_line_high)->obj, LV_OBJ_FLAG_HIDDEN);
+          lv_obj_clear_flag(id(wf_line_low)->obj,  LV_OBJ_FLAG_HIDDEN);
 
           // ── Per-column updates ─────────────────────────────────────────────
           for (int i = 0; i < 7; i++) {
