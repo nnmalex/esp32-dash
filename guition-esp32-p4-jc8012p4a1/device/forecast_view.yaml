@@ -1,0 +1,989 @@
+# =============================================================================
+# FORECAST VIEW — 7-day weather forecast page
+# =============================================================================
+# Layout (1280×740, navbar at y=740):
+#
+#   y=  0.. 40  Day name labels  ("MON", "TUE"…)  roboto_light26_font  0x888888
+#   y= 40.. 88  Date number labels ("29", "30"…)   roboto_light40_font  0xAAAAAA
+#   y= 88.. 90  Thin horizontal separator           0x2A2A2A
+#   y= 90..450  Temperature lv_chart (height=360)
+#                 pad_left=91, pad_right=91 → 7 points land at column centres
+#                 pad_top=40,  pad_bottom=20 → content y 130..430
+#                 High series 0x6CB4F0 · Low series 0x4B78B0
+#                 Temp labels float above/below each dot
+#   y=450..452  Thin horizontal separator
+#   y=452..548  Precipitation bars (max h=90 px, bottom-aligned to y=548)
+#   y=552..578  Precip mm labels    roboto_light26_font  0x8888AA
+#   y=582..608  Precip % labels     roboto_light26_font  0x666688
+#   y=614..660  Condition icons     icon_font (40 px)    0xAAAAAA
+#
+# 7 columns, each 183 px wide (last 182 px).
+# Column centres:  91  274  457  640  823  1006  1189  (= i*183 + 91)
+# Column separators at x = 183, 366, 549, 732, 915, 1098.
+#
+# Data source: wf_data_buf (forecast_sensors.yaml).
+# fetch_forecast → wf_data_buf → render_forecast.
+# =============================================================================
+
+globals:
+  - id: wf_chart_high
+    type: lv_chart_series_t*
+    restore_value: false
+    initial_value: 'nullptr'
+  - id: wf_chart_low
+    type: lv_chart_series_t*
+    restore_value: false
+    initial_value: 'nullptr'
+  - id: wf_today_col
+    type: int
+    restore_value: false
+    initial_value: '-1'
+
+
+script:
+  # ---------------------------------------------------------------------------
+  # init_forecast_chart
+  # Adds two series and configures the lv_chart appearance.
+  # Called once from lvgl.on_boot.
+  # ---------------------------------------------------------------------------
+  - id: init_forecast_chart
+    mode: single
+    then:
+      - lambda: |-
+          lv_obj_t *chart = id(wf_chart);
+
+          // Remove default grid lines and axis ticks/labels
+          lv_chart_set_div_line_count(chart, 0, 0);
+          lv_chart_set_axis_tick(chart, LV_CHART_AXIS_PRIMARY_Y, 0, 0, 0, 0, false, 0);
+          lv_chart_set_axis_tick(chart, LV_CHART_AXIS_PRIMARY_X, 0, 0, 0, 0, false, 0);
+
+          // Add series — stored as globals so render_forecast can use them
+          id(wf_chart_high) = lv_chart_add_series(chart,
+              lv_color_hex(0x6CB4F0U), LV_CHART_AXIS_PRIMARY_Y);
+          id(wf_chart_low)  = lv_chart_add_series(chart,
+              lv_color_hex(0x4B78B0U), LV_CHART_AXIS_PRIMARY_Y);
+
+          // Point count — belt-and-suspenders alongside the YAML point_count: 7
+          lv_chart_set_point_count(chart, 7);
+
+          // Line width (applies to all series)
+          lv_obj_set_style_line_width(chart, 3, LV_PART_ITEMS);
+          // Dot (indicator) size
+          lv_obj_set_style_size(chart, 12, LV_PART_INDICATOR);
+
+          // Initial range — will be updated per-fetch
+          lv_chart_set_range(chart, LV_CHART_AXIS_PRIMARY_Y, 0, 30);
+
+          // Initialise all points to NONE so chart is blank until data arrives
+          for (int i = 0; i < 7; i++) {
+            lv_chart_set_value_by_id(chart, id(wf_chart_high), i, LV_CHART_POINT_NONE);
+            lv_chart_set_value_by_id(chart, id(wf_chart_low),  i, LV_CHART_POINT_NONE);
+          }
+
+  # ---------------------------------------------------------------------------
+  # render_forecast
+  # Parses wf_data_buf and updates every widget on forecast_page.
+  # Called by fetch_forecast after a successful HTTP fetch.
+  # ---------------------------------------------------------------------------
+  - id: render_forecast
+    mode: single
+    then:
+      - lambda: |-
+          // ── Widget arrays ──────────────────────────────────────────────────
+          lv_obj_t *col_bg[7] = {
+            id(wf_col_bg_0), id(wf_col_bg_1), id(wf_col_bg_2), id(wf_col_bg_3),
+            id(wf_col_bg_4), id(wf_col_bg_5), id(wf_col_bg_6)
+          };
+          lv_obj_t *day_lbl[7] = {
+            id(wf_day_0), id(wf_day_1), id(wf_day_2), id(wf_day_3),
+            id(wf_day_4), id(wf_day_5), id(wf_day_6)
+          };
+          lv_obj_t *date_lbl[7] = {
+            id(wf_date_0), id(wf_date_1), id(wf_date_2), id(wf_date_3),
+            id(wf_date_4), id(wf_date_5), id(wf_date_6)
+          };
+          lv_obj_t *high_lbl[7] = {
+            id(wf_high_lbl_0), id(wf_high_lbl_1), id(wf_high_lbl_2), id(wf_high_lbl_3),
+            id(wf_high_lbl_4), id(wf_high_lbl_5), id(wf_high_lbl_6)
+          };
+          lv_obj_t *low_lbl[7] = {
+            id(wf_low_lbl_0), id(wf_low_lbl_1), id(wf_low_lbl_2), id(wf_low_lbl_3),
+            id(wf_low_lbl_4), id(wf_low_lbl_5), id(wf_low_lbl_6)
+          };
+          lv_obj_t *prec_bar[7] = {
+            id(wf_precip_bar_0), id(wf_precip_bar_1), id(wf_precip_bar_2), id(wf_precip_bar_3),
+            id(wf_precip_bar_4), id(wf_precip_bar_5), id(wf_precip_bar_6)
+          };
+          lv_obj_t *mm_lbl[7] = {
+            id(wf_mm_lbl_0), id(wf_mm_lbl_1), id(wf_mm_lbl_2), id(wf_mm_lbl_3),
+            id(wf_mm_lbl_4), id(wf_mm_lbl_5), id(wf_mm_lbl_6)
+          };
+          lv_obj_t *pct_lbl[7] = {
+            id(wf_pct_lbl_0), id(wf_pct_lbl_1), id(wf_pct_lbl_2), id(wf_pct_lbl_3),
+            id(wf_pct_lbl_4), id(wf_pct_lbl_5), id(wf_pct_lbl_6)
+          };
+          lv_obj_t *icon_lbl[7] = {
+            id(wf_icon_0), id(wf_icon_1), id(wf_icon_2), id(wf_icon_3),
+            id(wf_icon_4), id(wf_icon_5), id(wf_icon_6)
+          };
+
+          // ── Constants ──────────────────────────────────────────────────────
+          const int COL_W       = 183;
+          const int CHART_Y     = 90;   // chart widget screen y
+          const int BAR_BOTTOM  = 548;  // bottom of precipitation bar area
+          const int BAR_MAX_H   = 90;
+          const int BAR_W       = 80;
+          const int MM_LBL_Y    = 552;
+          const int PCT_LBL_Y   = 582;
+          const int ICON_Y      = 614;
+
+          // ── Parse wf_data_buf ──────────────────────────────────────────────
+          // Format: "DAYNAME|DAYNUM|HIGH|LOW|PRECIP|PROB|COND\n"
+          struct DayData {
+            char  day_name[4];
+            int   day_num;
+            float high;
+            float low;
+            float precip;
+            int   prob;
+            char  cond[32];
+            bool  valid;
+          } days[7] = {};
+
+          int n_days = 0;
+          const std::string &buf = id(wf_data_buf);
+          size_t pos = 0;
+
+          while (pos < buf.size() && n_days < 7) {
+            size_t nl = buf.find('\n', pos);
+            if (nl == std::string::npos) nl = buf.size();
+            if (nl > pos) {
+              std::string line = buf.substr(pos, nl - pos);
+              // Split by '|' into 7 fields
+              char fld[7][64] = {};
+              int fi = 0;
+              size_t f0 = 0;
+              while (fi < 7 && f0 <= line.size()) {
+                size_t f1 = line.find('|', f0);
+                if (f1 == std::string::npos) f1 = line.size();
+                size_t len = std::min((size_t)63, f1 - f0);
+                strncpy(fld[fi], line.c_str() + f0, len);
+                fi++;
+                f0 = f1 + 1;
+              }
+              if (fi >= 7) {
+                DayData &d = days[n_days];
+                strncpy(d.day_name, fld[0], 3); d.day_name[3] = '\0';
+                d.day_num = atoi(fld[1]);
+                d.high    = atof(fld[2]);
+                d.low     = atof(fld[3]);
+                d.precip  = atof(fld[4]);
+                d.prob    = atoi(fld[5]);
+                strncpy(d.cond, fld[6], 31); d.cond[31] = '\0';
+                d.valid   = true;
+                n_days++;
+              }
+            }
+            pos = nl + 1;
+          }
+
+          // ── No data fallback ───────────────────────────────────────────────
+          if (n_days == 0) {
+            for (int i = 0; i < 7; i++) {
+              lv_obj_set_style_bg_opa(col_bg[i], LV_OPA_TRANSP, 0);
+              lv_label_set_text(day_lbl[i],  "---");
+              lv_label_set_text(date_lbl[i], "-");
+              lv_label_set_text(high_lbl[i], "");
+              lv_label_set_text(low_lbl[i],  "");
+              lv_obj_set_size(prec_bar[i], BAR_W, 1);
+              lv_label_set_text(mm_lbl[i],  "");
+              lv_label_set_text(pct_lbl[i], "");
+              lv_label_set_text(icon_lbl[i], "");
+              lv_chart_set_value_by_id(id(wf_chart), id(wf_chart_high), i, LV_CHART_POINT_NONE);
+              lv_chart_set_value_by_id(id(wf_chart), id(wf_chart_low),  i, LV_CHART_POINT_NONE);
+            }
+            lv_chart_refresh(id(wf_chart));
+            return;
+          }
+
+          // ── Identify today's column ────────────────────────────────────────
+          int today_col = -1;
+          auto now = id(ha_time).now();
+          if (now.is_valid()) {
+            for (int i = 0; i < n_days; i++) {
+              if (days[i].valid && days[i].day_num == now.day_of_month) {
+                today_col = i;
+                break;
+              }
+            }
+          }
+          id(wf_today_col) = today_col;
+
+          // ── Compute chart y-range ──────────────────────────────────────────
+          float min_t = 999.0f, max_t = -999.0f;
+          float max_precip = 0.0f;
+          for (int i = 0; i < n_days; i++) {
+            if (!days[i].valid) continue;
+            if (days[i].low  < min_t) min_t = days[i].low;
+            if (days[i].high > max_t) max_t = days[i].high;
+            if (days[i].precip > max_precip) max_precip = days[i].precip;
+          }
+          int chart_min = (int)floorf(min_t) - 2;
+          int chart_max = (int)ceilf(max_t)  + 3;
+          if (max_precip < 2.0f) max_precip = 2.0f;
+
+          // ── Update chart series ────────────────────────────────────────────
+          lv_chart_set_range(id(wf_chart), LV_CHART_AXIS_PRIMARY_Y, chart_min, chart_max);
+          for (int i = 0; i < 7; i++) {
+            if (i < n_days && days[i].valid) {
+              lv_chart_set_value_by_id(id(wf_chart), id(wf_chart_high), i,
+                  (lv_coord_t)roundf(days[i].high));
+              lv_chart_set_value_by_id(id(wf_chart), id(wf_chart_low),  i,
+                  (lv_coord_t)roundf(days[i].low));
+            } else {
+              lv_chart_set_value_by_id(id(wf_chart), id(wf_chart_high), i, LV_CHART_POINT_NONE);
+              lv_chart_set_value_by_id(id(wf_chart), id(wf_chart_low),  i, LV_CHART_POINT_NONE);
+            }
+          }
+          lv_chart_refresh(id(wf_chart));
+
+          // ── Per-column updates ─────────────────────────────────────────────
+          for (int i = 0; i < 7; i++) {
+            bool valid    = (i < n_days && days[i].valid);
+            bool is_today = (i == today_col);
+            int  col_cx   = i * COL_W + COL_W / 2;  // column centre x
+
+            // Column highlight
+            lv_obj_set_style_bg_opa(col_bg[i], is_today ? 20 : LV_OPA_TRANSP, 0);
+
+            if (!valid) {
+              lv_label_set_text(day_lbl[i],  "");
+              lv_label_set_text(date_lbl[i], "");
+              lv_label_set_text(high_lbl[i], "");
+              lv_label_set_text(low_lbl[i],  "");
+              lv_obj_set_size(prec_bar[i], BAR_W, 1);
+              lv_obj_set_style_bg_opa(prec_bar[i], LV_OPA_TRANSP, 0);
+              lv_label_set_text(mm_lbl[i],  "");
+              lv_label_set_text(pct_lbl[i], "");
+              lv_label_set_text(icon_lbl[i], "");
+              continue;
+            }
+
+            DayData &d = days[i];
+
+            // ── Header labels ──
+            lv_label_set_text(day_lbl[i], d.day_name);
+            lv_obj_set_style_text_color(day_lbl[i],
+                lv_color_hex(is_today ? 0x6CB4F0U : 0x888888U), 0);
+
+            char num_buf[4];
+            snprintf(num_buf, sizeof(num_buf), "%d", d.day_num);
+            lv_label_set_text(date_lbl[i], num_buf);
+            lv_obj_set_style_text_color(date_lbl[i],
+                lv_color_hex(is_today ? 0xFFFFFFU : 0xAAAAAAU), 0);
+
+            // ── Temperature labels — positioned at chart point coordinates ──
+            // lv_chart_get_point_pos_by_id returns absolute screen coords.
+            lv_point_t ph, pl;
+            lv_chart_get_point_pos_by_id(id(wf_chart), id(wf_chart_high), i, &ph);
+            lv_chart_get_point_pos_by_id(id(wf_chart), id(wf_chart_low),  i, &pl);
+
+            char t_buf[8];
+            // High label — centred above the dot
+            snprintf(t_buf, sizeof(t_buf), "%d\xc2\xb0", (int)roundf(d.high));
+            lv_label_set_text(high_lbl[i], t_buf);
+            lv_obj_set_pos(high_lbl[i], ph.x - 22, ph.y - 36);
+
+            // Low label — centred below the dot
+            snprintf(t_buf, sizeof(t_buf), "%d\xc2\xb0", (int)roundf(d.low));
+            lv_label_set_text(low_lbl[i], t_buf);
+            lv_obj_set_pos(low_lbl[i], pl.x - 22, pl.y + 8);
+
+            // ── Precipitation bar ──
+            int bar_h = 0;
+            if (d.precip > 0.01f)
+              bar_h = std::max(3, (int)(d.precip / max_precip * BAR_MAX_H));
+            int bar_x = col_cx - BAR_W / 2;
+            int bar_y = BAR_BOTTOM - bar_h;
+            lv_obj_set_pos(prec_bar[i], bar_x, bar_y);
+            lv_obj_set_size(prec_bar[i], BAR_W, std::max(1, bar_h));
+            // Opacity: low probability = faint; 100% = fully opaque
+            lv_obj_set_style_bg_opa(prec_bar[i],
+                (lv_opa_t)std::min(255, 60 + d.prob * 195 / 100), 0);
+
+            // ── Precipitation text labels ──
+            char mm_buf[16];
+            if (d.precip < 0.05f) {
+              snprintf(mm_buf, sizeof(mm_buf), "\xe2\x80\x94");   // em-dash
+            } else {
+              snprintf(mm_buf, sizeof(mm_buf), "%.1f mm", d.precip);
+            }
+            lv_label_set_text(mm_lbl[i], mm_buf);
+            lv_obj_set_x(mm_lbl[i], col_cx - 30);
+            lv_obj_set_y(mm_lbl[i], MM_LBL_Y);
+
+            char pct_buf[8];
+            snprintf(pct_buf, sizeof(pct_buf), "%d%%", d.prob);
+            lv_label_set_text(pct_lbl[i], pct_buf);
+            lv_obj_set_x(pct_lbl[i], col_cx - 16);
+            lv_obj_set_y(pct_lbl[i], PCT_LBL_Y);
+
+            // ── Condition icon ──
+            const char *icon_str;
+            std::string c = d.cond;
+            if      (c == "sunny" || c == "clear-day")  icon_str = "\U000F0599";
+            else if (c == "clear-night")                 icon_str = "\U000F0594";
+            else if (c == "partlycloudy")               icon_str = "\U000F0595";
+            else if (c == "cloudy")                     icon_str = "\U000F0590";
+            else if (c == "fog")                        icon_str = "\U000F0591";
+            else if (c == "hail")                       icon_str = "\U000F0592";
+            else if (c == "lightning")                  icon_str = "\U000F0593";
+            else if (c == "lightning-rainy")            icon_str = "\U000F067E";
+            else if (c == "rainy" || c == "drizzle")    icon_str = "\U000F0597";
+            else if (c == "pouring")                    icon_str = "\U000F0596";
+            else if (c == "snowy")                      icon_str = "\U000F0598";
+            else if (c == "snowy-rainy")                icon_str = "\U000F067F";
+            else if (c == "windy")                      icon_str = "\U000F059E";
+            else if (c == "windy-variant")              icon_str = "\U000F059F";
+            else                                         icon_str = "\U000F0590";  // cloudy fallback
+
+            lv_label_set_text(icon_lbl[i], icon_str);
+            lv_obj_set_x(icon_lbl[i], col_cx - 22);
+            lv_obj_set_y(icon_lbl[i], ICON_Y);
+          }
+
+
+lvgl:
+  on_boot:
+    - script.execute: init_forecast_chart
+
+  pages:
+    # =========================================================================
+    # FORECAST PAGE
+    # =========================================================================
+    - id: forecast_page
+      scrollable: false
+      scrollbar_mode: "off"
+      width: 100%
+      height: 100%
+      bg_color: 0x111111
+      widgets:
+
+        # ── Column highlight backgrounds (today = subtle blue tint) ──────────
+        - obj:
+            id: wf_col_bg_0
+            x: 0
+            y: 0
+            width: 183
+            height: 740
+            bg_color: 0x2060B0
+            bg_opa: 0%
+            border_width: 0
+            radius: 0
+        - obj:
+            id: wf_col_bg_1
+            x: 183
+            y: 0
+            width: 183
+            height: 740
+            bg_color: 0x2060B0
+            bg_opa: 0%
+            border_width: 0
+            radius: 0
+        - obj:
+            id: wf_col_bg_2
+            x: 366
+            y: 0
+            width: 183
+            height: 740
+            bg_color: 0x2060B0
+            bg_opa: 0%
+            border_width: 0
+            radius: 0
+        - obj:
+            id: wf_col_bg_3
+            x: 549
+            y: 0
+            width: 183
+            height: 740
+            bg_color: 0x2060B0
+            bg_opa: 0%
+            border_width: 0
+            radius: 0
+        - obj:
+            id: wf_col_bg_4
+            x: 732
+            y: 0
+            width: 183
+            height: 740
+            bg_color: 0x2060B0
+            bg_opa: 0%
+            border_width: 0
+            radius: 0
+        - obj:
+            id: wf_col_bg_5
+            x: 915
+            y: 0
+            width: 183
+            height: 740
+            bg_color: 0x2060B0
+            bg_opa: 0%
+            border_width: 0
+            radius: 0
+        - obj:
+            id: wf_col_bg_6
+            x: 1098
+            y: 0
+            width: 182
+            height: 740
+            bg_color: 0x2060B0
+            bg_opa: 0%
+            border_width: 0
+            radius: 0
+
+        # ── Column separator lines ───────────────────────────────────────────
+        - obj:
+            x: 183
+            y: 0
+            width: 1
+            height: 740
+            bg_color: 0x2A2A2A
+            border_width: 0
+            radius: 0
+        - obj:
+            x: 366
+            y: 0
+            width: 1
+            height: 740
+            bg_color: 0x2A2A2A
+            border_width: 0
+            radius: 0
+        - obj:
+            x: 549
+            y: 0
+            width: 1
+            height: 740
+            bg_color: 0x2A2A2A
+            border_width: 0
+            radius: 0
+        - obj:
+            x: 732
+            y: 0
+            width: 1
+            height: 740
+            bg_color: 0x2A2A2A
+            border_width: 0
+            radius: 0
+        - obj:
+            x: 915
+            y: 0
+            width: 1
+            height: 740
+            bg_color: 0x2A2A2A
+            border_width: 0
+            radius: 0
+        - obj:
+            x: 1098
+            y: 0
+            width: 1
+            height: 740
+            bg_color: 0x2A2A2A
+            border_width: 0
+            radius: 0
+
+        # ── Day name labels ──────────────────────────────────────────────────
+        - label:
+            id: wf_day_0
+            x: 0
+            y: 6
+            width: 183
+            text_align: CENTER
+            text: ""
+            text_font: roboto_light26_font
+            text_color: 0x888888
+        - label:
+            id: wf_day_1
+            x: 183
+            y: 6
+            width: 183
+            text_align: CENTER
+            text: ""
+            text_font: roboto_light26_font
+            text_color: 0x888888
+        - label:
+            id: wf_day_2
+            x: 366
+            y: 6
+            width: 183
+            text_align: CENTER
+            text: ""
+            text_font: roboto_light26_font
+            text_color: 0x888888
+        - label:
+            id: wf_day_3
+            x: 549
+            y: 6
+            width: 183
+            text_align: CENTER
+            text: ""
+            text_font: roboto_light26_font
+            text_color: 0x888888
+        - label:
+            id: wf_day_4
+            x: 732
+            y: 6
+            width: 183
+            text_align: CENTER
+            text: ""
+            text_font: roboto_light26_font
+            text_color: 0x888888
+        - label:
+            id: wf_day_5
+            x: 915
+            y: 6
+            width: 183
+            text_align: CENTER
+            text: ""
+            text_font: roboto_light26_font
+            text_color: 0x888888
+        - label:
+            id: wf_day_6
+            x: 1098
+            y: 6
+            width: 182
+            text_align: CENTER
+            text: ""
+            text_font: roboto_light26_font
+            text_color: 0x888888
+
+        # ── Date number labels ───────────────────────────────────────────────
+        - label:
+            id: wf_date_0
+            x: 0
+            y: 42
+            width: 183
+            text_align: CENTER
+            text: ""
+            text_font: roboto_light40_font
+            text_color: 0xAAAAAA
+        - label:
+            id: wf_date_1
+            x: 183
+            y: 42
+            width: 183
+            text_align: CENTER
+            text: ""
+            text_font: roboto_light40_font
+            text_color: 0xAAAAAA
+        - label:
+            id: wf_date_2
+            x: 366
+            y: 42
+            width: 183
+            text_align: CENTER
+            text: ""
+            text_font: roboto_light40_font
+            text_color: 0xAAAAAA
+        - label:
+            id: wf_date_3
+            x: 549
+            y: 42
+            width: 183
+            text_align: CENTER
+            text: ""
+            text_font: roboto_light40_font
+            text_color: 0xAAAAAA
+        - label:
+            id: wf_date_4
+            x: 732
+            y: 42
+            width: 183
+            text_align: CENTER
+            text: ""
+            text_font: roboto_light40_font
+            text_color: 0xAAAAAA
+        - label:
+            id: wf_date_5
+            x: 915
+            y: 42
+            width: 183
+            text_align: CENTER
+            text: ""
+            text_font: roboto_light40_font
+            text_color: 0xAAAAAA
+        - label:
+            id: wf_date_6
+            x: 1098
+            y: 42
+            width: 182
+            text_align: CENTER
+            text: ""
+            text_font: roboto_light40_font
+            text_color: 0xAAAAAA
+
+        # ── Header separator ─────────────────────────────────────────────────
+        - obj:
+            x: 0
+            y: 88
+            width: 1280
+            height: 2
+            bg_color: 0x2A2A2A
+            border_width: 0
+            radius: 0
+
+        # ── Temperature chart ────────────────────────────────────────────────
+        # Series are added via init_forecast_chart (stored in wf_chart_high / wf_chart_low).
+        # pad_left=91 / pad_right=91 → 7 points at col centres (91, 274, 457 … 1189).
+        - chart:
+            id: wf_chart
+            x: 0
+            y: 90
+            width: 1280
+            height: 360
+            bg_opa: 0%
+            border_width: 0
+            radius: 0
+            pad_left: 91
+            pad_right: 91
+            pad_top: 40
+            pad_bottom: 20
+            chart_type: line
+            update_mode: circular
+            point_count: 7
+
+        # ── High-temperature labels (positioned dynamically) ─────────────────
+        - label:
+            id: wf_high_lbl_0
+            x: 0
+            y: 0
+            text: ""
+            text_font: roboto_light30_font
+            text_color: 0x6CB4F0
+        - label:
+            id: wf_high_lbl_1
+            x: 0
+            y: 0
+            text: ""
+            text_font: roboto_light30_font
+            text_color: 0x6CB4F0
+        - label:
+            id: wf_high_lbl_2
+            x: 0
+            y: 0
+            text: ""
+            text_font: roboto_light30_font
+            text_color: 0x6CB4F0
+        - label:
+            id: wf_high_lbl_3
+            x: 0
+            y: 0
+            text: ""
+            text_font: roboto_light30_font
+            text_color: 0x6CB4F0
+        - label:
+            id: wf_high_lbl_4
+            x: 0
+            y: 0
+            text: ""
+            text_font: roboto_light30_font
+            text_color: 0x6CB4F0
+        - label:
+            id: wf_high_lbl_5
+            x: 0
+            y: 0
+            text: ""
+            text_font: roboto_light30_font
+            text_color: 0x6CB4F0
+        - label:
+            id: wf_high_lbl_6
+            x: 0
+            y: 0
+            text: ""
+            text_font: roboto_light30_font
+            text_color: 0x6CB4F0
+
+        # ── Low-temperature labels (positioned dynamically) ──────────────────
+        - label:
+            id: wf_low_lbl_0
+            x: 0
+            y: 0
+            text: ""
+            text_font: roboto_light30_font
+            text_color: 0x8AAAC8
+        - label:
+            id: wf_low_lbl_1
+            x: 0
+            y: 0
+            text: ""
+            text_font: roboto_light30_font
+            text_color: 0x8AAAC8
+        - label:
+            id: wf_low_lbl_2
+            x: 0
+            y: 0
+            text: ""
+            text_font: roboto_light30_font
+            text_color: 0x8AAAC8
+        - label:
+            id: wf_low_lbl_3
+            x: 0
+            y: 0
+            text: ""
+            text_font: roboto_light30_font
+            text_color: 0x8AAAC8
+        - label:
+            id: wf_low_lbl_4
+            x: 0
+            y: 0
+            text: ""
+            text_font: roboto_light30_font
+            text_color: 0x8AAAC8
+        - label:
+            id: wf_low_lbl_5
+            x: 0
+            y: 0
+            text: ""
+            text_font: roboto_light30_font
+            text_color: 0x8AAAC8
+        - label:
+            id: wf_low_lbl_6
+            x: 0
+            y: 0
+            text: ""
+            text_font: roboto_light30_font
+            text_color: 0x8AAAC8
+
+        # ── Precip / condition separator ─────────────────────────────────────
+        - obj:
+            x: 0
+            y: 450
+            width: 1280
+            height: 2
+            bg_color: 0x2A2A2A
+            border_width: 0
+            radius: 0
+
+        # ── Precipitation bars (height + y set dynamically) ──────────────────
+        - obj:
+            id: wf_precip_bar_0
+            x: 51
+            y: 547
+            width: 80
+            height: 1
+            bg_color: 0x5B9FEE
+            bg_opa: 0%
+            border_width: 0
+            radius: 2
+        - obj:
+            id: wf_precip_bar_1
+            x: 234
+            y: 547
+            width: 80
+            height: 1
+            bg_color: 0x5B9FEE
+            bg_opa: 0%
+            border_width: 0
+            radius: 2
+        - obj:
+            id: wf_precip_bar_2
+            x: 417
+            y: 547
+            width: 80
+            height: 1
+            bg_color: 0x5B9FEE
+            bg_opa: 0%
+            border_width: 0
+            radius: 2
+        - obj:
+            id: wf_precip_bar_3
+            x: 600
+            y: 547
+            width: 80
+            height: 1
+            bg_color: 0x5B9FEE
+            bg_opa: 0%
+            border_width: 0
+            radius: 2
+        - obj:
+            id: wf_precip_bar_4
+            x: 783
+            y: 547
+            width: 80
+            height: 1
+            bg_color: 0x5B9FEE
+            bg_opa: 0%
+            border_width: 0
+            radius: 2
+        - obj:
+            id: wf_precip_bar_5
+            x: 966
+            y: 547
+            width: 80
+            height: 1
+            bg_color: 0x5B9FEE
+            bg_opa: 0%
+            border_width: 0
+            radius: 2
+        - obj:
+            id: wf_precip_bar_6
+            x: 1149
+            y: 547
+            width: 80
+            height: 1
+            bg_color: 0x5B9FEE
+            bg_opa: 0%
+            border_width: 0
+            radius: 2
+
+        # ── Precipitation mm labels ──────────────────────────────────────────
+        - label:
+            id: wf_mm_lbl_0
+            x: 61
+            y: 552
+            text: ""
+            text_font: roboto_light26_font
+            text_color: 0x8888AA
+        - label:
+            id: wf_mm_lbl_1
+            x: 244
+            y: 552
+            text: ""
+            text_font: roboto_light26_font
+            text_color: 0x8888AA
+        - label:
+            id: wf_mm_lbl_2
+            x: 427
+            y: 552
+            text: ""
+            text_font: roboto_light26_font
+            text_color: 0x8888AA
+        - label:
+            id: wf_mm_lbl_3
+            x: 610
+            y: 552
+            text: ""
+            text_font: roboto_light26_font
+            text_color: 0x8888AA
+        - label:
+            id: wf_mm_lbl_4
+            x: 793
+            y: 552
+            text: ""
+            text_font: roboto_light26_font
+            text_color: 0x8888AA
+        - label:
+            id: wf_mm_lbl_5
+            x: 976
+            y: 552
+            text: ""
+            text_font: roboto_light26_font
+            text_color: 0x8888AA
+        - label:
+            id: wf_mm_lbl_6
+            x: 1159
+            y: 552
+            text: ""
+            text_font: roboto_light26_font
+            text_color: 0x8888AA
+
+        # ── Precipitation % labels ───────────────────────────────────────────
+        - label:
+            id: wf_pct_lbl_0
+            x: 75
+            y: 582
+            text: ""
+            text_font: roboto_light26_font
+            text_color: 0x666688
+        - label:
+            id: wf_pct_lbl_1
+            x: 258
+            y: 582
+            text: ""
+            text_font: roboto_light26_font
+            text_color: 0x666688
+        - label:
+            id: wf_pct_lbl_2
+            x: 441
+            y: 582
+            text: ""
+            text_font: roboto_light26_font
+            text_color: 0x666688
+        - label:
+            id: wf_pct_lbl_3
+            x: 624
+            y: 582
+            text: ""
+            text_font: roboto_light26_font
+            text_color: 0x666688
+        - label:
+            id: wf_pct_lbl_4
+            x: 807
+            y: 582
+            text: ""
+            text_font: roboto_light26_font
+            text_color: 0x666688
+        - label:
+            id: wf_pct_lbl_5
+            x: 990
+            y: 582
+            text: ""
+            text_font: roboto_light26_font
+            text_color: 0x666688
+        - label:
+            id: wf_pct_lbl_6
+            x: 1173
+            y: 582
+            text: ""
+            text_font: roboto_light26_font
+            text_color: 0x666688
+
+        # ── Condition icons ──────────────────────────────────────────────────
+        - label:
+            id: wf_icon_0
+            x: 69
+            y: 614
+            text: ""
+            text_font: icon_font
+            text_color: 0xAAAAAA
+        - label:
+            id: wf_icon_1
+            x: 252
+            y: 614
+            text: ""
+            text_font: icon_font
+            text_color: 0xAAAAAA
+        - label:
+            id: wf_icon_2
+            x: 435
+            y: 614
+            text: ""
+            text_font: icon_font
+            text_color: 0xAAAAAA
+        - label:
+            id: wf_icon_3
+            x: 618
+            y: 614
+            text: ""
+            text_font: icon_font
+            text_color: 0xAAAAAA
+        - label:
+            id: wf_icon_4
+            x: 801
+            y: 614
+            text: ""
+            text_font: icon_font
+            text_color: 0xAAAAAA
+        - label:
+            id: wf_icon_5
+            x: 984
+            y: 614
+            text: ""
+            text_font: icon_font
+            text_color: 0xAAAAAA
+        - label:
+            id: wf_icon_6
+            x: 1167
+            y: 614
+            text: ""
+            text_font: icon_font
+            text_color: 0xAAAAAA
