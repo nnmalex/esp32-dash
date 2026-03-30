@@ -20,6 +20,8 @@ substitutions:
   #   270: touch_mirror_x "true",  touch_mirror_y "true"
   # touch_mirror_x: "true"
   # touch_mirror_y: "true"
+  # Music screen — favourite button (optional, see below)
+  # favourite_entity: "button.spotify_save_track"
 
 wifi:
   ssid: !secret wifi_ssid
@@ -34,6 +36,21 @@ packages:
 ```
 
 After flashing, add the device in Home Assistant and set the **Media Player** entity from the device settings page.
+
+## Music screen setup
+
+The music screen shows album art, track info, and playback controls (previous / play-pause / next).
+
+### Favourite button
+
+A heart button can optionally be shown on the music screen to trigger a HA action (e.g. save the current track to a playlist). It is **hidden by default** and must be enabled with a substitution pointing to any HA `button.*` entity that your media player integration exposes:
+
+```yaml
+substitutions:
+  favourite_entity: "button.spotify_save_track"
+```
+
+When set, pressing the heart button calls `button.press` on that entity. Leave unset (the default) to hide the button entirely.
 
 ## Home screen setup
 
