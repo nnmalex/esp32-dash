@@ -78,6 +78,34 @@ globals:
     type: int
     initial_value: '0'
 
+  # suggested_display_precision per tile; -1 = unset (show raw state string)
+  - id: idle_sensor_precision_0
+    type: int
+    initial_value: '-1'
+  - id: idle_sensor_precision_1
+    type: int
+    initial_value: '-1'
+  - id: idle_sensor_precision_2
+    type: int
+    initial_value: '-1'
+  - id: idle_sensor_precision_3
+    type: int
+    initial_value: '-1'
+
+  # Last raw state string per tile; needed to reformat when precision arrives late
+  - id: idle_sensor_raw_0
+    type: std::string
+    initial_value: '""'
+  - id: idle_sensor_raw_1
+    type: std::string
+    initial_value: '""'
+  - id: idle_sensor_raw_2
+    type: std::string
+    initial_value: '""'
+  - id: idle_sensor_raw_3
+    type: std::string
+    initial_value: '""'
+
   - id: local_temp_sub_gen
     type: int
     initial_value: '0'
@@ -411,6 +439,8 @@ script:
             lv_label_set_text(id(idle_sensor_value_0), "\xe2\x80\x94");
             lv_label_set_text(id(idle_sensor_icon_0), "");
             lv_label_set_text(id(idle_sensor_unit_0), "");
+            id(idle_sensor_precision_0) = -1;
+            id(idle_sensor_raw_0) = "";
             return;
           }
 
@@ -441,7 +471,34 @@ script:
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
               str_cb([gen, gen_ptr](const std::string &state) {
                 if (gen != *gen_ptr) return;
-                id(idle_sensor_state_0).publish_state(state);
+                id(idle_sensor_raw_0) = state;
+                std::string out = state;
+                int prec = id(idle_sensor_precision_0);
+                if (prec >= 0 && !state.empty()) {
+                  char *end; float val = strtof(state.c_str(), &end);
+                  if (end != state.c_str()) {
+                    char buf[32]; snprintf(buf, sizeof(buf), "%.*f", prec, val);
+                    out = buf;
+                  }
+                }
+                id(idle_sensor_state_0).publish_state(out);
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("suggested_display_precision"),
+              str_cb([gen, gen_ptr](const std::string &prec_str) {
+                if (gen != *gen_ptr) return;
+                if (prec_str.empty()) return;
+                id(idle_sensor_precision_0) = std::stoi(prec_str);
+                const std::string &raw = id(idle_sensor_raw_0);
+                if (raw.empty()) return;
+                int prec = id(idle_sensor_precision_0);
+                std::string out = raw;
+                char *end; float val = strtof(raw.c_str(), &end);
+                if (end != raw.c_str()) {
+                  char buf[32]; snprintf(buf, sizeof(buf), "%.*f", prec, val);
+                  out = buf;
+                }
+                id(idle_sensor_state_0).publish_state(out);
               }));
 
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
@@ -500,6 +557,8 @@ script:
             lv_label_set_text(id(idle_sensor_value_1), "\xe2\x80\x94");
             lv_label_set_text(id(idle_sensor_icon_1), "");
             lv_label_set_text(id(idle_sensor_unit_1), "");
+            id(idle_sensor_precision_1) = -1;
+            id(idle_sensor_raw_1) = "";
             return;
           }
 
@@ -529,7 +588,34 @@ script:
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
               str_cb([gen, gen_ptr](const std::string &state) {
                 if (gen != *gen_ptr) return;
-                id(idle_sensor_state_1).publish_state(state);
+                id(idle_sensor_raw_1) = state;
+                std::string out = state;
+                int prec = id(idle_sensor_precision_1);
+                if (prec >= 0 && !state.empty()) {
+                  char *end; float val = strtof(state.c_str(), &end);
+                  if (end != state.c_str()) {
+                    char buf[32]; snprintf(buf, sizeof(buf), "%.*f", prec, val);
+                    out = buf;
+                  }
+                }
+                id(idle_sensor_state_1).publish_state(out);
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("suggested_display_precision"),
+              str_cb([gen, gen_ptr](const std::string &prec_str) {
+                if (gen != *gen_ptr) return;
+                if (prec_str.empty()) return;
+                id(idle_sensor_precision_1) = std::stoi(prec_str);
+                const std::string &raw = id(idle_sensor_raw_1);
+                if (raw.empty()) return;
+                int prec = id(idle_sensor_precision_1);
+                std::string out = raw;
+                char *end; float val = strtof(raw.c_str(), &end);
+                if (end != raw.c_str()) {
+                  char buf[32]; snprintf(buf, sizeof(buf), "%.*f", prec, val);
+                  out = buf;
+                }
+                id(idle_sensor_state_1).publish_state(out);
               }));
 
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
@@ -588,6 +674,8 @@ script:
             lv_label_set_text(id(idle_sensor_value_2), "\xe2\x80\x94");
             lv_label_set_text(id(idle_sensor_icon_2), "");
             lv_label_set_text(id(idle_sensor_unit_2), "");
+            id(idle_sensor_precision_2) = -1;
+            id(idle_sensor_raw_2) = "";
             return;
           }
 
@@ -617,7 +705,34 @@ script:
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
               str_cb([gen, gen_ptr](const std::string &state) {
                 if (gen != *gen_ptr) return;
-                id(idle_sensor_state_2).publish_state(state);
+                id(idle_sensor_raw_2) = state;
+                std::string out = state;
+                int prec = id(idle_sensor_precision_2);
+                if (prec >= 0 && !state.empty()) {
+                  char *end; float val = strtof(state.c_str(), &end);
+                  if (end != state.c_str()) {
+                    char buf[32]; snprintf(buf, sizeof(buf), "%.*f", prec, val);
+                    out = buf;
+                  }
+                }
+                id(idle_sensor_state_2).publish_state(out);
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("suggested_display_precision"),
+              str_cb([gen, gen_ptr](const std::string &prec_str) {
+                if (gen != *gen_ptr) return;
+                if (prec_str.empty()) return;
+                id(idle_sensor_precision_2) = std::stoi(prec_str);
+                const std::string &raw = id(idle_sensor_raw_2);
+                if (raw.empty()) return;
+                int prec = id(idle_sensor_precision_2);
+                std::string out = raw;
+                char *end; float val = strtof(raw.c_str(), &end);
+                if (end != raw.c_str()) {
+                  char buf[32]; snprintf(buf, sizeof(buf), "%.*f", prec, val);
+                  out = buf;
+                }
+                id(idle_sensor_state_2).publish_state(out);
               }));
 
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
@@ -676,6 +791,8 @@ script:
             lv_label_set_text(id(idle_sensor_value_3), "\xe2\x80\x94");
             lv_label_set_text(id(idle_sensor_icon_3), "");
             lv_label_set_text(id(idle_sensor_unit_3), "");
+            id(idle_sensor_precision_3) = -1;
+            id(idle_sensor_raw_3) = "";
             return;
           }
 
@@ -705,7 +822,34 @@ script:
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
               str_cb([gen, gen_ptr](const std::string &state) {
                 if (gen != *gen_ptr) return;
-                id(idle_sensor_state_3).publish_state(state);
+                id(idle_sensor_raw_3) = state;
+                std::string out = state;
+                int prec = id(idle_sensor_precision_3);
+                if (prec >= 0 && !state.empty()) {
+                  char *end; float val = strtof(state.c_str(), &end);
+                  if (end != state.c_str()) {
+                    char buf[32]; snprintf(buf, sizeof(buf), "%.*f", prec, val);
+                    out = buf;
+                  }
+                }
+                id(idle_sensor_state_3).publish_state(out);
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("suggested_display_precision"),
+              str_cb([gen, gen_ptr](const std::string &prec_str) {
+                if (gen != *gen_ptr) return;
+                if (prec_str.empty()) return;
+                id(idle_sensor_precision_3) = std::stoi(prec_str);
+                const std::string &raw = id(idle_sensor_raw_3);
+                if (raw.empty()) return;
+                int prec = id(idle_sensor_precision_3);
+                std::string out = raw;
+                char *end; float val = strtof(raw.c_str(), &end);
+                if (end != raw.c_str()) {
+                  char buf[32]; snprintf(buf, sizeof(buf), "%.*f", prec, val);
+                  out = buf;
+                }
+                id(idle_sensor_state_3).publish_state(out);
               }));
 
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
