@@ -526,8 +526,6 @@ script:
                 lv_label_set_text(id(idle_sensor_icon_0), ic);
               }));
 
-          if (std::string("${ha_token}").length() > 0)
-            id(fetch_sensor_precision_0).execute();
           ESP_LOGI("idle_sensors", "Tile 0: subscribed to '%s'", entity.c_str());
 
   - id: subscribe_idle_sensor_1
@@ -628,8 +626,6 @@ script:
                 lv_label_set_text(id(idle_sensor_icon_1), ic);
               }));
 
-          if (std::string("${ha_token}").length() > 0)
-            id(fetch_sensor_precision_1).execute();
           ESP_LOGI("idle_sensors", "Tile 1: subscribed to '%s'", entity.c_str());
 
   - id: subscribe_idle_sensor_2
@@ -730,8 +726,6 @@ script:
                 lv_label_set_text(id(idle_sensor_icon_2), ic);
               }));
 
-          if (std::string("${ha_token}").length() > 0)
-            id(fetch_sensor_precision_2).execute();
           ESP_LOGI("idle_sensors", "Tile 2: subscribed to '%s'", entity.c_str());
 
   - id: subscribe_idle_sensor_3
@@ -832,8 +826,6 @@ script:
                 lv_label_set_text(id(idle_sensor_icon_3), ic);
               }));
 
-          if (std::string("${ha_token}").length() > 0)
-            id(fetch_sensor_precision_3).execute();
           ESP_LOGI("idle_sensors", "Tile 3: subscribed to '%s'", entity.c_str());
 
   # ---------------------------------------------------------------------------
@@ -1059,6 +1051,24 @@ script:
           ESP_LOGI("idle_sensors", "Tile 3 precision=%d raw=%s fmt=%s", prec, raw.c_str(), out.c_str());
           id(idle_sensor_state_3).publish_state(out);
 
+  # ---------------------------------------------------------------------------
+  # schedule_precision_fetch: waits 5s after HA connect (to clear boot-time
+  # HTTP activity), then fetches entity registry precision for all 4 tiles.
+  # Only runs when ha_token is configured.
+  # ---------------------------------------------------------------------------
+  - id: schedule_precision_fetch
+    mode: restart
+    then:
+      - delay: 5s
+      - if:
+          condition:
+            lambda: 'return std::string("${ha_token}").length() > 0;'
+          then:
+            - script.execute: fetch_sensor_precision_0
+            - script.execute: fetch_sensor_precision_1
+            - script.execute: fetch_sensor_precision_2
+            - script.execute: fetch_sensor_precision_3
+
 # Re-subscribe after HA reconnect (merged with api block in device.yaml)
 api:
   on_client_connected:
@@ -1068,3 +1078,4 @@ api:
     - script.execute: subscribe_idle_sensor_1
     - script.execute: subscribe_idle_sensor_2
     - script.execute: subscribe_idle_sensor_3
+    - script.execute: schedule_precision_fetch
