@@ -167,7 +167,7 @@ lvgl:
               - obj:
                   id: media_controls_row
                   width: 100%
-                  height: content
+                  height: SIZE_CONTENT
                   bg_opa: 0%
                   border_width: 0
                   pad_all: 0
