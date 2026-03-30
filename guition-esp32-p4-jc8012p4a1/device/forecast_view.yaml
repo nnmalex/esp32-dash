@@ -26,14 +26,6 @@
 # =============================================================================
 
 globals:
-  - id: wf_line_high
-    type: lv_obj_t*
-    restore_value: false
-    initial_value: 'nullptr'
-  - id: wf_line_low
-    type: lv_obj_t*
-    restore_value: false
-    initial_value: 'nullptr'
   - id: wf_today_col
     type: int
     restore_value: false
@@ -41,33 +33,6 @@ globals:
 
 
 script:
-  # ---------------------------------------------------------------------------
-  # init_forecast_chart
-  # Adds two series and configures the lv_chart appearance.
-  # Called once from lvgl.on_boot.
-  # ---------------------------------------------------------------------------
-  - id: init_forecast_chart
-    mode: single
-    then:
-      - lambda: |-
-          // Create two lv_line objects for the high and low temperature series.
-          // (ESPHome does not include lv_chart.h — lv_line is fully supported.)
-          lv_obj_t *holder = id(wf_chart_holder);
-
-          lv_obj_t *lh = lv_line_create(holder);
-          lv_obj_set_style_line_color(lh, lv_color_hex(0x6CB4F0U), 0);
-          lv_obj_set_style_line_width(lh, 3, 0);
-          lv_obj_set_style_line_rounded(lh, true, 0);
-          lv_obj_move_background(lh);
-          id(wf_line_high) = lh;
-
-          lv_obj_t *ll = lv_line_create(holder);
-          lv_obj_set_style_line_color(ll, lv_color_hex(0x4B78B0U), 0);
-          lv_obj_set_style_line_width(ll, 3, 0);
-          lv_obj_set_style_line_rounded(ll, true, 0);
-          lv_obj_move_background(ll);
-          id(wf_line_low) = ll;
-
   # ---------------------------------------------------------------------------
   # render_forecast
   # Parses wf_data_buf and updates every widget on forecast_page.
@@ -345,9 +310,6 @@ script:
 
 
 lvgl:
-  on_boot:
-    - script.execute: init_forecast_chart
-
   pages:
     # =========================================================================
     # FORECAST PAGE
@@ -622,19 +584,32 @@ lvgl:
             border_width: 0
             radius: 0
 
-        # ── Temperature chart holder ─────────────────────────────────────────
-        # lv_chart is created programmatically in init_forecast_chart (ESPHome
-        # YAML does not support 'chart' as a widget type). This transparent obj
-        # acts as the parent container so the chart inherits the correct position.
-        - obj:
-            id: wf_chart_holder
-            x: 0
-            y: 90
-            width: 1280
-            height: 360
-            bg_opa: 0%
-            border_width: 0
-            radius: 0
+        # ── Temperature line series ──────────────────────────────────────────
+        # Two line: widgets declared here so ESPHome includes lv_line.h, making
+        # lv_line_set_points available in render_forecast lambdas.
+        # Points are replaced dynamically; hidden until data loads.
+        - line:
+            id: wf_line_high
+            points:
+              - x: 0
+                y: 0
+              - x: 0
+                y: 0
+            line_color: 0x6CB4F0
+            line_width: 3
+            line_rounded: true
+            hidden: true
+        - line:
+            id: wf_line_low
+            points:
+              - x: 0
+                y: 0
+              - x: 0
+                y: 0
+            line_color: 0x4B78B0
+            line_width: 3
+            line_rounded: true
+            hidden: true
 
         # ── High-temperature labels (positioned dynamically) ─────────────────
         - label:
