@@ -43,7 +43,7 @@ script:
     mode: restart
     then:
       - lambda: |-
-          auto *img = id(is_tv_mode) ? id(tv_art_background) : id(album_art_background);
+          auto *img = id(album_art_background);
           int img_w = img->get_width();
           int img_h = img->get_height();
           if (img_w <= 0 || img_h <= 0) return;

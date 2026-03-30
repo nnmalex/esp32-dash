@@ -1,6 +1,5 @@
 substitutions:
   media_player: ""
-  linked_media_player: ""
   ha_port: "8123"
   ha_host: "homeassistant.local"
   ha_protocol: "http"
@@ -28,7 +27,6 @@ packages:
   device: !include device/device.yaml
   media_player_select: !include device/media_player_select.yaml
   sensors: !include device/sensors.yaml
-  linked_sensors: !include device/linked_sensors.yaml
   lvgl: !include device/lvgl.yaml
   navbar: !include device/navbar.yaml
   idle_view: !include device/idle_view.yaml
