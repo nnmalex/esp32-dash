@@ -36,7 +36,7 @@ lvgl:
             x: 0
             y: 0
             width: 800px
-            height: 800px
+            height: 740px
             bg_color: 0x000000
             bg_opa: 100%
             radius: 0
@@ -50,7 +50,7 @@ lvgl:
             x: 0
             y: 0
             width: 800px
-            height: 800px
+            height: 740px
             src: album_art_background
             opa: 100%
 
@@ -91,6 +91,7 @@ lvgl:
             bg_opa: 0%
             border_width: 0
             pad_all: 0
+            pad_bottom: 48px
             scrollable: false
             scrollbar_mode: "off"
             layout:
@@ -178,7 +179,7 @@ lvgl:
                     flex_align_main: CENTER
                     flex_align_cross: CENTER
                     flex_align_track: CENTER
-                    pad_column: 24
+                    pad_column: 40
                   widgets:
                     - button:
                         id: media_prev_button
