@@ -30,42 +30,57 @@ lvgl:
       pad_right: 0
 
       widgets:
-        # Colored backdrop behind artwork (visible for non-square TV art)
+        # Clip container — hard-clips all artwork rendering to 740px so the
+        # zoomed/rotated image widget cannot bleed under the floating navbar.
+        # apply_downloaded_artwork positions the image within this container
+        # (which is at 0,0) so all coordinates remain the same.
         - obj:
-            id: artwork_bg_panel
+            id: artwork_clip_container
             x: 0
             y: 0
             width: 800px
             height: 740px
-            bg_color: 0x000000
-            bg_opa: 100%
-            radius: 0
+            bg_opa: 0%
             border_width: 0
             pad_all: 0
             scrollable: false
+            widgets:
+              # Colored backdrop behind artwork (visible for non-square TV art)
+              - obj:
+                  id: artwork_bg_panel
+                  x: 0
+                  y: 0
+                  width: 800px
+                  height: 800px
+                  bg_color: 0x000000
+                  bg_opa: 100%
+                  radius: 0
+                  border_width: 0
+                  pad_all: 0
+                  scrollable: false
 
-        # Full-height artwork (square, left side of screen)
-        - image:
-            id: album_art_background_widget
-            x: 0
-            y: 0
-            width: 800px
-            height: 740px
-            src: album_art_background
-            opa: 100%
+              # Full-height artwork (square, left side of screen)
+              - image:
+                  id: album_art_background_widget
+                  x: 0
+                  y: 0
+                  width: 800px
+                  height: 800px
+                  src: album_art_background
+                  opa: 100%
 
-        # Error label: shown when album art download fails
-        - label:
-            id: artwork_error_label
-            text: "Artwork unavailable"
-            x: 200
-            y: 380
-            width: 400px
-            height: 30px
-            text_font: roboto19_font
-            text_color: 0x888888
-            text_align: center
-            hidden: true
+              # Error label: shown when album art download fails
+              - label:
+                  id: artwork_error_label
+                  text: "Artwork unavailable"
+                  x: 200
+                  y: 380
+                  width: 400px
+                  height: 30px
+                  text_font: roboto19_font
+                  text_color: 0x888888
+                  text_align: center
+                  hidden: true
 
         # Accent color background (right side, behind track info)
         - obj:
