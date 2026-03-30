@@ -434,9 +434,8 @@ lvgl:
                   text: ""
 
         # ---- Right column: tiles 5-9 (x=410, w=390, flush to right edge of left pane) ----
-        # Content is right-aligned — mirrors the left column (icon on right, text right-aligned).
-        # Icon at x=324 (390-26-40, mirrors left column's 26px margin).
-        # Name/value in x=0..316, text_align right. Unit fixed at x=0 w=100 text_align right.
+        # Same left-aligned internal layout as the left column, but icon is on the right.
+        # Icon at x=348 (390-40-2). Name/value start at x=0. Unit follows value dynamically.
 
         # Tile 5 (y: 240..319)
         - obj:
@@ -454,39 +453,39 @@ lvgl:
             widgets:
               - label:
                   id: idle_sensor_icon_5
-                  x: 324
+                  x: 348
                   y: 2
                   width: 40
                   text_font: icon_font
                   text_color: 0x888888
-                  text_align: right
+                  text_align: left
                   text: ""
               - label:
                   id: idle_sensor_name_5
                   x: 0
                   y: 6
-                  width: 316
+                  width: 340
                   text_font: roboto_light26_font
                   text_color: 0x888888
-                  text_align: right
+                  text_align: left
                   text: ""
               - label:
                   id: idle_sensor_value_5
                   x: 0
                   y: 36
-                  width: 316
+                  width: SIZE_CONTENT
                   text_font: roboto_light40_font
                   text_color: 0xFFFFFF
-                  text_align: right
+                  text_align: left
                   text: "—"
               - label:
                   id: idle_sensor_unit_5
-                  x: 0
+                  x: 200
                   y: 44
-                  width: 100
+                  width: 110
                   text_font: roboto_light26_font
                   text_color: 0x888888
-                  text_align: right
+                  text_align: left
                   text: ""
 
         # Tile 6 (y: 340..419)
@@ -505,39 +504,39 @@ lvgl:
             widgets:
               - label:
                   id: idle_sensor_icon_6
-                  x: 324
+                  x: 348
                   y: 2
                   width: 40
                   text_font: icon_font
                   text_color: 0x888888
-                  text_align: right
+                  text_align: left
                   text: ""
               - label:
                   id: idle_sensor_name_6
                   x: 0
                   y: 6
-                  width: 316
+                  width: 340
                   text_font: roboto_light26_font
                   text_color: 0x888888
-                  text_align: right
+                  text_align: left
                   text: ""
               - label:
                   id: idle_sensor_value_6
                   x: 0
                   y: 36
-                  width: 316
+                  width: SIZE_CONTENT
                   text_font: roboto_light40_font
                   text_color: 0xFFFFFF
-                  text_align: right
+                  text_align: left
                   text: "—"
               - label:
                   id: idle_sensor_unit_6
-                  x: 0
+                  x: 200
                   y: 44
-                  width: 100
+                  width: 110
                   text_font: roboto_light26_font
                   text_color: 0x888888
-                  text_align: right
+                  text_align: left
                   text: ""
 
         # Tile 7 (y: 440..519)
@@ -556,39 +555,39 @@ lvgl:
             widgets:
               - label:
                   id: idle_sensor_icon_7
-                  x: 324
+                  x: 348
                   y: 2
                   width: 40
                   text_font: icon_font
                   text_color: 0x888888
-                  text_align: right
+                  text_align: left
                   text: ""
               - label:
                   id: idle_sensor_name_7
                   x: 0
                   y: 6
-                  width: 316
+                  width: 340
                   text_font: roboto_light26_font
                   text_color: 0x888888
-                  text_align: right
+                  text_align: left
                   text: ""
               - label:
                   id: idle_sensor_value_7
                   x: 0
                   y: 36
-                  width: 316
+                  width: SIZE_CONTENT
                   text_font: roboto_light40_font
                   text_color: 0xFFFFFF
-                  text_align: right
+                  text_align: left
                   text: "—"
               - label:
                   id: idle_sensor_unit_7
-                  x: 0
+                  x: 200
                   y: 44
-                  width: 100
+                  width: 110
                   text_font: roboto_light26_font
                   text_color: 0x888888
-                  text_align: right
+                  text_align: left
                   text: ""
 
         # Tile 8 (y: 540..619)
@@ -607,39 +606,39 @@ lvgl:
             widgets:
               - label:
                   id: idle_sensor_icon_8
-                  x: 324
+                  x: 348
                   y: 2
                   width: 40
                   text_font: icon_font
                   text_color: 0x888888
-                  text_align: right
+                  text_align: left
                   text: ""
               - label:
                   id: idle_sensor_name_8
                   x: 0
                   y: 6
-                  width: 316
+                  width: 340
                   text_font: roboto_light26_font
                   text_color: 0x888888
-                  text_align: right
+                  text_align: left
                   text: ""
               - label:
                   id: idle_sensor_value_8
                   x: 0
                   y: 36
-                  width: 316
+                  width: SIZE_CONTENT
                   text_font: roboto_light40_font
                   text_color: 0xFFFFFF
-                  text_align: right
+                  text_align: left
                   text: "—"
               - label:
                   id: idle_sensor_unit_8
-                  x: 0
+                  x: 200
                   y: 44
-                  width: 100
+                  width: 110
                   text_font: roboto_light26_font
                   text_color: 0x888888
-                  text_align: right
+                  text_align: left
                   text: ""
 
         # Tile 9 (y: 640..719)
@@ -658,39 +657,39 @@ lvgl:
             widgets:
               - label:
                   id: idle_sensor_icon_9
-                  x: 324
+                  x: 348
                   y: 2
                   width: 40
                   text_font: icon_font
                   text_color: 0x888888
-                  text_align: right
+                  text_align: left
                   text: ""
               - label:
                   id: idle_sensor_name_9
                   x: 0
                   y: 6
-                  width: 316
+                  width: 340
                   text_font: roboto_light26_font
                   text_color: 0x888888
-                  text_align: right
+                  text_align: left
                   text: ""
               - label:
                   id: idle_sensor_value_9
                   x: 0
                   y: 36
-                  width: 316
+                  width: SIZE_CONTENT
                   text_font: roboto_light40_font
                   text_color: 0xFFFFFF
-                  text_align: right
+                  text_align: left
                   text: "—"
               - label:
                   id: idle_sensor_unit_9
-                  x: 0
+                  x: 200
                   y: 44
-                  width: 100
+                  width: 110
                   text_font: roboto_light26_font
                   text_color: 0x888888
-                  text_align: right
+                  text_align: left
                   text: ""
 
         # ================================================================
