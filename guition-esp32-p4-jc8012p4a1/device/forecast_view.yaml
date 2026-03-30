@@ -26,16 +26,12 @@
 # =============================================================================
 
 globals:
-  - id: wf_chart
+  - id: wf_line_high
     type: lv_obj_t*
     restore_value: false
     initial_value: 'nullptr'
-  - id: wf_chart_high
-    type: lv_chart_series_t*
-    restore_value: false
-    initial_value: 'nullptr'
-  - id: wf_chart_low
-    type: lv_chart_series_t*
+  - id: wf_line_low
+    type: lv_obj_t*
     restore_value: false
     initial_value: 'nullptr'
   - id: wf_today_col
@@ -54,52 +50,23 @@ script:
     mode: single
     then:
       - lambda: |-
-          // Create chart programmatically (ESPHome LVGL YAML does not support chart widget type)
+          // Create two lv_line objects for the high and low temperature series.
+          // (ESPHome does not include lv_chart.h — lv_line is fully supported.)
           lv_obj_t *holder = id(wf_chart_holder);
-          lv_obj_t *chart  = lv_chart_create(holder);
-          id(wf_chart) = chart;
 
-          lv_obj_set_pos(chart, 0, 0);
-          lv_obj_set_size(chart, 1280, 360);
-          lv_obj_set_style_bg_opa(chart, LV_OPA_TRANSP, 0);
-          lv_obj_set_style_border_width(chart, 0, 0);
-          lv_obj_set_style_radius(chart, 0, 0);
-          lv_obj_set_style_pad_left(chart, 91, 0);
-          lv_obj_set_style_pad_right(chart, 91, 0);
-          lv_obj_set_style_pad_top(chart, 40, 0);
-          lv_obj_set_style_pad_bottom(chart, 20, 0);
+          lv_obj_t *lh = lv_line_create(holder);
+          lv_obj_set_style_line_color(lh, lv_color_hex(0x6CB4F0U), 0);
+          lv_obj_set_style_line_width(lh, 3, 0);
+          lv_obj_set_style_line_rounded(lh, true, 0);
+          lv_obj_move_background(lh);
+          id(wf_line_high) = lh;
 
-          lv_chart_set_type(chart, LV_CHART_TYPE_LINE);
-          lv_chart_set_update_mode(chart, LV_CHART_UPDATE_MODE_CIRCULAR);
-          lv_chart_set_point_count(chart, 7);
-
-          // Remove default grid lines and axis ticks/labels
-          lv_chart_set_div_line_count(chart, 0, 0);
-          lv_chart_set_axis_tick(chart, LV_CHART_AXIS_PRIMARY_Y, 0, 0, 0, 0, false, 0);
-          lv_chart_set_axis_tick(chart, LV_CHART_AXIS_PRIMARY_X, 0, 0, 0, 0, false, 0);
-
-          // Add series — stored as globals so render_forecast can use them
-          id(wf_chart_high) = lv_chart_add_series(chart,
-              lv_color_hex(0x6CB4F0U), LV_CHART_AXIS_PRIMARY_Y);
-          id(wf_chart_low)  = lv_chart_add_series(chart,
-              lv_color_hex(0x4B78B0U), LV_CHART_AXIS_PRIMARY_Y);
-
-          // Line width (applies to all series)
-          lv_obj_set_style_line_width(chart, 3, LV_PART_ITEMS);
-          // Dot (indicator) size
-          lv_obj_set_style_size(chart, 12, LV_PART_INDICATOR);
-
-          // Initial range — will be updated per-fetch
-          lv_chart_set_range(chart, LV_CHART_AXIS_PRIMARY_Y, 0, 30);
-
-          // Initialise all points to NONE so chart is blank until data arrives
-          for (int i = 0; i < 7; i++) {
-            lv_chart_set_value_by_id(chart, id(wf_chart_high), i, LV_CHART_POINT_NONE);
-            lv_chart_set_value_by_id(chart, id(wf_chart_low),  i, LV_CHART_POINT_NONE);
-          }
-
-          // Push behind YAML-defined labels
-          lv_obj_move_background(chart);
+          lv_obj_t *ll = lv_line_create(holder);
+          lv_obj_set_style_line_color(ll, lv_color_hex(0x4B78B0U), 0);
+          lv_obj_set_style_line_width(ll, 3, 0);
+          lv_obj_set_style_line_rounded(ll, true, 0);
+          lv_obj_move_background(ll);
+          id(wf_line_low) = ll;
 
   # ---------------------------------------------------------------------------
   # render_forecast
@@ -210,6 +177,8 @@ script:
 
           // ── No data fallback ───────────────────────────────────────────────
           if (n_days == 0) {
+            lv_obj_add_flag(id(wf_line_high), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(id(wf_line_low),  LV_OBJ_FLAG_HIDDEN);
             for (int i = 0; i < 7; i++) {
               lv_obj_set_style_bg_opa(col_bg[i], LV_OPA_TRANSP, 0);
               lv_label_set_text(day_lbl[i],  "---");
@@ -220,10 +189,7 @@ script:
               lv_label_set_text(mm_lbl[i],  "");
               lv_label_set_text(pct_lbl[i], "");
               lv_label_set_text(icon_lbl[i], "");
-              lv_chart_set_value_by_id(id(wf_chart), id(wf_chart_high), i, LV_CHART_POINT_NONE);
-              lv_chart_set_value_by_id(id(wf_chart), id(wf_chart_low),  i, LV_CHART_POINT_NONE);
             }
-            lv_chart_refresh(id(wf_chart));
             return;
           }
 
@@ -253,20 +219,25 @@ script:
           int chart_max = (int)ceilf(max_t)  + 3;
           if (max_precip < 2.0f) max_precip = 2.0f;
 
-          // ── Update chart series ────────────────────────────────────────────
-          lv_chart_set_range(id(wf_chart), LV_CHART_AXIS_PRIMARY_Y, chart_min, chart_max);
-          for (int i = 0; i < 7; i++) {
-            if (i < n_days && days[i].valid) {
-              lv_chart_set_value_by_id(id(wf_chart), id(wf_chart_high), i,
-                  (lv_coord_t)roundf(days[i].high));
-              lv_chart_set_value_by_id(id(wf_chart), id(wf_chart_low),  i,
-                  (lv_coord_t)roundf(days[i].low));
-            } else {
-              lv_chart_set_value_by_id(id(wf_chart), id(wf_chart_high), i, LV_CHART_POINT_NONE);
-              lv_chart_set_value_by_id(id(wf_chart), id(wf_chart_low),  i, LV_CHART_POINT_NONE);
-            }
+          // ── Build lv_line point arrays ─────────────────────────────────────
+          // Chart content area: x_start=91, y_start=130 (90+40), w=1098, h=300 (360-40-20)
+          // Point x for column i: 91 + 1098*i/6
+          // Point y for value v:  130 + 300*(chart_max - v)/(chart_max - chart_min)
+          int range = chart_max - chart_min;
+          if (range <= 0) range = 1;
+          static lv_point_t high_pts[7];
+          static lv_point_t low_pts[7];
+          for (int i = 0; i < n_days; i++) {
+            int px = 91 + 1098 * i / 6;
+            high_pts[i] = {(lv_coord_t)px,
+                           (lv_coord_t)(130 + 300 * (chart_max - (int)roundf(days[i].high)) / range)};
+            low_pts[i]  = {(lv_coord_t)px,
+                           (lv_coord_t)(130 + 300 * (chart_max - (int)roundf(days[i].low))  / range)};
           }
-          lv_chart_refresh(id(wf_chart));
+          lv_line_set_points(id(wf_line_high), high_pts, n_days);
+          lv_line_set_points(id(wf_line_low),  low_pts,  n_days);
+          lv_obj_clear_flag(id(wf_line_high), LV_OBJ_FLAG_HIDDEN);
+          lv_obj_clear_flag(id(wf_line_low),  LV_OBJ_FLAG_HIDDEN);
 
           // ── Per-column updates ─────────────────────────────────────────────
           for (int i = 0; i < 7; i++) {
@@ -303,12 +274,7 @@ script:
             lv_obj_set_style_text_color(date_lbl[i],
                 lv_color_hex(is_today ? 0xFFFFFFU : 0xAAAAAAU), 0);
 
-            // ── Temperature labels — positioned using manual chart geometry ──
-            // Chart content area: x_start=91, y_start=130 (90+40), w=1098, h=300 (360-40-20)
-            // Point x for column i: 91 + 1098*i/6
-            // Point y for value v:  130 + 300*(chart_max - v)/(chart_max - chart_min)
-            int range = chart_max - chart_min;
-            if (range <= 0) range = 1;
+            // ── Temperature labels — same geometry as line points ──
             int px      = 91 + 1098 * i / 6;
             int py_high = 130 + 300 * (chart_max - (int)roundf(d.high)) / range;
             int py_low  = 130 + 300 * (chart_max - (int)roundf(d.low))  / range;
