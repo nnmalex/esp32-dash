@@ -26,6 +26,10 @@
 # =============================================================================
 
 globals:
+  - id: wf_chart
+    type: lv_obj_t*
+    restore_value: false
+    initial_value: 'nullptr'
   - id: wf_chart_high
     type: lv_chart_series_t*
     restore_value: false
@@ -50,7 +54,24 @@ script:
     mode: single
     then:
       - lambda: |-
-          lv_obj_t *chart = id(wf_chart);
+          // Create chart programmatically (ESPHome LVGL YAML does not support chart widget type)
+          lv_obj_t *holder = id(wf_chart_holder);
+          lv_obj_t *chart  = lv_chart_create(holder);
+          id(wf_chart) = chart;
+
+          lv_obj_set_pos(chart, 0, 0);
+          lv_obj_set_size(chart, 1280, 360);
+          lv_obj_set_style_bg_opa(chart, LV_OPA_TRANSP, 0);
+          lv_obj_set_style_border_width(chart, 0, 0);
+          lv_obj_set_style_radius(chart, 0, 0);
+          lv_obj_set_style_pad_left(chart, 91, 0);
+          lv_obj_set_style_pad_right(chart, 91, 0);
+          lv_obj_set_style_pad_top(chart, 40, 0);
+          lv_obj_set_style_pad_bottom(chart, 20, 0);
+
+          lv_chart_set_type(chart, LV_CHART_TYPE_LINE);
+          lv_chart_set_update_mode(chart, LV_CHART_UPDATE_MODE_CIRCULAR);
+          lv_chart_set_point_count(chart, 7);
 
           // Remove default grid lines and axis ticks/labels
           lv_chart_set_div_line_count(chart, 0, 0);
@@ -62,9 +83,6 @@ script:
               lv_color_hex(0x6CB4F0U), LV_CHART_AXIS_PRIMARY_Y);
           id(wf_chart_low)  = lv_chart_add_series(chart,
               lv_color_hex(0x4B78B0U), LV_CHART_AXIS_PRIMARY_Y);
-
-          // Point count — belt-and-suspenders alongside the YAML point_count: 7
-          lv_chart_set_point_count(chart, 7);
 
           // Line width (applies to all series)
           lv_obj_set_style_line_width(chart, 3, LV_PART_ITEMS);
@@ -79,6 +97,9 @@ script:
             lv_chart_set_value_by_id(chart, id(wf_chart_high), i, LV_CHART_POINT_NONE);
             lv_chart_set_value_by_id(chart, id(wf_chart_low),  i, LV_CHART_POINT_NONE);
           }
+
+          // Push behind YAML-defined labels
+          lv_obj_move_background(chart);
 
   # ---------------------------------------------------------------------------
   # render_forecast
@@ -282,22 +303,26 @@ script:
             lv_obj_set_style_text_color(date_lbl[i],
                 lv_color_hex(is_today ? 0xFFFFFFU : 0xAAAAAAU), 0);
 
-            // ── Temperature labels — positioned at chart point coordinates ──
-            // lv_chart_get_point_pos_by_id returns absolute screen coords.
-            lv_point_t ph, pl;
-            lv_chart_get_point_pos_by_id(id(wf_chart), id(wf_chart_high), i, &ph);
-            lv_chart_get_point_pos_by_id(id(wf_chart), id(wf_chart_low),  i, &pl);
+            // ── Temperature labels — positioned using manual chart geometry ──
+            // Chart content area: x_start=91, y_start=130 (90+40), w=1098, h=300 (360-40-20)
+            // Point x for column i: 91 + 1098*i/6
+            // Point y for value v:  130 + 300*(chart_max - v)/(chart_max - chart_min)
+            int range = chart_max - chart_min;
+            if (range <= 0) range = 1;
+            int px      = 91 + 1098 * i / 6;
+            int py_high = 130 + 300 * (chart_max - (int)roundf(d.high)) / range;
+            int py_low  = 130 + 300 * (chart_max - (int)roundf(d.low))  / range;
 
             char t_buf[8];
             // High label — centred above the dot
             snprintf(t_buf, sizeof(t_buf), "%d\xc2\xb0", (int)roundf(d.high));
             lv_label_set_text(high_lbl[i], t_buf);
-            lv_obj_set_pos(high_lbl[i], ph.x - 22, ph.y - 36);
+            lv_obj_set_pos(high_lbl[i], px - 22, py_high - 36);
 
             // Low label — centred below the dot
             snprintf(t_buf, sizeof(t_buf), "%d\xc2\xb0", (int)roundf(d.low));
             lv_label_set_text(low_lbl[i], t_buf);
-            lv_obj_set_pos(low_lbl[i], pl.x - 22, pl.y + 8);
+            lv_obj_set_pos(low_lbl[i], px - 22, py_low + 8);
 
             // ── Precipitation bar ──
             int bar_h = 0;
@@ -631,11 +656,12 @@ lvgl:
             border_width: 0
             radius: 0
 
-        # ── Temperature chart ────────────────────────────────────────────────
-        # Series are added via init_forecast_chart (stored in wf_chart_high / wf_chart_low).
-        # pad_left=91 / pad_right=91 → 7 points at col centres (91, 274, 457 … 1189).
-        - chart:
-            id: wf_chart
+        # ── Temperature chart holder ─────────────────────────────────────────
+        # lv_chart is created programmatically in init_forecast_chart (ESPHome
+        # YAML does not support 'chart' as a widget type). This transparent obj
+        # acts as the parent container so the chart inherits the correct position.
+        - obj:
+            id: wf_chart_holder
             x: 0
             y: 90
             width: 1280
@@ -643,13 +669,6 @@ lvgl:
             bg_opa: 0%
             border_width: 0
             radius: 0
-            pad_left: 91
-            pad_right: 91
-            pad_top: 40
-            pad_bottom: 20
-            chart_type: line
-            update_mode: circular
-            point_count: 7
 
         # ── High-temperature labels (positioned dynamically) ─────────────────
         - label:
