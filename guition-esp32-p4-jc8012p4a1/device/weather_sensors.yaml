@@ -27,6 +27,12 @@ substitutions:
   idle_sensor_2: ""
   idle_sensor_3: ""
   idle_sensor_4: ""
+  idle_sensor_5: ""
+  idle_sensor_6: ""
+  idle_sensor_7: ""
+  idle_sensor_8: ""
+  idle_sensor_9: ""
+  idle_sensor_10: ""
   # Base path on the HA server for weather background images.
   # Example: "/local/weather-backgrounds"
   # Images named: sunny.jpg, partlycloudy.jpg, cloudy.jpg, rainy.jpg, etc.
@@ -77,6 +83,24 @@ globals:
   - id: idle_sensor_gen_3
     type: int
     initial_value: '0'
+  - id: idle_sensor_gen_4
+    type: int
+    initial_value: '0'
+  - id: idle_sensor_gen_5
+    type: int
+    initial_value: '0'
+  - id: idle_sensor_gen_6
+    type: int
+    initial_value: '0'
+  - id: idle_sensor_gen_7
+    type: int
+    initial_value: '0'
+  - id: idle_sensor_gen_8
+    type: int
+    initial_value: '0'
+  - id: idle_sensor_gen_9
+    type: int
+    initial_value: '0'
 
   # Last raw state string per tile; needed to reformat when precision changes
   - id: idle_sensor_raw_0
@@ -89,6 +113,24 @@ globals:
     type: std::string
     initial_value: '""'
   - id: idle_sensor_raw_3
+    type: std::string
+    initial_value: '""'
+  - id: idle_sensor_raw_4
+    type: std::string
+    initial_value: '""'
+  - id: idle_sensor_raw_5
+    type: std::string
+    initial_value: '""'
+  - id: idle_sensor_raw_6
+    type: std::string
+    initial_value: '""'
+  - id: idle_sensor_raw_7
+    type: std::string
+    initial_value: '""'
+  - id: idle_sensor_raw_8
+    type: std::string
+    initial_value: '""'
+  - id: idle_sensor_raw_9
     type: std::string
     initial_value: '""'
 
@@ -202,6 +244,90 @@ text:
     on_value:
       - script.execute: subscribe_idle_sensor_3
 
+  - platform: template
+    name: "Sensor Tile: Slot 5"
+    id: idle_sensor_entity_4
+    entity_category: config
+    icon: "mdi:eye"
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${idle_sensor_5}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: subscribe_idle_sensor_4
+
+  - platform: template
+    name: "Sensor Tile: Slot 6"
+    id: idle_sensor_entity_5
+    entity_category: config
+    icon: "mdi:eye"
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${idle_sensor_6}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: subscribe_idle_sensor_5
+
+  - platform: template
+    name: "Sensor Tile: Slot 7"
+    id: idle_sensor_entity_6
+    entity_category: config
+    icon: "mdi:eye"
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${idle_sensor_7}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: subscribe_idle_sensor_6
+
+  - platform: template
+    name: "Sensor Tile: Slot 8"
+    id: idle_sensor_entity_7
+    entity_category: config
+    icon: "mdi:eye"
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${idle_sensor_8}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: subscribe_idle_sensor_7
+
+  - platform: template
+    name: "Sensor Tile: Slot 9"
+    id: idle_sensor_entity_8
+    entity_category: config
+    icon: "mdi:eye"
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${idle_sensor_9}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: subscribe_idle_sensor_8
+
+  - platform: template
+    name: "Sensor Tile: Slot 10"
+    id: idle_sensor_entity_9
+    entity_category: config
+    icon: "mdi:eye"
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${idle_sensor_10}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: subscribe_idle_sensor_9
+
 
 # -----------------------------------------------------------------------------
 # Precision controls — shown in HA device UI under Configuration.
@@ -288,6 +414,126 @@ number:
           if (ep == raw.c_str()) return;
           char buf[32]; snprintf(buf, sizeof(buf), "%.*f", (int)x, val);
           id(idle_sensor_state_3).publish_state(std::string(buf));
+
+  - platform: template
+    name: "Sensor Tile 5: Precision"
+    id: idle_sensor_prec_4
+    entity_category: config
+    icon: "mdi:decimal"
+    min_value: -1
+    max_value: 5
+    step: 1
+    optimistic: true
+    restore_value: true
+    initial_value: -1
+    set_action:
+      - lambda: |-
+          const std::string &raw = id(idle_sensor_raw_4);
+          if (raw.empty() || (int)x < 0) return;
+          char *ep; float val = strtof(raw.c_str(), &ep);
+          if (ep == raw.c_str()) return;
+          char buf[32]; snprintf(buf, sizeof(buf), "%.*f", (int)x, val);
+          id(idle_sensor_state_4).publish_state(std::string(buf));
+
+  - platform: template
+    name: "Sensor Tile 6: Precision"
+    id: idle_sensor_prec_5
+    entity_category: config
+    icon: "mdi:decimal"
+    min_value: -1
+    max_value: 5
+    step: 1
+    optimistic: true
+    restore_value: true
+    initial_value: -1
+    set_action:
+      - lambda: |-
+          const std::string &raw = id(idle_sensor_raw_5);
+          if (raw.empty() || (int)x < 0) return;
+          char *ep; float val = strtof(raw.c_str(), &ep);
+          if (ep == raw.c_str()) return;
+          char buf[32]; snprintf(buf, sizeof(buf), "%.*f", (int)x, val);
+          id(idle_sensor_state_5).publish_state(std::string(buf));
+
+  - platform: template
+    name: "Sensor Tile 7: Precision"
+    id: idle_sensor_prec_6
+    entity_category: config
+    icon: "mdi:decimal"
+    min_value: -1
+    max_value: 5
+    step: 1
+    optimistic: true
+    restore_value: true
+    initial_value: -1
+    set_action:
+      - lambda: |-
+          const std::string &raw = id(idle_sensor_raw_6);
+          if (raw.empty() || (int)x < 0) return;
+          char *ep; float val = strtof(raw.c_str(), &ep);
+          if (ep == raw.c_str()) return;
+          char buf[32]; snprintf(buf, sizeof(buf), "%.*f", (int)x, val);
+          id(idle_sensor_state_6).publish_state(std::string(buf));
+
+  - platform: template
+    name: "Sensor Tile 8: Precision"
+    id: idle_sensor_prec_7
+    entity_category: config
+    icon: "mdi:decimal"
+    min_value: -1
+    max_value: 5
+    step: 1
+    optimistic: true
+    restore_value: true
+    initial_value: -1
+    set_action:
+      - lambda: |-
+          const std::string &raw = id(idle_sensor_raw_7);
+          if (raw.empty() || (int)x < 0) return;
+          char *ep; float val = strtof(raw.c_str(), &ep);
+          if (ep == raw.c_str()) return;
+          char buf[32]; snprintf(buf, sizeof(buf), "%.*f", (int)x, val);
+          id(idle_sensor_state_7).publish_state(std::string(buf));
+
+  - platform: template
+    name: "Sensor Tile 9: Precision"
+    id: idle_sensor_prec_8
+    entity_category: config
+    icon: "mdi:decimal"
+    min_value: -1
+    max_value: 5
+    step: 1
+    optimistic: true
+    restore_value: true
+    initial_value: -1
+    set_action:
+      - lambda: |-
+          const std::string &raw = id(idle_sensor_raw_8);
+          if (raw.empty() || (int)x < 0) return;
+          char *ep; float val = strtof(raw.c_str(), &ep);
+          if (ep == raw.c_str()) return;
+          char buf[32]; snprintf(buf, sizeof(buf), "%.*f", (int)x, val);
+          id(idle_sensor_state_8).publish_state(std::string(buf));
+
+  - platform: template
+    name: "Sensor Tile 10: Precision"
+    id: idle_sensor_prec_9
+    entity_category: config
+    icon: "mdi:decimal"
+    min_value: -1
+    max_value: 5
+    step: 1
+    optimistic: true
+    restore_value: true
+    initial_value: -1
+    set_action:
+      - lambda: |-
+          const std::string &raw = id(idle_sensor_raw_9);
+          if (raw.empty() || (int)x < 0) return;
+          char *ep; float val = strtof(raw.c_str(), &ep);
+          if (ep == raw.c_str()) return;
+          char buf[32]; snprintf(buf, sizeof(buf), "%.*f", (int)x, val);
+          id(idle_sensor_state_9).publish_state(std::string(buf));
 
 
 # -----------------------------------------------------------------------------
@@ -391,6 +637,90 @@ text_sensor:
             lv_obj_get_style_text_letter_space(id(idle_sensor_value_3), LV_PART_MAIN),
             0, LV_COORD_MAX, 0);
           lv_obj_set_x(id(idle_sensor_unit_3), 70 + _sz.x + 6);
+
+  - platform: template
+    id: idle_sensor_state_4
+    on_value:
+      - lvgl.label.update:
+          id: idle_sensor_value_4
+          text: !lambda 'return x.empty() ? std::string("\xe2\x80\x94") : x;'
+      - lambda: |-
+          lv_point_t _sz;
+          lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_4)),
+            lv_obj_get_style_text_font(id(idle_sensor_value_4), LV_PART_MAIN),
+            lv_obj_get_style_text_letter_space(id(idle_sensor_value_4), LV_PART_MAIN),
+            0, LV_COORD_MAX, 0);
+          lv_obj_set_x(id(idle_sensor_unit_4), 70 + _sz.x + 6);
+
+  - platform: template
+    id: idle_sensor_state_5
+    on_value:
+      - lvgl.label.update:
+          id: idle_sensor_value_5
+          text: !lambda 'return x.empty() ? std::string("\xe2\x80\x94") : x;'
+      - lambda: |-
+          lv_point_t _sz;
+          lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_5)),
+            lv_obj_get_style_text_font(id(idle_sensor_value_5), LV_PART_MAIN),
+            lv_obj_get_style_text_letter_space(id(idle_sensor_value_5), LV_PART_MAIN),
+            0, LV_COORD_MAX, 0);
+          lv_obj_set_x(id(idle_sensor_unit_5), 70 + _sz.x + 6);
+
+  - platform: template
+    id: idle_sensor_state_6
+    on_value:
+      - lvgl.label.update:
+          id: idle_sensor_value_6
+          text: !lambda 'return x.empty() ? std::string("\xe2\x80\x94") : x;'
+      - lambda: |-
+          lv_point_t _sz;
+          lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_6)),
+            lv_obj_get_style_text_font(id(idle_sensor_value_6), LV_PART_MAIN),
+            lv_obj_get_style_text_letter_space(id(idle_sensor_value_6), LV_PART_MAIN),
+            0, LV_COORD_MAX, 0);
+          lv_obj_set_x(id(idle_sensor_unit_6), 70 + _sz.x + 6);
+
+  - platform: template
+    id: idle_sensor_state_7
+    on_value:
+      - lvgl.label.update:
+          id: idle_sensor_value_7
+          text: !lambda 'return x.empty() ? std::string("\xe2\x80\x94") : x;'
+      - lambda: |-
+          lv_point_t _sz;
+          lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_7)),
+            lv_obj_get_style_text_font(id(idle_sensor_value_7), LV_PART_MAIN),
+            lv_obj_get_style_text_letter_space(id(idle_sensor_value_7), LV_PART_MAIN),
+            0, LV_COORD_MAX, 0);
+          lv_obj_set_x(id(idle_sensor_unit_7), 70 + _sz.x + 6);
+
+  - platform: template
+    id: idle_sensor_state_8
+    on_value:
+      - lvgl.label.update:
+          id: idle_sensor_value_8
+          text: !lambda 'return x.empty() ? std::string("\xe2\x80\x94") : x;'
+      - lambda: |-
+          lv_point_t _sz;
+          lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_8)),
+            lv_obj_get_style_text_font(id(idle_sensor_value_8), LV_PART_MAIN),
+            lv_obj_get_style_text_letter_space(id(idle_sensor_value_8), LV_PART_MAIN),
+            0, LV_COORD_MAX, 0);
+          lv_obj_set_x(id(idle_sensor_unit_8), 70 + _sz.x + 6);
+
+  - platform: template
+    id: idle_sensor_state_9
+    on_value:
+      - lvgl.label.update:
+          id: idle_sensor_value_9
+          text: !lambda 'return x.empty() ? std::string("\xe2\x80\x94") : x;'
+      - lambda: |-
+          lv_point_t _sz;
+          lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_9)),
+            lv_obj_get_style_text_font(id(idle_sensor_value_9), LV_PART_MAIN),
+            lv_obj_get_style_text_letter_space(id(idle_sensor_value_9), LV_PART_MAIN),
+            0, LV_COORD_MAX, 0);
+          lv_obj_set_x(id(idle_sensor_unit_9), 70 + _sz.x + 6);
 
 
 # -----------------------------------------------------------------------------
@@ -897,6 +1227,600 @@ script:
 
           ESP_LOGI("idle_sensors", "Tile 3: subscribed to '%s'", entity.c_str());
 
+  - id: subscribe_idle_sensor_4
+    mode: restart
+    then:
+      - lambda: |-
+          std::string entity = id(idle_sensor_entity_4).state;
+
+          if (entity.empty()) {
+            lv_obj_add_flag(id(idle_sensor_tile_4), LV_OBJ_FLAG_HIDDEN);
+            lv_label_set_text(id(idle_sensor_name_4), "");
+            lv_label_set_text(id(idle_sensor_value_4), "\xe2\x80\x94");
+            lv_label_set_text(id(idle_sensor_icon_4), "");
+            lv_label_set_text(id(idle_sensor_unit_4), "");
+            id(idle_sensor_raw_4) = "";
+            return;
+          }
+
+          std::string name = entity;
+          size_t dot = name.rfind('.');
+          if (dot != std::string::npos) name = name.substr(dot + 1);
+          bool cap = true;
+          for (char &c : name) {
+            if (c == '_') { c = ' '; cap = true; }
+            else if (cap && isalpha((unsigned char)c)) { c = toupper(c); cap = false; }
+            else { cap = false; }
+          }
+          lv_label_set_text(id(idle_sensor_name_4), name.c_str());
+          lv_label_set_text(id(idle_sensor_icon_4), "\U000F0208");  // eye fallback
+          lv_label_set_text(id(idle_sensor_unit_4), "");
+          lv_obj_clear_flag(id(idle_sensor_tile_4), LV_OBJ_FLAG_HIDDEN);
+
+          if (esphome::api::global_api_server == nullptr) return;
+
+          id(idle_sensor_gen_4) += 1;
+          int gen = id(idle_sensor_gen_4);
+          int *gen_ptr = &id(idle_sensor_gen_4);
+
+          auto *api = esphome::api::global_api_server;
+          using str_cb = std::function<void(const std::string &)>;
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                id(idle_sensor_raw_4) = state;
+                std::string out = state;
+                int prec = (int)id(idle_sensor_prec_4).state;
+                if (prec >= 0 && !state.empty()) {
+                  char *end; float val = strtof(state.c_str(), &end);
+                  if (end != state.c_str()) {
+                    char buf[32]; snprintf(buf, sizeof(buf), "%.*f", prec, val);
+                    out = buf;
+                  }
+                }
+                id(idle_sensor_state_4).publish_state(out);
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                if (!state.empty()) lv_label_set_text(id(idle_sensor_name_4), state.c_str());
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("unit_of_measurement"),
+              str_cb([gen, gen_ptr](const std::string &unit) {
+                if (gen != *gen_ptr) return;
+                lv_label_set_text(id(idle_sensor_unit_4), unit.c_str());
+                lv_point_t _sz;
+                lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_4)),
+                  lv_obj_get_style_text_font(id(idle_sensor_value_4), LV_PART_MAIN),
+                  lv_obj_get_style_text_letter_space(id(idle_sensor_value_4), LV_PART_MAIN),
+                  0, LV_COORD_MAX, 0);
+                lv_obj_set_x(id(idle_sensor_unit_4), 70 + _sz.x + 6);
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
+              str_cb([gen, gen_ptr](const std::string &icon_attr) {
+                if (gen != *gen_ptr) return;
+                const char *ic;
+                if (icon_attr == "mdi:thermometer" ||
+                    icon_attr == "mdi:thermometer-low" ||
+                    icon_attr == "mdi:thermometer-high") {
+                  ic = "\U000F050F";
+                } else if (icon_attr == "mdi:water-percent") {
+                  ic = "\U000F07E4";
+                } else if (icon_attr == "mdi:gauge") {
+                  ic = "\U000F028A";
+                } else if (icon_attr == "mdi:water") {
+                  ic = "\U000F04E3";
+                } else if (icon_attr == "mdi:weather-windy") {
+                  ic = "\U000F059E";
+                } else if (icon_attr == "mdi:lightning-bolt") {
+                  ic = "\U000F140B";
+                } else {
+                  ic = "\U000F0208";  // mdi:eye fallback
+                }
+                lv_label_set_text(id(idle_sensor_icon_4), ic);
+              }));
+
+          ESP_LOGI("idle_sensors", "Tile 4: subscribed to '%s'", entity.c_str());
+
+  - id: subscribe_idle_sensor_5
+    mode: restart
+    then:
+      - lambda: |-
+          std::string entity = id(idle_sensor_entity_5).state;
+
+          if (entity.empty()) {
+            lv_obj_add_flag(id(idle_sensor_tile_5), LV_OBJ_FLAG_HIDDEN);
+            lv_label_set_text(id(idle_sensor_name_5), "");
+            lv_label_set_text(id(idle_sensor_value_5), "\xe2\x80\x94");
+            lv_label_set_text(id(idle_sensor_icon_5), "");
+            lv_label_set_text(id(idle_sensor_unit_5), "");
+            id(idle_sensor_raw_5) = "";
+            return;
+          }
+
+          std::string name = entity;
+          size_t dot = name.rfind('.');
+          if (dot != std::string::npos) name = name.substr(dot + 1);
+          bool cap = true;
+          for (char &c : name) {
+            if (c == '_') { c = ' '; cap = true; }
+            else if (cap && isalpha((unsigned char)c)) { c = toupper(c); cap = false; }
+            else { cap = false; }
+          }
+          lv_label_set_text(id(idle_sensor_name_5), name.c_str());
+          lv_label_set_text(id(idle_sensor_icon_5), "\U000F0208");  // eye fallback
+          lv_label_set_text(id(idle_sensor_unit_5), "");
+          lv_obj_clear_flag(id(idle_sensor_tile_5), LV_OBJ_FLAG_HIDDEN);
+
+          if (esphome::api::global_api_server == nullptr) return;
+
+          id(idle_sensor_gen_5) += 1;
+          int gen = id(idle_sensor_gen_5);
+          int *gen_ptr = &id(idle_sensor_gen_5);
+
+          auto *api = esphome::api::global_api_server;
+          using str_cb = std::function<void(const std::string &)>;
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                id(idle_sensor_raw_5) = state;
+                std::string out = state;
+                int prec = (int)id(idle_sensor_prec_5).state;
+                if (prec >= 0 && !state.empty()) {
+                  char *end; float val = strtof(state.c_str(), &end);
+                  if (end != state.c_str()) {
+                    char buf[32]; snprintf(buf, sizeof(buf), "%.*f", prec, val);
+                    out = buf;
+                  }
+                }
+                id(idle_sensor_state_5).publish_state(out);
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                if (!state.empty()) lv_label_set_text(id(idle_sensor_name_5), state.c_str());
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("unit_of_measurement"),
+              str_cb([gen, gen_ptr](const std::string &unit) {
+                if (gen != *gen_ptr) return;
+                lv_label_set_text(id(idle_sensor_unit_5), unit.c_str());
+                lv_point_t _sz;
+                lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_5)),
+                  lv_obj_get_style_text_font(id(idle_sensor_value_5), LV_PART_MAIN),
+                  lv_obj_get_style_text_letter_space(id(idle_sensor_value_5), LV_PART_MAIN),
+                  0, LV_COORD_MAX, 0);
+                lv_obj_set_x(id(idle_sensor_unit_5), 70 + _sz.x + 6);
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
+              str_cb([gen, gen_ptr](const std::string &icon_attr) {
+                if (gen != *gen_ptr) return;
+                const char *ic;
+                if (icon_attr == "mdi:thermometer" ||
+                    icon_attr == "mdi:thermometer-low" ||
+                    icon_attr == "mdi:thermometer-high") {
+                  ic = "\U000F050F";
+                } else if (icon_attr == "mdi:water-percent") {
+                  ic = "\U000F07E4";
+                } else if (icon_attr == "mdi:gauge") {
+                  ic = "\U000F028A";
+                } else if (icon_attr == "mdi:water") {
+                  ic = "\U000F04E3";
+                } else if (icon_attr == "mdi:weather-windy") {
+                  ic = "\U000F059E";
+                } else if (icon_attr == "mdi:lightning-bolt") {
+                  ic = "\U000F140B";
+                } else {
+                  ic = "\U000F0208";  // mdi:eye fallback
+                }
+                lv_label_set_text(id(idle_sensor_icon_5), ic);
+              }));
+
+          ESP_LOGI("idle_sensors", "Tile 5: subscribed to '%s'", entity.c_str());
+
+  - id: subscribe_idle_sensor_6
+    mode: restart
+    then:
+      - lambda: |-
+          std::string entity = id(idle_sensor_entity_6).state;
+
+          if (entity.empty()) {
+            lv_obj_add_flag(id(idle_sensor_tile_6), LV_OBJ_FLAG_HIDDEN);
+            lv_label_set_text(id(idle_sensor_name_6), "");
+            lv_label_set_text(id(idle_sensor_value_6), "\xe2\x80\x94");
+            lv_label_set_text(id(idle_sensor_icon_6), "");
+            lv_label_set_text(id(idle_sensor_unit_6), "");
+            id(idle_sensor_raw_6) = "";
+            return;
+          }
+
+          std::string name = entity;
+          size_t dot = name.rfind('.');
+          if (dot != std::string::npos) name = name.substr(dot + 1);
+          bool cap = true;
+          for (char &c : name) {
+            if (c == '_') { c = ' '; cap = true; }
+            else if (cap && isalpha((unsigned char)c)) { c = toupper(c); cap = false; }
+            else { cap = false; }
+          }
+          lv_label_set_text(id(idle_sensor_name_6), name.c_str());
+          lv_label_set_text(id(idle_sensor_icon_6), "\U000F0208");  // eye fallback
+          lv_label_set_text(id(idle_sensor_unit_6), "");
+          lv_obj_clear_flag(id(idle_sensor_tile_6), LV_OBJ_FLAG_HIDDEN);
+
+          if (esphome::api::global_api_server == nullptr) return;
+
+          id(idle_sensor_gen_6) += 1;
+          int gen = id(idle_sensor_gen_6);
+          int *gen_ptr = &id(idle_sensor_gen_6);
+
+          auto *api = esphome::api::global_api_server;
+          using str_cb = std::function<void(const std::string &)>;
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                id(idle_sensor_raw_6) = state;
+                std::string out = state;
+                int prec = (int)id(idle_sensor_prec_6).state;
+                if (prec >= 0 && !state.empty()) {
+                  char *end; float val = strtof(state.c_str(), &end);
+                  if (end != state.c_str()) {
+                    char buf[32]; snprintf(buf, sizeof(buf), "%.*f", prec, val);
+                    out = buf;
+                  }
+                }
+                id(idle_sensor_state_6).publish_state(out);
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                if (!state.empty()) lv_label_set_text(id(idle_sensor_name_6), state.c_str());
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("unit_of_measurement"),
+              str_cb([gen, gen_ptr](const std::string &unit) {
+                if (gen != *gen_ptr) return;
+                lv_label_set_text(id(idle_sensor_unit_6), unit.c_str());
+                lv_point_t _sz;
+                lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_6)),
+                  lv_obj_get_style_text_font(id(idle_sensor_value_6), LV_PART_MAIN),
+                  lv_obj_get_style_text_letter_space(id(idle_sensor_value_6), LV_PART_MAIN),
+                  0, LV_COORD_MAX, 0);
+                lv_obj_set_x(id(idle_sensor_unit_6), 70 + _sz.x + 6);
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
+              str_cb([gen, gen_ptr](const std::string &icon_attr) {
+                if (gen != *gen_ptr) return;
+                const char *ic;
+                if (icon_attr == "mdi:thermometer" ||
+                    icon_attr == "mdi:thermometer-low" ||
+                    icon_attr == "mdi:thermometer-high") {
+                  ic = "\U000F050F";
+                } else if (icon_attr == "mdi:water-percent") {
+                  ic = "\U000F07E4";
+                } else if (icon_attr == "mdi:gauge") {
+                  ic = "\U000F028A";
+                } else if (icon_attr == "mdi:water") {
+                  ic = "\U000F04E3";
+                } else if (icon_attr == "mdi:weather-windy") {
+                  ic = "\U000F059E";
+                } else if (icon_attr == "mdi:lightning-bolt") {
+                  ic = "\U000F140B";
+                } else {
+                  ic = "\U000F0208";  // mdi:eye fallback
+                }
+                lv_label_set_text(id(idle_sensor_icon_6), ic);
+              }));
+
+          ESP_LOGI("idle_sensors", "Tile 6: subscribed to '%s'", entity.c_str());
+
+  - id: subscribe_idle_sensor_7
+    mode: restart
+    then:
+      - lambda: |-
+          std::string entity = id(idle_sensor_entity_7).state;
+
+          if (entity.empty()) {
+            lv_obj_add_flag(id(idle_sensor_tile_7), LV_OBJ_FLAG_HIDDEN);
+            lv_label_set_text(id(idle_sensor_name_7), "");
+            lv_label_set_text(id(idle_sensor_value_7), "\xe2\x80\x94");
+            lv_label_set_text(id(idle_sensor_icon_7), "");
+            lv_label_set_text(id(idle_sensor_unit_7), "");
+            id(idle_sensor_raw_7) = "";
+            return;
+          }
+
+          std::string name = entity;
+          size_t dot = name.rfind('.');
+          if (dot != std::string::npos) name = name.substr(dot + 1);
+          bool cap = true;
+          for (char &c : name) {
+            if (c == '_') { c = ' '; cap = true; }
+            else if (cap && isalpha((unsigned char)c)) { c = toupper(c); cap = false; }
+            else { cap = false; }
+          }
+          lv_label_set_text(id(idle_sensor_name_7), name.c_str());
+          lv_label_set_text(id(idle_sensor_icon_7), "\U000F0208");  // eye fallback
+          lv_label_set_text(id(idle_sensor_unit_7), "");
+          lv_obj_clear_flag(id(idle_sensor_tile_7), LV_OBJ_FLAG_HIDDEN);
+
+          if (esphome::api::global_api_server == nullptr) return;
+
+          id(idle_sensor_gen_7) += 1;
+          int gen = id(idle_sensor_gen_7);
+          int *gen_ptr = &id(idle_sensor_gen_7);
+
+          auto *api = esphome::api::global_api_server;
+          using str_cb = std::function<void(const std::string &)>;
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                id(idle_sensor_raw_7) = state;
+                std::string out = state;
+                int prec = (int)id(idle_sensor_prec_7).state;
+                if (prec >= 0 && !state.empty()) {
+                  char *end; float val = strtof(state.c_str(), &end);
+                  if (end != state.c_str()) {
+                    char buf[32]; snprintf(buf, sizeof(buf), "%.*f", prec, val);
+                    out = buf;
+                  }
+                }
+                id(idle_sensor_state_7).publish_state(out);
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                if (!state.empty()) lv_label_set_text(id(idle_sensor_name_7), state.c_str());
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("unit_of_measurement"),
+              str_cb([gen, gen_ptr](const std::string &unit) {
+                if (gen != *gen_ptr) return;
+                lv_label_set_text(id(idle_sensor_unit_7), unit.c_str());
+                lv_point_t _sz;
+                lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_7)),
+                  lv_obj_get_style_text_font(id(idle_sensor_value_7), LV_PART_MAIN),
+                  lv_obj_get_style_text_letter_space(id(idle_sensor_value_7), LV_PART_MAIN),
+                  0, LV_COORD_MAX, 0);
+                lv_obj_set_x(id(idle_sensor_unit_7), 70 + _sz.x + 6);
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
+              str_cb([gen, gen_ptr](const std::string &icon_attr) {
+                if (gen != *gen_ptr) return;
+                const char *ic;
+                if (icon_attr == "mdi:thermometer" ||
+                    icon_attr == "mdi:thermometer-low" ||
+                    icon_attr == "mdi:thermometer-high") {
+                  ic = "\U000F050F";
+                } else if (icon_attr == "mdi:water-percent") {
+                  ic = "\U000F07E4";
+                } else if (icon_attr == "mdi:gauge") {
+                  ic = "\U000F028A";
+                } else if (icon_attr == "mdi:water") {
+                  ic = "\U000F04E3";
+                } else if (icon_attr == "mdi:weather-windy") {
+                  ic = "\U000F059E";
+                } else if (icon_attr == "mdi:lightning-bolt") {
+                  ic = "\U000F140B";
+                } else {
+                  ic = "\U000F0208";  // mdi:eye fallback
+                }
+                lv_label_set_text(id(idle_sensor_icon_7), ic);
+              }));
+
+          ESP_LOGI("idle_sensors", "Tile 7: subscribed to '%s'", entity.c_str());
+
+  - id: subscribe_idle_sensor_8
+    mode: restart
+    then:
+      - lambda: |-
+          std::string entity = id(idle_sensor_entity_8).state;
+
+          if (entity.empty()) {
+            lv_obj_add_flag(id(idle_sensor_tile_8), LV_OBJ_FLAG_HIDDEN);
+            lv_label_set_text(id(idle_sensor_name_8), "");
+            lv_label_set_text(id(idle_sensor_value_8), "\xe2\x80\x94");
+            lv_label_set_text(id(idle_sensor_icon_8), "");
+            lv_label_set_text(id(idle_sensor_unit_8), "");
+            id(idle_sensor_raw_8) = "";
+            return;
+          }
+
+          std::string name = entity;
+          size_t dot = name.rfind('.');
+          if (dot != std::string::npos) name = name.substr(dot + 1);
+          bool cap = true;
+          for (char &c : name) {
+            if (c == '_') { c = ' '; cap = true; }
+            else if (cap && isalpha((unsigned char)c)) { c = toupper(c); cap = false; }
+            else { cap = false; }
+          }
+          lv_label_set_text(id(idle_sensor_name_8), name.c_str());
+          lv_label_set_text(id(idle_sensor_icon_8), "\U000F0208");  // eye fallback
+          lv_label_set_text(id(idle_sensor_unit_8), "");
+          lv_obj_clear_flag(id(idle_sensor_tile_8), LV_OBJ_FLAG_HIDDEN);
+
+          if (esphome::api::global_api_server == nullptr) return;
+
+          id(idle_sensor_gen_8) += 1;
+          int gen = id(idle_sensor_gen_8);
+          int *gen_ptr = &id(idle_sensor_gen_8);
+
+          auto *api = esphome::api::global_api_server;
+          using str_cb = std::function<void(const std::string &)>;
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                id(idle_sensor_raw_8) = state;
+                std::string out = state;
+                int prec = (int)id(idle_sensor_prec_8).state;
+                if (prec >= 0 && !state.empty()) {
+                  char *end; float val = strtof(state.c_str(), &end);
+                  if (end != state.c_str()) {
+                    char buf[32]; snprintf(buf, sizeof(buf), "%.*f", prec, val);
+                    out = buf;
+                  }
+                }
+                id(idle_sensor_state_8).publish_state(out);
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                if (!state.empty()) lv_label_set_text(id(idle_sensor_name_8), state.c_str());
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("unit_of_measurement"),
+              str_cb([gen, gen_ptr](const std::string &unit) {
+                if (gen != *gen_ptr) return;
+                lv_label_set_text(id(idle_sensor_unit_8), unit.c_str());
+                lv_point_t _sz;
+                lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_8)),
+                  lv_obj_get_style_text_font(id(idle_sensor_value_8), LV_PART_MAIN),
+                  lv_obj_get_style_text_letter_space(id(idle_sensor_value_8), LV_PART_MAIN),
+                  0, LV_COORD_MAX, 0);
+                lv_obj_set_x(id(idle_sensor_unit_8), 70 + _sz.x + 6);
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
+              str_cb([gen, gen_ptr](const std::string &icon_attr) {
+                if (gen != *gen_ptr) return;
+                const char *ic;
+                if (icon_attr == "mdi:thermometer" ||
+                    icon_attr == "mdi:thermometer-low" ||
+                    icon_attr == "mdi:thermometer-high") {
+                  ic = "\U000F050F";
+                } else if (icon_attr == "mdi:water-percent") {
+                  ic = "\U000F07E4";
+                } else if (icon_attr == "mdi:gauge") {
+                  ic = "\U000F028A";
+                } else if (icon_attr == "mdi:water") {
+                  ic = "\U000F04E3";
+                } else if (icon_attr == "mdi:weather-windy") {
+                  ic = "\U000F059E";
+                } else if (icon_attr == "mdi:lightning-bolt") {
+                  ic = "\U000F140B";
+                } else {
+                  ic = "\U000F0208";  // mdi:eye fallback
+                }
+                lv_label_set_text(id(idle_sensor_icon_8), ic);
+              }));
+
+          ESP_LOGI("idle_sensors", "Tile 8: subscribed to '%s'", entity.c_str());
+
+  - id: subscribe_idle_sensor_9
+    mode: restart
+    then:
+      - lambda: |-
+          std::string entity = id(idle_sensor_entity_9).state;
+
+          if (entity.empty()) {
+            lv_obj_add_flag(id(idle_sensor_tile_9), LV_OBJ_FLAG_HIDDEN);
+            lv_label_set_text(id(idle_sensor_name_9), "");
+            lv_label_set_text(id(idle_sensor_value_9), "\xe2\x80\x94");
+            lv_label_set_text(id(idle_sensor_icon_9), "");
+            lv_label_set_text(id(idle_sensor_unit_9), "");
+            id(idle_sensor_raw_9) = "";
+            return;
+          }
+
+          std::string name = entity;
+          size_t dot = name.rfind('.');
+          if (dot != std::string::npos) name = name.substr(dot + 1);
+          bool cap = true;
+          for (char &c : name) {
+            if (c == '_') { c = ' '; cap = true; }
+            else if (cap && isalpha((unsigned char)c)) { c = toupper(c); cap = false; }
+            else { cap = false; }
+          }
+          lv_label_set_text(id(idle_sensor_name_9), name.c_str());
+          lv_label_set_text(id(idle_sensor_icon_9), "\U000F0208");  // eye fallback
+          lv_label_set_text(id(idle_sensor_unit_9), "");
+          lv_obj_clear_flag(id(idle_sensor_tile_9), LV_OBJ_FLAG_HIDDEN);
+
+          if (esphome::api::global_api_server == nullptr) return;
+
+          id(idle_sensor_gen_9) += 1;
+          int gen = id(idle_sensor_gen_9);
+          int *gen_ptr = &id(idle_sensor_gen_9);
+
+          auto *api = esphome::api::global_api_server;
+          using str_cb = std::function<void(const std::string &)>;
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                id(idle_sensor_raw_9) = state;
+                std::string out = state;
+                int prec = (int)id(idle_sensor_prec_9).state;
+                if (prec >= 0 && !state.empty()) {
+                  char *end; float val = strtof(state.c_str(), &end);
+                  if (end != state.c_str()) {
+                    char buf[32]; snprintf(buf, sizeof(buf), "%.*f", prec, val);
+                    out = buf;
+                  }
+                }
+                id(idle_sensor_state_9).publish_state(out);
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                if (!state.empty()) lv_label_set_text(id(idle_sensor_name_9), state.c_str());
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("unit_of_measurement"),
+              str_cb([gen, gen_ptr](const std::string &unit) {
+                if (gen != *gen_ptr) return;
+                lv_label_set_text(id(idle_sensor_unit_9), unit.c_str());
+                lv_point_t _sz;
+                lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_9)),
+                  lv_obj_get_style_text_font(id(idle_sensor_value_9), LV_PART_MAIN),
+                  lv_obj_get_style_text_letter_space(id(idle_sensor_value_9), LV_PART_MAIN),
+                  0, LV_COORD_MAX, 0);
+                lv_obj_set_x(id(idle_sensor_unit_9), 70 + _sz.x + 6);
+              }));
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
+              str_cb([gen, gen_ptr](const std::string &icon_attr) {
+                if (gen != *gen_ptr) return;
+                const char *ic;
+                if (icon_attr == "mdi:thermometer" ||
+                    icon_attr == "mdi:thermometer-low" ||
+                    icon_attr == "mdi:thermometer-high") {
+                  ic = "\U000F050F";
+                } else if (icon_attr == "mdi:water-percent") {
+                  ic = "\U000F07E4";
+                } else if (icon_attr == "mdi:gauge") {
+                  ic = "\U000F028A";
+                } else if (icon_attr == "mdi:water") {
+                  ic = "\U000F04E3";
+                } else if (icon_attr == "mdi:weather-windy") {
+                  ic = "\U000F059E";
+                } else if (icon_attr == "mdi:lightning-bolt") {
+                  ic = "\U000F140B";
+                } else {
+                  ic = "\U000F0208";  // mdi:eye fallback
+                }
+                lv_label_set_text(id(idle_sensor_icon_9), ic);
+              }));
+
+          ESP_LOGI("idle_sensors", "Tile 9: subscribed to '%s'", entity.c_str());
+
 
 # Re-subscribe after HA reconnect (merged with api block in device.yaml)
 api:
@@ -907,3 +1831,9 @@ api:
     - script.execute: subscribe_idle_sensor_1
     - script.execute: subscribe_idle_sensor_2
     - script.execute: subscribe_idle_sensor_3
+    - script.execute: subscribe_idle_sensor_4
+    - script.execute: subscribe_idle_sensor_5
+    - script.execute: subscribe_idle_sensor_6
+    - script.execute: subscribe_idle_sensor_7
+    - script.execute: subscribe_idle_sensor_8
+    - script.execute: subscribe_idle_sensor_9
