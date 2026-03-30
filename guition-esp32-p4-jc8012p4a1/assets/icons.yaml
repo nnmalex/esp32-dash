@@ -24,11 +24,33 @@ font:
       - "\U000F00ED"  # mdi-calendar
       - "\U000F050F"  # mdi-thermometer
       - "\U000F0208"  # mdi-eye (generic sensor fallback)
-      - "\U000F07E4"  # mdi-water-percent (humidity)
+      - "\U000F058E"  # mdi-water-percent (humidity)
       - "\U000F028A"  # mdi-gauge (pressure)
-      - "\U000F04E3"  # mdi-water
+      - "\U000F058C"  # mdi-water
       - "\U000F059E"  # mdi-weather-windy (wind speed)
       - "\U000F140B"  # mdi-lightning-bolt (power / energy)
+      - "\U000F07E4"  # mdi-molecule-co2 (CO₂ / air quality)
+      - "\U000F0F54"  # mdi-home-thermometer
+      - "\U000F00DE"  # mdi-brightness-5 (illuminance)
+      - "\U000F05A8"  # mdi-white-balance-sunny (illuminance / lux)
+      - "\U000F0D91"  # mdi-motion-sensor (occupancy)
+      - "\U000F0425"  # mdi-power
+      - "\U000F0241"  # mdi-flash (electricity)
+      - "\U000F0150"  # mdi-clock-outline (duration / uptime)
+      - "\U000F095B"  # mdi-sine-wave (AC waveform)
+      - "\U000F1480"  # mdi-current-ac (electrical current)
+      - "\U000F070E"  # mdi-run (activity / step count)
+      - "\U000F0583"  # mdi-walk (activity / step count)
+      - "\U000F0079"  # mdi-battery
+      - "\U000F12A3"  # mdi-battery-high
+      - "\U000F12A2"  # mdi-battery-medium
+      - "\U000F12A1"  # mdi-battery-low
+      - "\U000F0A72"  # mdi-solar-power
+      - "\U000F1A73"  # mdi-solar-power-variant
+      - "\U000F0B6C"  # mdi-car-electric
+      - "\U000F1901"  # mdi-home-battery
+      - "\U000F0819"  # mdi-delete-restore
+      - "\U000F0A79"  # mdi-trash-can
       - "\U000F0590"  # mdi-weather-cloudy
       - "\U000F0591"  # mdi-weather-fog
       - "\U000F0592"  # mdi-weather-hail
