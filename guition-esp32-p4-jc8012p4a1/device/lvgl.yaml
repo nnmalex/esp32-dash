@@ -157,8 +157,7 @@ lvgl:
               - homeassistant.service:
                   service: media_player.media_play_pause
                   variables:
-                    target: !lambda |-
-                      return id(is_tv_mode) ? id(linked_media_player_entity).state : id(media_player_entity).state;
+                    target: !lambda 'return id(media_player_entity).state;'
                   data_template:
                     entity_id: "{{ target }}"
                   on_error:
@@ -2674,31 +2673,4 @@ lvgl:
                           bg_color: 0xFFFFFF
                           radius: 3
 
-        # ---------------------------------------------------------------
-        # CLOCK SCREENSAVER
-        # ---------------------------------------------------------------
-        # Full-screen black overlay with a large time label. Hidden by
-        # default; shown by backlight.yaml when the clock screensaver is
-        # enabled and the idle timeout fires. The label is positioned
-        # absolutely so the interval can drift it for burn-in prevention.
-        # ---------------------------------------------------------------
-        - obj:
-            id: clock_screensaver
-            x: 0
-            y: 0
-            width: 1280
-            height: 800
-            bg_color: 0x000000
-            bg_opa: 100%
-            radius: 0
-            border_width: 0
-            pad_all: 0
-            scrollable: false
-            scrollbar_mode: "off"
-            hidden: true
-            widgets:
-              - label:
-                  id: clock_label
-                  text_font: roboto_thin300_font
-                  text_color: 0xFFFFFF
-                  text: "00:00"
+

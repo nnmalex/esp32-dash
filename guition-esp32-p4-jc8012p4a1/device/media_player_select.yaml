@@ -13,9 +13,6 @@ globals:
   - id: subscription_gen
     type: int
     initial_value: '0'
-  - id: tv_subscription_gen
-    type: int
-    initial_value: '0'
 
 text:
   - platform: template
@@ -46,50 +43,6 @@ text:
                 level: INFO
                 tag: media_select
                 format: "Rebooting to apply new media player subscription"
-            - delay: 200ms
-            - lambda: 'App.safe_reboot();'
-
-  # Migration: reads the old "Sonos Tv Source" NVS value so it can be
-  # copied to linked_media_player_entity on first boot after upgrade.
-  # Safe to remove once all devices have updated past v1.6.0.
-  - platform: template
-    id: tv_media_player_entity
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: ""
-    min_length: 0
-    max_length: 100
-
-  - platform: template
-    name: "Linked Media Player"
-    id: linked_media_player_entity
-    entity_category: config
-    icon: "mdi:link-variant"
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${linked_media_player}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: subscribe_linked_media_player
-      - delay: 500ms
-      - if:
-          condition:
-            lambda: |-
-              std::string entity = id(linked_media_player_entity).state;
-              return !entity.empty()
-                  && entity.substr(0, 13) == "media_player."
-                  && esphome::api::global_api_server != nullptr
-                  && esphome::api::global_api_server->is_connected()
-                  && id(actions_prompt_acked);
-          then:
-            - logger.log:
-                level: INFO
-                tag: media_select
-                format: "Rebooting to apply new linked media player subscription"
             - delay: 200ms
             - lambda: 'App.safe_reboot();'
 
@@ -163,7 +116,6 @@ script:
           sub_num("media_duration", id(media_duration_sensor));
           sub_num("media_position", id(media_position_sensor));
           sub_num("volume_level", id(media_volume_sensor));
-          sub_text("source", id(media_source_sensor));
           sub_text("group_members", id(group_members_sensor));
 
           ESP_LOGI("media_select", "Subscribed to '%s'", entity.c_str());
@@ -177,62 +129,3 @@ script:
             }
             id(device_has_been_setup) = true;
           }
-
-  - id: subscribe_linked_media_player
-    mode: restart
-    then:
-      - lambda: |-
-          if (esphome::api::global_api_server == nullptr) return;
-
-          std::string entity = id(linked_media_player_entity).state;
-          if (entity.empty()) return;
-
-          if (entity.substr(0, 13) != "media_player.") {
-            ESP_LOGW("media_select", "Invalid linked entity '%s' — must start with 'media_player.'", entity.c_str());
-            return;
-          }
-
-          id(tv_title_received_once) = false;
-          id(last_tv_media_position) = 0.0f;
-          id(tv_ha_position_epoch) = 0;
-          id(last_tv_position_timestamp) = 0;
-
-          id(tv_subscription_gen) += 1;
-          int gen = id(tv_subscription_gen);
-          int *gen_ptr = &id(tv_subscription_gen);
-
-          auto *api = esphome::api::global_api_server;
-          using str_cb = std::function<void(const std::string &)>;
-
-          auto sub_text = [&](const std::string &attr, esphome::text_sensor::TextSensor *sensor) {
-            api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(attr),
-                str_cb([gen, gen_ptr, sensor](const std::string &state) {
-                  if (gen != *gen_ptr) return;
-                  sensor->publish_state(state);
-                }));
-          };
-
-          auto sub_num = [&](const std::string &attr, esphome::sensor::Sensor *sensor) {
-            api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(attr),
-                str_cb([gen, gen_ptr, sensor](const std::string &state) {
-                  if (gen != *gen_ptr) return;
-                  auto v = esphome::parse_number<float>(state);
-                  if (v.has_value()) sensor->publish_state(v.value());
-                }));
-          };
-
-          sub_text("media_title", id(tv_media_title_sensor));
-          sub_text("media_artist", id(tv_media_artist_sensor));
-          sub_text("entity_picture", id(tv_entity_picture_sensor));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
-              str_cb([gen, gen_ptr](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                id(tv_media_player_state_sensor).publish_state(state);
-              }));
-
-          sub_text("media_position_updated_at", id(tv_media_position_updated_at_sensor));
-          sub_num("media_duration", id(tv_media_duration_sensor));
-          sub_num("media_position", id(tv_media_position_sensor));
-
-          ESP_LOGI("media_select", "Subscribed to linked player '%s'", entity.c_str());

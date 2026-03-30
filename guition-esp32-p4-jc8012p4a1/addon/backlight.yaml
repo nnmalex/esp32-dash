@@ -1,25 +1,10 @@
 # =============================================================================
-# BACKLIGHT & SCREENSAVER
+# BACKLIGHT - Day/night brightness
 # =============================================================================
-# Two-stage screensaver with day/night awareness:
-#   1. After dim_timeout seconds of inactivity → dim to day or night brightness
-#   2. After a further screen_saver_timeout seconds → show clock or turn off
-#   Any touch or media-stop event restarts the cycle at 100%.
-#
-# All settings (brightness levels, timeouts) are exposed to Home Assistant
-# as configurable number entities under the device's "Configuration" section.
-# Sun state (above/below horizon) is read from HA's built-in sun.sun entity,
-# unless overridden with a custom binary_sensor via the Day/Night Sensor setting.
+# Two brightness levels: one for daytime, one for nighttime.
+# Night window is defined by start/end hour (local time, 24-hour).
+# Brightness is re-evaluated on touch, media state change, and every 5 minutes.
 # =============================================================================
-
-
-# -----------------------------------------------------------------------------
-# CUSTOM DAY/NIGHT SENSOR STATE
-# -----------------------------------------------------------------------------
-globals:
-  - id: custom_day_night_is_day
-    type: bool
-    initial_value: 'true'
 
 
 # -----------------------------------------------------------------------------
@@ -47,49 +32,11 @@ light:
 
 
 # -----------------------------------------------------------------------------
-# SUN STATE SENSOR (from Home Assistant)
-# -----------------------------------------------------------------------------
-# Every HA instance has sun.sun by default. Its state is either
-# "above_horizon" (daytime) or "below_horizon" (nighttime).
-# -----------------------------------------------------------------------------
-text_sensor:
-  - platform: homeassistant
-    entity_id: sun.sun
-    id: sun_state_sensor
-    internal: true
-
-
-# -----------------------------------------------------------------------------
-# DAY/NIGHT SENSOR OVERRIDE (optional)
-# -----------------------------------------------------------------------------
-# Users can point this at any binary_sensor or input_boolean in HA.
-# on = day, off = night. When empty, sun.sun is used (default).
-# -----------------------------------------------------------------------------
-text:
-  - platform: template
-    name: "Day-Night Sensor"
-    id: day_night_sensor_entity
-    entity_category: config
-    icon: "mdi:theme-light-dark"
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: ""
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: subscribe_day_night_sensor
-
-
-# -----------------------------------------------------------------------------
-# USER-CONFIGURABLE SETTINGS (exposed to Home Assistant)
-# -----------------------------------------------------------------------------
-# These appear as number entities under the device's Configuration section.
-# Values persist across reboots via restore_value + restore_from_flash.
+# USER-CONFIGURABLE SETTINGS
 # -----------------------------------------------------------------------------
 number:
   - platform: template
-    name: "Day: Active Brightness"
+    name: "Day: Brightness"
     id: backlight_day_active_brightness
     min_value: 5
     max_value: 100
@@ -101,21 +48,10 @@ number:
     icon: "mdi:brightness-7"
     entity_category: config
     set_action:
-      - if:
-          condition:
-            lambda: 'return !id(is_screen_dimmed);'
-          then:
-            - light.turn_on:
-                id: backlight
-                brightness: !lambda |-
-                  bool is_day = id(day_night_sensor_entity).state.empty()
-                      ? (id(sun_state_sensor).has_state() && id(sun_state_sensor).state == "above_horizon")
-                      : id(custom_day_night_is_day);
-                  return (is_day ? x : id(backlight_night_active_brightness).state) / 100.0f;
-                transition_length: 500ms
+      - script.execute: backlight_wake_timeout
 
   - platform: template
-    name: "Night: Active Brightness"
+    name: "Night: Brightness"
     id: backlight_night_active_brightness
     min_value: 5
     max_value: 100
@@ -127,292 +63,75 @@ number:
     icon: "mdi:brightness-4"
     entity_category: config
     set_action:
-      - if:
-          condition:
-            lambda: 'return !id(is_screen_dimmed);'
-          then:
-            - light.turn_on:
-                id: backlight
-                brightness: !lambda |-
-                  bool is_day = id(day_night_sensor_entity).state.empty()
-                      ? (id(sun_state_sensor).has_state() && id(sun_state_sensor).state == "above_horizon")
-                      : id(custom_day_night_is_day);
-                  return (is_day ? id(backlight_day_active_brightness).state : x) / 100.0f;
-                transition_length: 500ms
+      - script.execute: backlight_wake_timeout
 
   - platform: template
-    name: "Day: Dim Brightness"
-    id: backlight_day_brightness
+    name: "Night: Start Hour"
+    id: night_start_hour
     min_value: 0
-    max_value: 100
-    step: 5
-    initial_value: 35
+    max_value: 23
+    step: 1
+    initial_value: 22
     optimistic: true
     restore_value: true
-    unit_of_measurement: "%"
-    icon: "mdi:brightness-5"
+    unit_of_measurement: "h"
+    icon: "mdi:weather-night"
     entity_category: config
+    set_action:
+      - script.execute: backlight_wake_timeout
 
   - platform: template
-    name: "Night: Dim Brightness"
-    id: backlight_night_brightness
+    name: "Night: End Hour"
+    id: night_end_hour
     min_value: 0
-    max_value: 100
-    step: 5
-    initial_value: 25
-    optimistic: true
-    restore_value: true
-    unit_of_measurement: "%"
-    icon: "mdi:brightness-3"
-    entity_category: config
-
-  - platform: template
-    name: "Screen Saver: Paused Dimming"
-    id: backlight_dim_timeout
-    min_value: 1
-    max_value: 300
+    max_value: 23
     step: 1
-    initial_value: 60
+    initial_value: 7
     optimistic: true
     restore_value: true
-    unit_of_measurement: "s"
-    icon: "mdi:timer-outline"
+    unit_of_measurement: "h"
+    icon: "mdi:weather-sunny"
     entity_category: config
-
-  - platform: template
-    name: "Screen Saver: Timer"
-    id: backlight_off_timeout
-    min_value: 1
-    max_value: 600
-    step: 1
-    initial_value: 300
-    optimistic: true
-    restore_value: true
-    unit_of_measurement: "s"
-    icon: "mdi:timer-off-outline"
-    entity_category: config
-
-  - platform: template
-    name: "Screen Saver: Clock Brightness"
-    id: clock_brightness
-    min_value: 1
-    max_value: 100
-    step: 1
-    initial_value: 35
-    optimistic: true
-    restore_value: true
-    unit_of_measurement: "%"
-    icon: "mdi:clock-outline"
-    entity_category: config
+    set_action:
+      - script.execute: backlight_wake_timeout
 
 
 # -----------------------------------------------------------------------------
-# SCREENSAVER ENABLE/DISABLE (exposed to Home Assistant)
+# BACKLIGHT BRIGHTNESS SCRIPT
 # -----------------------------------------------------------------------------
-# Toggle switches to enable or disable the screen-off stage independently
-# for daytime and nighttime. When disabled, the screen stays dimmed but
-# never turns off completely. Both default to ON (screensaver enabled).
-# -----------------------------------------------------------------------------
-switch:
-  - platform: template
-    name: "Day: Screen Saver"
-    id: backlight_day_screen_off
-    optimistic: true
-    restore_mode: RESTORE_DEFAULT_ON
-    icon: "mdi:monitor-off"
-    entity_category: config
-
-  - platform: template
-    name: "Night: Screen Saver"
-    id: backlight_night_screen_off
-    optimistic: true
-    restore_mode: RESTORE_DEFAULT_ON
-    icon: "mdi:monitor-off"
-    entity_category: config
-
-  - platform: template
-    name: "Screen Saver: Clock"
-    id: clock_screensaver_enabled
-    optimistic: true
-    restore_mode: RESTORE_DEFAULT_ON
-    icon: "mdi:clock-outline"
-    entity_category: config
-
-
-# -----------------------------------------------------------------------------
-# BACKLIGHT WAKE / DIM / OFF SCRIPT
-# -----------------------------------------------------------------------------
-# mode: restart — any touch re-executes from the top, cancelling pending
-# delays. This gives instant wake-up from any state (dimmed, clock, or off).
-#
-# Flow:
-#   1. Wake: hide clock if showing, restore active brightness, resume LVGL
-#   2. Wait dim_timeout seconds → dim to day/night brightness
-#   3. Wait screen_saver_timeout seconds
-#   4. If media is NOT playing:
-#      a. Clock enabled → show clock at clock brightness
-#      b. Clock disabled & screen saver switch on → turn off screen
+# Sets brightness based on whether the current local hour falls within the
+# configured night window (night_start_hour to night_end_hour).
+# Night wraps midnight when start > end (e.g. 22 to 7).
 # -----------------------------------------------------------------------------
 script:
   - id: backlight_wake_timeout
     mode: restart
     then:
-      - lambda: |-
-          id(was_screen_dimmed) = id(is_screen_dimmed);
-          id(is_screen_dimmed) = false;
       - lvgl.resume:
-      - delay: 100ms
       - light.turn_on:
           id: backlight
           brightness: !lambda |-
-            bool is_day = id(day_night_sensor_entity).state.empty()
-                ? (id(sun_state_sensor).has_state() && id(sun_state_sensor).state == "above_horizon")
-                : id(custom_day_night_is_day);
-            float pct = is_day
-              ? id(backlight_day_active_brightness).state
-              : id(backlight_night_active_brightness).state;
+            auto t = id(ha_time).now();
+            bool is_night = false;
+            if (t.is_valid()) {
+              int h = t.hour;
+              int ns = (int)id(night_start_hour).state;
+              int ne = (int)id(night_end_hour).state;
+              is_night = (ns > ne) ? (h >= ns || h < ne) : (h >= ns && h < ne);
+            }
+            float pct = is_night
+              ? id(backlight_night_active_brightness).state
+              : id(backlight_day_active_brightness).state;
             return pct / 100.0f;
-          transition_length: 1s
-      - if:
-          condition:
-            lambda: 'return id(was_screen_dimmed);'
-          then:
-            - script.execute: hide_clock_view
-            - script.execute: show_track_view
-      - delay: !lambda 'return (uint32_t)(id(backlight_dim_timeout).state * 1000);'
-      - if:
-          condition:
-            lambda: >-
-              return !id(media_player_state_sensor).has_state() ||
-                     id(media_player_state_sensor).state != "playing";
-          then:
-            - lambda: 'id(is_screen_dimmed) = true;'
-            - light.turn_on:
-                id: backlight
-                brightness: !lambda |-
-                  bool is_day = id(day_night_sensor_entity).state.empty()
-                      ? (id(sun_state_sensor).has_state() && id(sun_state_sensor).state == "above_horizon")
-                      : id(custom_day_night_is_day);
-                  float pct = is_day
-                    ? id(backlight_day_brightness).state
-                    : id(backlight_night_brightness).state;
-                  return pct / 100.0f;
-                transition_length: 3s
-            - delay: !lambda 'return (uint32_t)(id(backlight_off_timeout).state * 1000);'
-            - if:
-                condition:
-                  lambda: >-
-                    return !id(media_player_state_sensor).has_state() ||
-                           id(media_player_state_sensor).state != "playing";
-                then:
-                  - if:
-                      condition:
-                        lambda: 'return id(clock_screensaver_enabled).state;'
-                      then:
-                        - script.execute: show_clock_view
-                      else:
-                        - if:
-                            condition:
-                              lambda: |-
-                                bool is_day = id(day_night_sensor_entity).state.empty()
-                                    ? (id(sun_state_sensor).has_state() && id(sun_state_sensor).state == "above_horizon")
-                                    : id(custom_day_night_is_day);
-                                return is_day
-                                  ? id(backlight_day_screen_off).state
-                                  : id(backlight_night_screen_off).state;
-                            then:
-                              - light.turn_off:
-                                  id: backlight
-                                  transition_length: 3s
-                              - lvgl.pause:
-                                  show_snow: true
-
-  - id: turn_off_display
-    mode: single
-    then:
-      - script.stop: backlight_wake_timeout
-      - lambda: 'id(is_screen_dimmed) = true;'
-      - light.turn_off:
-          id: backlight
-          transition_length: 1s
-      - delay: 1s
-      - lvgl.pause:
-          show_snow: true
-
-  - id: show_clock_view
-    mode: single
-    then:
-      - lambda: |-
-          id(is_clock_showing) = true;
-          setenv("TZ", id(tz_posix).c_str(), 1);
-          tzset();
-          auto time = id(ha_time).now();
-          if (time.is_valid()) {
-            char buf[6];
-            snprintf(buf, sizeof(buf), "%02d:%02d", time.hour, time.minute);
-            lv_label_set_text(id(clock_label), buf);
-            lv_obj_update_layout(id(clock_label));
-            lv_coord_t w = lv_obj_get_width(id(clock_label));
-            lv_coord_t h = lv_obj_get_height(id(clock_label));
-            int cx = 640, cy = 400;
-            int ox = (time.minute * 7) % 61 - 30;
-            int oy = (time.minute * 13) % 41 - 20;
-            lv_obj_set_pos(id(clock_label), cx + ox - w/2, cy + oy - h/2);
-          }
-      - lvgl.widget.show: clock_screensaver
-      - light.turn_on:
-          id: backlight
-          brightness: !lambda 'return id(clock_brightness).state / 100.0f;'
-          transition_length: 3s
-
-  - id: hide_clock_view
-    mode: single
-    then:
-      - lambda: 'id(is_clock_showing) = false;'
-      - lvgl.widget.hide: clock_screensaver
-
-  - id: subscribe_day_night_sensor
-    mode: restart
-    then:
-      - lambda: |-
-          if (esphome::api::global_api_server == nullptr) return;
-          std::string entity = id(day_night_sensor_entity).state;
-          if (entity.empty()) return;
-          if (entity.substr(0, 14) != "binary_sensor." && entity.substr(0, 14) != "input_boolean.") {
-            ESP_LOGW("backlight", "Invalid day/night entity '%s' — must start with 'binary_sensor.' or 'input_boolean.'", entity.c_str());
-            return;
-          }
-          auto *api = esphome::api::global_api_server;
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
-              std::function<void(const std::string &)>([](const std::string &state) {
-                id(custom_day_night_is_day) = (state == "on");
-              }));
-          ESP_LOGI("backlight", "Subscribed to day/night sensor '%s'", entity.c_str());
+          transition_length: 500ms
 
 
 # -----------------------------------------------------------------------------
-# CLOCK UPDATE INTERVAL
+# PERIODIC BRIGHTNESS UPDATE (every 5 minutes)
 # -----------------------------------------------------------------------------
-# Every 30 s, refresh the time text and drift the label position to prevent
-# burn-in. The position is derived from the current minute so it changes
-# deterministically ~once per minute across a 60×40 px region.
+# Re-evaluates day/night so transitions happen automatically without touch.
 # -----------------------------------------------------------------------------
 interval:
-  - interval: 30s
+  - interval: 5min
     then:
-      - lambda: |-
-          if (!id(is_clock_showing)) return;
-          setenv("TZ", id(tz_posix).c_str(), 1);
-          tzset();
-          auto time = id(ha_time).now();
-          if (!time.is_valid()) return;
-          char buf[6];
-          snprintf(buf, sizeof(buf), "%02d:%02d", time.hour, time.minute);
-          lv_label_set_text(id(clock_label), buf);
-          lv_obj_update_layout(id(clock_label));
-          lv_coord_t w = lv_obj_get_width(id(clock_label));
-          lv_coord_t h = lv_obj_get_height(id(clock_label));
-          int cx = 640, cy = 400;
-          int ox = (time.minute * 7) % 61 - 30;
-          int oy = (time.minute * 13) % 41 - 20;
-          lv_obj_set_pos(id(clock_label), cx + ox - w/2, cy + oy - h/2);
+      - script.execute: backlight_wake_timeout
