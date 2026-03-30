@@ -879,16 +879,62 @@ script:
                     icon_attr == "mdi:thermometer-low" ||
                     icon_attr == "mdi:thermometer-high") {
                   ic = "\U000F050F";
+                } else if (icon_attr == "mdi:home-thermometer" ||
+                           icon_attr == "mdi:home-thermometer-outline") {
+                  ic = "\U000F0F54";
                 } else if (icon_attr == "mdi:water-percent") {
-                  ic = "\U000F07E4";
+                  ic = "\U000F058E";
                 } else if (icon_attr == "mdi:gauge") {
                   ic = "\U000F028A";
                 } else if (icon_attr == "mdi:water") {
-                  ic = "\U000F04E3";
+                  ic = "\U000F058C";
                 } else if (icon_attr == "mdi:weather-windy") {
                   ic = "\U000F059E";
-                } else if (icon_attr == "mdi:lightning-bolt") {
+                } else if (icon_attr == "mdi:lightning-bolt" ||
+                           icon_attr == "mdi:flash") {
                   ic = "\U000F140B";
+                } else if (icon_attr == "mdi:molecule-co2") {
+                  ic = "\U000F07E4";
+                } else if (icon_attr == "mdi:brightness-5" ||
+                           icon_attr == "mdi:white-balance-sunny") {
+                  ic = "\U000F05A8";
+                } else if (icon_attr == "mdi:motion-sensor") {
+                  ic = "\U000F0D91";
+                } else if (icon_attr == "mdi:power") {
+                  ic = "\U000F0425";
+                } else if (icon_attr == "mdi:clock-outline") {
+                  ic = "\U000F0150";
+                } else if (icon_attr == "mdi:sine-wave" ||
+                           icon_attr == "mdi:current-ac") {
+                  ic = "\U000F095B";
+                } else if (icon_attr == "mdi:run") {
+                  ic = "\U000F070E";
+                } else if (icon_attr == "mdi:walk") {
+                  ic = "\U000F0583";
+                } else if (icon_attr == "mdi:battery" ||
+                           icon_attr == "mdi:battery-charging" ||
+                           icon_attr == "mdi:battery-unknown") {
+                  ic = "\U000F0079";
+                } else if (icon_attr == "mdi:battery-high") {
+                  ic = "\U000F12A3";
+                } else if (icon_attr == "mdi:battery-medium") {
+                  ic = "\U000F12A2";
+                } else if (icon_attr == "mdi:battery-low") {
+                  ic = "\U000F12A1";
+                } else if (icon_attr == "mdi:solar-power") {
+                  ic = "\U000F0A72";
+                } else if (icon_attr == "mdi:solar-power-variant") {
+                  ic = "\U000F1A73";
+                } else if (icon_attr == "mdi:car-electric") {
+                  ic = "\U000F0B6C";
+                } else if (icon_attr == "mdi:home-battery") {
+                  ic = "\U000F1901";
+                } else if (icon_attr == "mdi:home") {
+                  ic = "\U000F02DC";
+                } else if (icon_attr == "mdi:delete-restore") {
+                  ic = "\U000F0819";
+                } else if (icon_attr == "mdi:trash-can") {
+                  ic = "\U000F0A79";
                 } else {
                   ic = "\U000F0208";  // mdi:eye fallback
                 }
@@ -978,16 +1024,62 @@ script:
                     icon_attr == "mdi:thermometer-low" ||
                     icon_attr == "mdi:thermometer-high") {
                   ic = "\U000F050F";
+                } else if (icon_attr == "mdi:home-thermometer" ||
+                           icon_attr == "mdi:home-thermometer-outline") {
+                  ic = "\U000F0F54";
                 } else if (icon_attr == "mdi:water-percent") {
-                  ic = "\U000F07E4";
+                  ic = "\U000F058E";
                 } else if (icon_attr == "mdi:gauge") {
                   ic = "\U000F028A";
                 } else if (icon_attr == "mdi:water") {
-                  ic = "\U000F04E3";
+                  ic = "\U000F058C";
                 } else if (icon_attr == "mdi:weather-windy") {
                   ic = "\U000F059E";
-                } else if (icon_attr == "mdi:lightning-bolt") {
+                } else if (icon_attr == "mdi:lightning-bolt" ||
+                           icon_attr == "mdi:flash") {
                   ic = "\U000F140B";
+                } else if (icon_attr == "mdi:molecule-co2") {
+                  ic = "\U000F07E4";
+                } else if (icon_attr == "mdi:brightness-5" ||
+                           icon_attr == "mdi:white-balance-sunny") {
+                  ic = "\U000F05A8";
+                } else if (icon_attr == "mdi:motion-sensor") {
+                  ic = "\U000F0D91";
+                } else if (icon_attr == "mdi:power") {
+                  ic = "\U000F0425";
+                } else if (icon_attr == "mdi:clock-outline") {
+                  ic = "\U000F0150";
+                } else if (icon_attr == "mdi:sine-wave" ||
+                           icon_attr == "mdi:current-ac") {
+                  ic = "\U000F095B";
+                } else if (icon_attr == "mdi:run") {
+                  ic = "\U000F070E";
+                } else if (icon_attr == "mdi:walk") {
+                  ic = "\U000F0583";
+                } else if (icon_attr == "mdi:battery" ||
+                           icon_attr == "mdi:battery-charging" ||
+                           icon_attr == "mdi:battery-unknown") {
+                  ic = "\U000F0079";
+                } else if (icon_attr == "mdi:battery-high") {
+                  ic = "\U000F12A3";
+                } else if (icon_attr == "mdi:battery-medium") {
+                  ic = "\U000F12A2";
+                } else if (icon_attr == "mdi:battery-low") {
+                  ic = "\U000F12A1";
+                } else if (icon_attr == "mdi:solar-power") {
+                  ic = "\U000F0A72";
+                } else if (icon_attr == "mdi:solar-power-variant") {
+                  ic = "\U000F1A73";
+                } else if (icon_attr == "mdi:car-electric") {
+                  ic = "\U000F0B6C";
+                } else if (icon_attr == "mdi:home-battery") {
+                  ic = "\U000F1901";
+                } else if (icon_attr == "mdi:home") {
+                  ic = "\U000F02DC";
+                } else if (icon_attr == "mdi:delete-restore") {
+                  ic = "\U000F0819";
+                } else if (icon_attr == "mdi:trash-can") {
+                  ic = "\U000F0A79";
                 } else {
                   ic = "\U000F0208";  // mdi:eye fallback
                 }
@@ -1077,16 +1169,62 @@ script:
                     icon_attr == "mdi:thermometer-low" ||
                     icon_attr == "mdi:thermometer-high") {
                   ic = "\U000F050F";
+                } else if (icon_attr == "mdi:home-thermometer" ||
+                           icon_attr == "mdi:home-thermometer-outline") {
+                  ic = "\U000F0F54";
                 } else if (icon_attr == "mdi:water-percent") {
-                  ic = "\U000F07E4";
+                  ic = "\U000F058E";
                 } else if (icon_attr == "mdi:gauge") {
                   ic = "\U000F028A";
                 } else if (icon_attr == "mdi:water") {
-                  ic = "\U000F04E3";
+                  ic = "\U000F058C";
                 } else if (icon_attr == "mdi:weather-windy") {
                   ic = "\U000F059E";
-                } else if (icon_attr == "mdi:lightning-bolt") {
+                } else if (icon_attr == "mdi:lightning-bolt" ||
+                           icon_attr == "mdi:flash") {
                   ic = "\U000F140B";
+                } else if (icon_attr == "mdi:molecule-co2") {
+                  ic = "\U000F07E4";
+                } else if (icon_attr == "mdi:brightness-5" ||
+                           icon_attr == "mdi:white-balance-sunny") {
+                  ic = "\U000F05A8";
+                } else if (icon_attr == "mdi:motion-sensor") {
+                  ic = "\U000F0D91";
+                } else if (icon_attr == "mdi:power") {
+                  ic = "\U000F0425";
+                } else if (icon_attr == "mdi:clock-outline") {
+                  ic = "\U000F0150";
+                } else if (icon_attr == "mdi:sine-wave" ||
+                           icon_attr == "mdi:current-ac") {
+                  ic = "\U000F095B";
+                } else if (icon_attr == "mdi:run") {
+                  ic = "\U000F070E";
+                } else if (icon_attr == "mdi:walk") {
+                  ic = "\U000F0583";
+                } else if (icon_attr == "mdi:battery" ||
+                           icon_attr == "mdi:battery-charging" ||
+                           icon_attr == "mdi:battery-unknown") {
+                  ic = "\U000F0079";
+                } else if (icon_attr == "mdi:battery-high") {
+                  ic = "\U000F12A3";
+                } else if (icon_attr == "mdi:battery-medium") {
+                  ic = "\U000F12A2";
+                } else if (icon_attr == "mdi:battery-low") {
+                  ic = "\U000F12A1";
+                } else if (icon_attr == "mdi:solar-power") {
+                  ic = "\U000F0A72";
+                } else if (icon_attr == "mdi:solar-power-variant") {
+                  ic = "\U000F1A73";
+                } else if (icon_attr == "mdi:car-electric") {
+                  ic = "\U000F0B6C";
+                } else if (icon_attr == "mdi:home-battery") {
+                  ic = "\U000F1901";
+                } else if (icon_attr == "mdi:home") {
+                  ic = "\U000F02DC";
+                } else if (icon_attr == "mdi:delete-restore") {
+                  ic = "\U000F0819";
+                } else if (icon_attr == "mdi:trash-can") {
+                  ic = "\U000F0A79";
                 } else {
                   ic = "\U000F0208";  // mdi:eye fallback
                 }
@@ -1176,16 +1314,62 @@ script:
                     icon_attr == "mdi:thermometer-low" ||
                     icon_attr == "mdi:thermometer-high") {
                   ic = "\U000F050F";
+                } else if (icon_attr == "mdi:home-thermometer" ||
+                           icon_attr == "mdi:home-thermometer-outline") {
+                  ic = "\U000F0F54";
                 } else if (icon_attr == "mdi:water-percent") {
-                  ic = "\U000F07E4";
+                  ic = "\U000F058E";
                 } else if (icon_attr == "mdi:gauge") {
                   ic = "\U000F028A";
                 } else if (icon_attr == "mdi:water") {
-                  ic = "\U000F04E3";
+                  ic = "\U000F058C";
                 } else if (icon_attr == "mdi:weather-windy") {
                   ic = "\U000F059E";
-                } else if (icon_attr == "mdi:lightning-bolt") {
+                } else if (icon_attr == "mdi:lightning-bolt" ||
+                           icon_attr == "mdi:flash") {
                   ic = "\U000F140B";
+                } else if (icon_attr == "mdi:molecule-co2") {
+                  ic = "\U000F07E4";
+                } else if (icon_attr == "mdi:brightness-5" ||
+                           icon_attr == "mdi:white-balance-sunny") {
+                  ic = "\U000F05A8";
+                } else if (icon_attr == "mdi:motion-sensor") {
+                  ic = "\U000F0D91";
+                } else if (icon_attr == "mdi:power") {
+                  ic = "\U000F0425";
+                } else if (icon_attr == "mdi:clock-outline") {
+                  ic = "\U000F0150";
+                } else if (icon_attr == "mdi:sine-wave" ||
+                           icon_attr == "mdi:current-ac") {
+                  ic = "\U000F095B";
+                } else if (icon_attr == "mdi:run") {
+                  ic = "\U000F070E";
+                } else if (icon_attr == "mdi:walk") {
+                  ic = "\U000F0583";
+                } else if (icon_attr == "mdi:battery" ||
+                           icon_attr == "mdi:battery-charging" ||
+                           icon_attr == "mdi:battery-unknown") {
+                  ic = "\U000F0079";
+                } else if (icon_attr == "mdi:battery-high") {
+                  ic = "\U000F12A3";
+                } else if (icon_attr == "mdi:battery-medium") {
+                  ic = "\U000F12A2";
+                } else if (icon_attr == "mdi:battery-low") {
+                  ic = "\U000F12A1";
+                } else if (icon_attr == "mdi:solar-power") {
+                  ic = "\U000F0A72";
+                } else if (icon_attr == "mdi:solar-power-variant") {
+                  ic = "\U000F1A73";
+                } else if (icon_attr == "mdi:car-electric") {
+                  ic = "\U000F0B6C";
+                } else if (icon_attr == "mdi:home-battery") {
+                  ic = "\U000F1901";
+                } else if (icon_attr == "mdi:home") {
+                  ic = "\U000F02DC";
+                } else if (icon_attr == "mdi:delete-restore") {
+                  ic = "\U000F0819";
+                } else if (icon_attr == "mdi:trash-can") {
+                  ic = "\U000F0A79";
                 } else {
                   ic = "\U000F0208";  // mdi:eye fallback
                 }
@@ -1275,16 +1459,62 @@ script:
                     icon_attr == "mdi:thermometer-low" ||
                     icon_attr == "mdi:thermometer-high") {
                   ic = "\U000F050F";
+                } else if (icon_attr == "mdi:home-thermometer" ||
+                           icon_attr == "mdi:home-thermometer-outline") {
+                  ic = "\U000F0F54";
                 } else if (icon_attr == "mdi:water-percent") {
-                  ic = "\U000F07E4";
+                  ic = "\U000F058E";
                 } else if (icon_attr == "mdi:gauge") {
                   ic = "\U000F028A";
                 } else if (icon_attr == "mdi:water") {
-                  ic = "\U000F04E3";
+                  ic = "\U000F058C";
                 } else if (icon_attr == "mdi:weather-windy") {
                   ic = "\U000F059E";
-                } else if (icon_attr == "mdi:lightning-bolt") {
+                } else if (icon_attr == "mdi:lightning-bolt" ||
+                           icon_attr == "mdi:flash") {
                   ic = "\U000F140B";
+                } else if (icon_attr == "mdi:molecule-co2") {
+                  ic = "\U000F07E4";
+                } else if (icon_attr == "mdi:brightness-5" ||
+                           icon_attr == "mdi:white-balance-sunny") {
+                  ic = "\U000F05A8";
+                } else if (icon_attr == "mdi:motion-sensor") {
+                  ic = "\U000F0D91";
+                } else if (icon_attr == "mdi:power") {
+                  ic = "\U000F0425";
+                } else if (icon_attr == "mdi:clock-outline") {
+                  ic = "\U000F0150";
+                } else if (icon_attr == "mdi:sine-wave" ||
+                           icon_attr == "mdi:current-ac") {
+                  ic = "\U000F095B";
+                } else if (icon_attr == "mdi:run") {
+                  ic = "\U000F070E";
+                } else if (icon_attr == "mdi:walk") {
+                  ic = "\U000F0583";
+                } else if (icon_attr == "mdi:battery" ||
+                           icon_attr == "mdi:battery-charging" ||
+                           icon_attr == "mdi:battery-unknown") {
+                  ic = "\U000F0079";
+                } else if (icon_attr == "mdi:battery-high") {
+                  ic = "\U000F12A3";
+                } else if (icon_attr == "mdi:battery-medium") {
+                  ic = "\U000F12A2";
+                } else if (icon_attr == "mdi:battery-low") {
+                  ic = "\U000F12A1";
+                } else if (icon_attr == "mdi:solar-power") {
+                  ic = "\U000F0A72";
+                } else if (icon_attr == "mdi:solar-power-variant") {
+                  ic = "\U000F1A73";
+                } else if (icon_attr == "mdi:car-electric") {
+                  ic = "\U000F0B6C";
+                } else if (icon_attr == "mdi:home-battery") {
+                  ic = "\U000F1901";
+                } else if (icon_attr == "mdi:home") {
+                  ic = "\U000F02DC";
+                } else if (icon_attr == "mdi:delete-restore") {
+                  ic = "\U000F0819";
+                } else if (icon_attr == "mdi:trash-can") {
+                  ic = "\U000F0A79";
                 } else {
                   ic = "\U000F0208";  // mdi:eye fallback
                 }
@@ -1368,16 +1598,62 @@ script:
                     icon_attr == "mdi:thermometer-low" ||
                     icon_attr == "mdi:thermometer-high") {
                   ic = "\U000F050F";
+                } else if (icon_attr == "mdi:home-thermometer" ||
+                           icon_attr == "mdi:home-thermometer-outline") {
+                  ic = "\U000F0F54";
                 } else if (icon_attr == "mdi:water-percent") {
-                  ic = "\U000F07E4";
+                  ic = "\U000F058E";
                 } else if (icon_attr == "mdi:gauge") {
                   ic = "\U000F028A";
                 } else if (icon_attr == "mdi:water") {
-                  ic = "\U000F04E3";
+                  ic = "\U000F058C";
                 } else if (icon_attr == "mdi:weather-windy") {
                   ic = "\U000F059E";
-                } else if (icon_attr == "mdi:lightning-bolt") {
+                } else if (icon_attr == "mdi:lightning-bolt" ||
+                           icon_attr == "mdi:flash") {
                   ic = "\U000F140B";
+                } else if (icon_attr == "mdi:molecule-co2") {
+                  ic = "\U000F07E4";
+                } else if (icon_attr == "mdi:brightness-5" ||
+                           icon_attr == "mdi:white-balance-sunny") {
+                  ic = "\U000F05A8";
+                } else if (icon_attr == "mdi:motion-sensor") {
+                  ic = "\U000F0D91";
+                } else if (icon_attr == "mdi:power") {
+                  ic = "\U000F0425";
+                } else if (icon_attr == "mdi:clock-outline") {
+                  ic = "\U000F0150";
+                } else if (icon_attr == "mdi:sine-wave" ||
+                           icon_attr == "mdi:current-ac") {
+                  ic = "\U000F095B";
+                } else if (icon_attr == "mdi:run") {
+                  ic = "\U000F070E";
+                } else if (icon_attr == "mdi:walk") {
+                  ic = "\U000F0583";
+                } else if (icon_attr == "mdi:battery" ||
+                           icon_attr == "mdi:battery-charging" ||
+                           icon_attr == "mdi:battery-unknown") {
+                  ic = "\U000F0079";
+                } else if (icon_attr == "mdi:battery-high") {
+                  ic = "\U000F12A3";
+                } else if (icon_attr == "mdi:battery-medium") {
+                  ic = "\U000F12A2";
+                } else if (icon_attr == "mdi:battery-low") {
+                  ic = "\U000F12A1";
+                } else if (icon_attr == "mdi:solar-power") {
+                  ic = "\U000F0A72";
+                } else if (icon_attr == "mdi:solar-power-variant") {
+                  ic = "\U000F1A73";
+                } else if (icon_attr == "mdi:car-electric") {
+                  ic = "\U000F0B6C";
+                } else if (icon_attr == "mdi:home-battery") {
+                  ic = "\U000F1901";
+                } else if (icon_attr == "mdi:home") {
+                  ic = "\U000F02DC";
+                } else if (icon_attr == "mdi:delete-restore") {
+                  ic = "\U000F0819";
+                } else if (icon_attr == "mdi:trash-can") {
+                  ic = "\U000F0A79";
                 } else {
                   ic = "\U000F0208";  // mdi:eye fallback
                 }
@@ -1461,16 +1737,62 @@ script:
                     icon_attr == "mdi:thermometer-low" ||
                     icon_attr == "mdi:thermometer-high") {
                   ic = "\U000F050F";
+                } else if (icon_attr == "mdi:home-thermometer" ||
+                           icon_attr == "mdi:home-thermometer-outline") {
+                  ic = "\U000F0F54";
                 } else if (icon_attr == "mdi:water-percent") {
-                  ic = "\U000F07E4";
+                  ic = "\U000F058E";
                 } else if (icon_attr == "mdi:gauge") {
                   ic = "\U000F028A";
                 } else if (icon_attr == "mdi:water") {
-                  ic = "\U000F04E3";
+                  ic = "\U000F058C";
                 } else if (icon_attr == "mdi:weather-windy") {
                   ic = "\U000F059E";
-                } else if (icon_attr == "mdi:lightning-bolt") {
+                } else if (icon_attr == "mdi:lightning-bolt" ||
+                           icon_attr == "mdi:flash") {
                   ic = "\U000F140B";
+                } else if (icon_attr == "mdi:molecule-co2") {
+                  ic = "\U000F07E4";
+                } else if (icon_attr == "mdi:brightness-5" ||
+                           icon_attr == "mdi:white-balance-sunny") {
+                  ic = "\U000F05A8";
+                } else if (icon_attr == "mdi:motion-sensor") {
+                  ic = "\U000F0D91";
+                } else if (icon_attr == "mdi:power") {
+                  ic = "\U000F0425";
+                } else if (icon_attr == "mdi:clock-outline") {
+                  ic = "\U000F0150";
+                } else if (icon_attr == "mdi:sine-wave" ||
+                           icon_attr == "mdi:current-ac") {
+                  ic = "\U000F095B";
+                } else if (icon_attr == "mdi:run") {
+                  ic = "\U000F070E";
+                } else if (icon_attr == "mdi:walk") {
+                  ic = "\U000F0583";
+                } else if (icon_attr == "mdi:battery" ||
+                           icon_attr == "mdi:battery-charging" ||
+                           icon_attr == "mdi:battery-unknown") {
+                  ic = "\U000F0079";
+                } else if (icon_attr == "mdi:battery-high") {
+                  ic = "\U000F12A3";
+                } else if (icon_attr == "mdi:battery-medium") {
+                  ic = "\U000F12A2";
+                } else if (icon_attr == "mdi:battery-low") {
+                  ic = "\U000F12A1";
+                } else if (icon_attr == "mdi:solar-power") {
+                  ic = "\U000F0A72";
+                } else if (icon_attr == "mdi:solar-power-variant") {
+                  ic = "\U000F1A73";
+                } else if (icon_attr == "mdi:car-electric") {
+                  ic = "\U000F0B6C";
+                } else if (icon_attr == "mdi:home-battery") {
+                  ic = "\U000F1901";
+                } else if (icon_attr == "mdi:home") {
+                  ic = "\U000F02DC";
+                } else if (icon_attr == "mdi:delete-restore") {
+                  ic = "\U000F0819";
+                } else if (icon_attr == "mdi:trash-can") {
+                  ic = "\U000F0A79";
                 } else {
                   ic = "\U000F0208";  // mdi:eye fallback
                 }
@@ -1554,16 +1876,62 @@ script:
                     icon_attr == "mdi:thermometer-low" ||
                     icon_attr == "mdi:thermometer-high") {
                   ic = "\U000F050F";
+                } else if (icon_attr == "mdi:home-thermometer" ||
+                           icon_attr == "mdi:home-thermometer-outline") {
+                  ic = "\U000F0F54";
                 } else if (icon_attr == "mdi:water-percent") {
-                  ic = "\U000F07E4";
+                  ic = "\U000F058E";
                 } else if (icon_attr == "mdi:gauge") {
                   ic = "\U000F028A";
                 } else if (icon_attr == "mdi:water") {
-                  ic = "\U000F04E3";
+                  ic = "\U000F058C";
                 } else if (icon_attr == "mdi:weather-windy") {
                   ic = "\U000F059E";
-                } else if (icon_attr == "mdi:lightning-bolt") {
+                } else if (icon_attr == "mdi:lightning-bolt" ||
+                           icon_attr == "mdi:flash") {
                   ic = "\U000F140B";
+                } else if (icon_attr == "mdi:molecule-co2") {
+                  ic = "\U000F07E4";
+                } else if (icon_attr == "mdi:brightness-5" ||
+                           icon_attr == "mdi:white-balance-sunny") {
+                  ic = "\U000F05A8";
+                } else if (icon_attr == "mdi:motion-sensor") {
+                  ic = "\U000F0D91";
+                } else if (icon_attr == "mdi:power") {
+                  ic = "\U000F0425";
+                } else if (icon_attr == "mdi:clock-outline") {
+                  ic = "\U000F0150";
+                } else if (icon_attr == "mdi:sine-wave" ||
+                           icon_attr == "mdi:current-ac") {
+                  ic = "\U000F095B";
+                } else if (icon_attr == "mdi:run") {
+                  ic = "\U000F070E";
+                } else if (icon_attr == "mdi:walk") {
+                  ic = "\U000F0583";
+                } else if (icon_attr == "mdi:battery" ||
+                           icon_attr == "mdi:battery-charging" ||
+                           icon_attr == "mdi:battery-unknown") {
+                  ic = "\U000F0079";
+                } else if (icon_attr == "mdi:battery-high") {
+                  ic = "\U000F12A3";
+                } else if (icon_attr == "mdi:battery-medium") {
+                  ic = "\U000F12A2";
+                } else if (icon_attr == "mdi:battery-low") {
+                  ic = "\U000F12A1";
+                } else if (icon_attr == "mdi:solar-power") {
+                  ic = "\U000F0A72";
+                } else if (icon_attr == "mdi:solar-power-variant") {
+                  ic = "\U000F1A73";
+                } else if (icon_attr == "mdi:car-electric") {
+                  ic = "\U000F0B6C";
+                } else if (icon_attr == "mdi:home-battery") {
+                  ic = "\U000F1901";
+                } else if (icon_attr == "mdi:home") {
+                  ic = "\U000F02DC";
+                } else if (icon_attr == "mdi:delete-restore") {
+                  ic = "\U000F0819";
+                } else if (icon_attr == "mdi:trash-can") {
+                  ic = "\U000F0A79";
                 } else {
                   ic = "\U000F0208";  // mdi:eye fallback
                 }
@@ -1647,16 +2015,62 @@ script:
                     icon_attr == "mdi:thermometer-low" ||
                     icon_attr == "mdi:thermometer-high") {
                   ic = "\U000F050F";
+                } else if (icon_attr == "mdi:home-thermometer" ||
+                           icon_attr == "mdi:home-thermometer-outline") {
+                  ic = "\U000F0F54";
                 } else if (icon_attr == "mdi:water-percent") {
-                  ic = "\U000F07E4";
+                  ic = "\U000F058E";
                 } else if (icon_attr == "mdi:gauge") {
                   ic = "\U000F028A";
                 } else if (icon_attr == "mdi:water") {
-                  ic = "\U000F04E3";
+                  ic = "\U000F058C";
                 } else if (icon_attr == "mdi:weather-windy") {
                   ic = "\U000F059E";
-                } else if (icon_attr == "mdi:lightning-bolt") {
+                } else if (icon_attr == "mdi:lightning-bolt" ||
+                           icon_attr == "mdi:flash") {
                   ic = "\U000F140B";
+                } else if (icon_attr == "mdi:molecule-co2") {
+                  ic = "\U000F07E4";
+                } else if (icon_attr == "mdi:brightness-5" ||
+                           icon_attr == "mdi:white-balance-sunny") {
+                  ic = "\U000F05A8";
+                } else if (icon_attr == "mdi:motion-sensor") {
+                  ic = "\U000F0D91";
+                } else if (icon_attr == "mdi:power") {
+                  ic = "\U000F0425";
+                } else if (icon_attr == "mdi:clock-outline") {
+                  ic = "\U000F0150";
+                } else if (icon_attr == "mdi:sine-wave" ||
+                           icon_attr == "mdi:current-ac") {
+                  ic = "\U000F095B";
+                } else if (icon_attr == "mdi:run") {
+                  ic = "\U000F070E";
+                } else if (icon_attr == "mdi:walk") {
+                  ic = "\U000F0583";
+                } else if (icon_attr == "mdi:battery" ||
+                           icon_attr == "mdi:battery-charging" ||
+                           icon_attr == "mdi:battery-unknown") {
+                  ic = "\U000F0079";
+                } else if (icon_attr == "mdi:battery-high") {
+                  ic = "\U000F12A3";
+                } else if (icon_attr == "mdi:battery-medium") {
+                  ic = "\U000F12A2";
+                } else if (icon_attr == "mdi:battery-low") {
+                  ic = "\U000F12A1";
+                } else if (icon_attr == "mdi:solar-power") {
+                  ic = "\U000F0A72";
+                } else if (icon_attr == "mdi:solar-power-variant") {
+                  ic = "\U000F1A73";
+                } else if (icon_attr == "mdi:car-electric") {
+                  ic = "\U000F0B6C";
+                } else if (icon_attr == "mdi:home-battery") {
+                  ic = "\U000F1901";
+                } else if (icon_attr == "mdi:home") {
+                  ic = "\U000F02DC";
+                } else if (icon_attr == "mdi:delete-restore") {
+                  ic = "\U000F0819";
+                } else if (icon_attr == "mdi:trash-can") {
+                  ic = "\U000F0A79";
                 } else {
                   ic = "\U000F0208";  // mdi:eye fallback
                 }
@@ -1740,16 +2154,62 @@ script:
                     icon_attr == "mdi:thermometer-low" ||
                     icon_attr == "mdi:thermometer-high") {
                   ic = "\U000F050F";
+                } else if (icon_attr == "mdi:home-thermometer" ||
+                           icon_attr == "mdi:home-thermometer-outline") {
+                  ic = "\U000F0F54";
                 } else if (icon_attr == "mdi:water-percent") {
-                  ic = "\U000F07E4";
+                  ic = "\U000F058E";
                 } else if (icon_attr == "mdi:gauge") {
                   ic = "\U000F028A";
                 } else if (icon_attr == "mdi:water") {
-                  ic = "\U000F04E3";
+                  ic = "\U000F058C";
                 } else if (icon_attr == "mdi:weather-windy") {
                   ic = "\U000F059E";
-                } else if (icon_attr == "mdi:lightning-bolt") {
+                } else if (icon_attr == "mdi:lightning-bolt" ||
+                           icon_attr == "mdi:flash") {
                   ic = "\U000F140B";
+                } else if (icon_attr == "mdi:molecule-co2") {
+                  ic = "\U000F07E4";
+                } else if (icon_attr == "mdi:brightness-5" ||
+                           icon_attr == "mdi:white-balance-sunny") {
+                  ic = "\U000F05A8";
+                } else if (icon_attr == "mdi:motion-sensor") {
+                  ic = "\U000F0D91";
+                } else if (icon_attr == "mdi:power") {
+                  ic = "\U000F0425";
+                } else if (icon_attr == "mdi:clock-outline") {
+                  ic = "\U000F0150";
+                } else if (icon_attr == "mdi:sine-wave" ||
+                           icon_attr == "mdi:current-ac") {
+                  ic = "\U000F095B";
+                } else if (icon_attr == "mdi:run") {
+                  ic = "\U000F070E";
+                } else if (icon_attr == "mdi:walk") {
+                  ic = "\U000F0583";
+                } else if (icon_attr == "mdi:battery" ||
+                           icon_attr == "mdi:battery-charging" ||
+                           icon_attr == "mdi:battery-unknown") {
+                  ic = "\U000F0079";
+                } else if (icon_attr == "mdi:battery-high") {
+                  ic = "\U000F12A3";
+                } else if (icon_attr == "mdi:battery-medium") {
+                  ic = "\U000F12A2";
+                } else if (icon_attr == "mdi:battery-low") {
+                  ic = "\U000F12A1";
+                } else if (icon_attr == "mdi:solar-power") {
+                  ic = "\U000F0A72";
+                } else if (icon_attr == "mdi:solar-power-variant") {
+                  ic = "\U000F1A73";
+                } else if (icon_attr == "mdi:car-electric") {
+                  ic = "\U000F0B6C";
+                } else if (icon_attr == "mdi:home-battery") {
+                  ic = "\U000F1901";
+                } else if (icon_attr == "mdi:home") {
+                  ic = "\U000F02DC";
+                } else if (icon_attr == "mdi:delete-restore") {
+                  ic = "\U000F0819";
+                } else if (icon_attr == "mdi:trash-can") {
+                  ic = "\U000F0A79";
                 } else {
                   ic = "\U000F0208";  // mdi:eye fallback
                 }
