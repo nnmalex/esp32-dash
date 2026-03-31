@@ -33,16 +33,16 @@ jobs:
 
       - name: Package firmware artifacts
         run: |
-          OTA_BIN=$(find . -path '*/.esphome/build*' -name "firmware.ota" | head -1)
+          OTA_BIN=$(find . -path '*/.esphome/build*' -name "firmware.ota.bin" | head -1)
           if [ -z "$OTA_BIN" ]; then
-            echo "ERROR: firmware.ota not found in build output"
+            echo "ERROR: firmware.ota.bin not found in build output"
             find . -path '*/.esphome/build*' -type f | sort
             exit 1
           fi
           MD5=$(md5sum "$OTA_BIN" | cut -d' ' -f1)
 
           mkdir -p firmware
-          cp "$OTA_BIN" firmware/esp32-dash-jc8012p4a1.ota
+          cp "$OTA_BIN" firmware/esp32-dash-jc8012p4a1.ota.bin
 
           cat > firmware/esp32-dash-jc8012p4a1.manifest.json <<EOF
           {
@@ -52,7 +52,7 @@ jobs:
               {
                 "chipFamily": "ESP32-P4",
                 "ota": {
-                  "path": "https://nnmalex.github.io/esp32-dash/firmware/esp32-dash-jc8012p4a1.ota",
+                  "path": "https://nnmalex.github.io/esp32-dash/firmware/esp32-dash-jc8012p4a1.ota.bin",
                   "md5": "$MD5"
                 }
               }
