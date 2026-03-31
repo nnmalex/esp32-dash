@@ -7,7 +7,7 @@ esphome:
   name_add_mac_suffix: true
   project:
     name: nnmalex.esp32-dash
-    version: !env_var FIRMWARE_VERSION "dev"
+    version: dev
 
 packages:
   music_dashboard: !include ../guition-esp32-p4-jc8012p4a1/packages.yaml
