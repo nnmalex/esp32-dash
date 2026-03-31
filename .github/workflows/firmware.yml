@@ -33,10 +33,10 @@ jobs:
 
       - name: Package firmware artifacts
         run: |
-          OTA_BIN=$(find .esphome/build -name "firmware.ota" | head -1)
+          OTA_BIN=$(find . -path '*/.esphome/build*' -name "firmware.ota" | head -1)
           if [ -z "$OTA_BIN" ]; then
             echo "ERROR: firmware.ota not found in build output"
-            find .esphome/build -type f | sort
+            find . -path '*/.esphome/build*' -type f | sort
             exit 1
           fi
           MD5=$(md5sum "$OTA_BIN" | cut -d' ' -f1)
