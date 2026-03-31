@@ -833,8 +833,7 @@ script:
   # ---------------------------------------------------------------------------
   - id: subscribe_idle_sensor
     parameters:
-      - name: slot
-        type: int
+      slot: int
     mode: restart
     then:
       - lambda: |-
