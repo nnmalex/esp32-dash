@@ -1,0 +1,69 @@
+name: Build and publish firmware
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache PlatformIO toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-${{ hashFiles('builds/guition-esp32-p4-jc8012p4a1.yaml') }}
+          restore-keys: pio-${{ runner.os }}-
+
+      - name: Install ESPHome
+        run: pip install esphome
+
+      - name: Set firmware version
+        id: version
+        run: |
+          VERSION="$(date -u +%Y.%m.%d.%H%M)-$(git rev-parse --short HEAD)"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "FIRMWARE_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Compile firmware
+        run: esphome compile builds/guition-esp32-p4-jc8012p4a1.yaml
+
+      - name: Package firmware artifacts
+        run: |
+          OTA_BIN=$(find .esphome/build -name "firmware.ota" | head -1)
+          if [ -z "$OTA_BIN" ]; then
+            echo "ERROR: firmware.ota not found in build output"
+            find .esphome/build -type f | sort
+            exit 1
+          fi
+          MD5=$(md5sum "$OTA_BIN" | cut -d' ' -f1)
+
+          mkdir -p firmware
+          cp "$OTA_BIN" firmware/esp32-dash-jc8012p4a1.ota
+
+          cat > firmware/esp32-dash-jc8012p4a1.manifest.json <<EOF
+          {
+            "name": "esp32-dash",
+            "version": "${{ steps.version.outputs.version }}",
+            "builds": [
+              {
+                "chipFamily": "ESP32-P4",
+                "ota": {
+                  "path": "https://nnmalex.github.io/esp32-dash/firmware/esp32-dash-jc8012p4a1.ota",
+                  "md5": "$MD5"
+                }
+              }
+            ]
+          }
+          EOF
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./firmware
+          destination_dir: firmware
+          keep_files: true
