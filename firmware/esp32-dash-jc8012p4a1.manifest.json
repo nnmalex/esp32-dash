@@ -1,6 +1,6 @@
 {
   "name": "esp32-dash",
-  "version": "2026.03.31.1328-0145df0",
+  "version": "2026.03.31.1346-cbabb7d",
   "summary": "{\"message\":\"Not Found\",\"documentation_url\":\"https://docs.github.com/rest/releases/releases#get-the-latest-release\",\"status\":\"404\"}",
   "release_url": "{\"message\":\"Not Found\",\"documentation_url\":\"https://docs.github.com/rest/releases/releases#get-the-latest-release\",\"status\":\"404\"}https://github.com/nnmalex/esp32-dash/releases",
   "builds": [
@@ -8,7 +8,7 @@
       "chipFamily": "ESP32-P4",
       "ota": {
         "path": "https://nnmalex.github.io/esp32-dash/firmware/esp32-dash-jc8012p4a1.ota.bin",
-        "md5": "0a57b76fff2fb4b7087574f21d3e2fbc"
+        "md5": "87b6ae319a5882b748c4e30989745869"
       }
     }
   ]
