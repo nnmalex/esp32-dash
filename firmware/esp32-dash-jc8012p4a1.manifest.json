@@ -1,12 +1,12 @@
 {
   "name": "esp32-dash",
-  "version": "2026.03.31.1256-2a2c692",
+  "version": "2026.03.31.1300-1749a1f",
   "builds": [
     {
       "chipFamily": "ESP32-P4",
       "ota": {
         "path": "https://nnmalex.github.io/esp32-dash/firmware/esp32-dash-jc8012p4a1.ota.bin",
-        "md5": "b97b68646a933a8c2314f7102774cb7d"
+        "md5": "46d0c5715aad9a5e169fc2fd1470a271"
       }
     }
   ]
