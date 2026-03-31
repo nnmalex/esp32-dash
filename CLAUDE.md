@@ -73,7 +73,7 @@ packages:
     refresh: 1s
 ```
 
-`addon/music.yaml` pulls `online_image` as an `external_component` from this same repo (`components/online_image/`). The firmware update manifest lives at `nnmalex.github.io/esp32-dash/firmware/esp32-dash-jc8012p4a1.manifest.json` (not yet published — `update_interval: never` until CI is set up).
+`addon/music.yaml` pulls `online_image` as an `external_component` from this same repo (`components/online_image/`). The firmware update manifest is published to `nnmalex.github.io/esp32-dash/firmware/esp32-dash-jc8012p4a1.manifest.json` by `.github/workflows/firmware.yml` on every push to `main`. The OTA binary is `esp32-dash-jc8012p4a1.ota.bin` alongside the manifest. `update_interval: never` in `firmware_update.yaml` is intentional — the `interval: 1h` block drives all checks (respects the user-configurable frequency select). `project.version` is injected via the `FIRMWARE_VERSION` env var at CI build time (defaults to `"dev"` locally).
 
 ## Architecture: LVGL state machine
 
