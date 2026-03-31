@@ -10,18 +10,44 @@ In the ESPHome dashboard, create a new device and paste the following configurat
 substitutions:
   name: "esp32-dash"
   friendly_name: "ESP32 Dash"
+
+  # ── Network / HA connection ────────────────────────────────────────────────
   # ha_host: "homeassistant.local"  # change if HA is on a different host
   # ha_port: "8123"
-  ha_token: !secret ha_token       # long-lived token for calendar week view
-  # Display rotation: 90 (default landscape) or 270 (flipped landscape)
-  # display_rotation: "270"
-  # Touch transform (must match display_rotation):
-  #   90:  touch_mirror_x "false", touch_mirror_y "false"
+  ha_token: !secret ha_token        # long-lived token — required for calendar
+
+  # ── Display orientation ────────────────────────────────────────────────────
+  # display_rotation: "270"         # 90 (default) or 270 (cable on left side)
+  # Touch transform must match display_rotation:
+  #   90:  touch_mirror_x "false", touch_mirror_y "false"  (defaults)
   #   270: touch_mirror_x "true",  touch_mirror_y "true"
   # touch_mirror_x: "true"
   # touch_mirror_y: "true"
-  # Music screen — favourite button (optional, see below)
-  # favourite_entity: "button.spotify_save_track"
+
+  # ── Music screen ───────────────────────────────────────────────────────────
+  # favourite_entity: "button.spotify_save_track"  # heart button (optional)
+
+  # ── Home screen: weather ───────────────────────────────────────────────────
+  # weather_entity: "weather.openweathermap"
+  # local_temp_entity: "sensor.indoor_temperature"  # override displayed temp
+  # weather_bg_path: "/local/weather-backgrounds"   # condition background JPEGs
+
+  # ── Home screen: sensor tiles (up to 10) ──────────────────────────────────
+  # idle_sensor_1: "sensor.living_room_temperature"
+  # idle_sensor_2: "sensor.living_room_humidity"
+  # idle_sensor_3: "sensor.power_usage"
+  # idle_sensor_4: "binary_sensor.front_door"
+  # idle_sensor_5: ""
+  # idle_sensor_6: ""
+  # idle_sensor_7: ""
+  # idle_sensor_8: ""
+  # idle_sensor_9: ""
+  # idle_sensor_10: ""
+
+  # ── Calendar (home screen agenda + week view) ──────────────────────────────
+  # calendar_entity_1: "calendar.my_calendar"
+  # calendar_entity_2: "calendar.family"
+  # calendar_entity_3: "calendar.work"
 
 wifi:
   ssid: !secret wifi_ssid
@@ -43,14 +69,7 @@ The music screen shows album art, track info, and playback controls (previous / 
 
 ### Favourite button
 
-A heart button can optionally be shown on the music screen to trigger a HA action (e.g. save the current track to a playlist). It is **hidden by default** and must be enabled with a substitution pointing to any HA `button.*` entity that your media player integration exposes:
-
-```yaml
-substitutions:
-  favourite_entity: "button.spotify_save_track"
-```
-
-When set, pressing the heart button calls `button.press` on that entity. Leave unset (the default) to hide the button entirely.
+A heart button can optionally be shown on the music screen to trigger a HA action (e.g. save the current track to a playlist). It is **hidden by default** — uncomment `favourite_entity` in your config to enable it. When set, pressing the heart button calls `button.press` on that entity.
 
 ## Home screen setup
 
@@ -65,7 +84,7 @@ Set these from the device's settings page in HA (or via substitutions):
 | **Weather Entity** | A `weather.*` entity (e.g. `weather.openweathermap`) |
 | **Local Temperature Sensor** | Optional `sensor.*` to override the displayed temperature |
 | **Calendar 1/2/3 Entity** | Up to three `calendar.*` entities — events are merged and sorted on the home screen |
-| **Sensor Tile Slot 1–4** | Any HA entity; its state is shown as a tile on the home screen. Tiles are hidden when no entity is set. |
+| **Sensor Tile Slots 1–10** | Any HA entity; its state is shown as a tile on the home screen. Tiles are hidden when no entity is set. |
 
 ### Weather background images
 
@@ -83,13 +102,9 @@ The left panel displays a JPEG image that matches the current weather condition.
    ```
    Recommended resolution: **800 × 740 px**.
 
-3. Add the path to your ESPHome configuration:
-   ```yaml
-   substitutions:
-     weather_bg_path: "/local/weather-backgrounds"
-   ```
+3. Uncomment `weather_bg_path` in your ESPHome config (see the installation snippet above).
 
-Leave `weather_bg_path` unset (default) to skip background images and show a plain dark panel instead.
+Leave `weather_bg_path` commented out (default) to skip background images and show a plain dark panel instead.
 
 ## Calendar week view
 
@@ -106,10 +121,6 @@ Events are fetched from the HA REST API, which requires a long-lived access toke
    ha_token: eyJhbGc...your_token_here
    ```
 
-3. Pass it as a substitution in your ESPHome config:
-   ```yaml
-   substitutions:
-     ha_token: !secret ha_token
-   ```
+3. The `ha_token` substitution in the installation config snippet above references it via `!secret ha_token` — no other changes needed.
 
 The token is compiled into the firmware and never exposed in the HA device settings UI.
