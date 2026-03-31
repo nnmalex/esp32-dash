@@ -28,10 +28,23 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "FIRMWARE_VERSION=$VERSION" >> "$GITHUB_ENV"
 
+      - name: Fetch latest release notes
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SUMMARY=$(gh api repos/${{ github.repository }}/releases/latest --jq '.body' 2>/dev/null || echo "")
+          URL=$(gh api repos/${{ github.repository }}/releases/latest --jq '.html_url' 2>/dev/null || echo "https://github.com/${{ github.repository }}/releases")
+          echo "summary=$SUMMARY" >> "$GITHUB_OUTPUT"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
       - name: Compile firmware
         run: esphome compile builds/guition-esp32-p4-jc8012p4a1.yaml
 
       - name: Package firmware artifacts
+        env:
+          RELEASE_SUMMARY: ${{ steps.release.outputs.summary }}
+          RELEASE_URL: ${{ steps.release.outputs.url }}
         run: |
           OTA_BIN=$(find . -path '*/.esphome/build*' -name "firmware.ota.bin" | head -1)
           if [ -z "$OTA_BIN" ]; then
@@ -44,21 +57,20 @@ jobs:
           mkdir -p firmware
           cp "$OTA_BIN" firmware/esp32-dash-jc8012p4a1.ota.bin
 
-          cat > firmware/esp32-dash-jc8012p4a1.manifest.json <<EOF
-          {
-            "name": "esp32-dash",
-            "version": "${{ steps.version.outputs.version }}",
-            "builds": [
-              {
-                "chipFamily": "ESP32-P4",
-                "ota": {
-                  "path": "https://nnmalex.github.io/esp32-dash/firmware/esp32-dash-jc8012p4a1.ota.bin",
-                  "md5": "$MD5"
-                }
-              }
-            ]
-          }
-          EOF
+          jq -n \
+            --arg name "esp32-dash" \
+            --arg version "${{ steps.version.outputs.version }}" \
+            --arg summary "$RELEASE_SUMMARY" \
+            --arg release_url "$RELEASE_URL" \
+            --arg ota_path "https://nnmalex.github.io/esp32-dash/firmware/esp32-dash-jc8012p4a1.ota.bin" \
+            --arg md5 "$MD5" \
+            '{
+              name: $name,
+              version: $version,
+              summary: $summary,
+              release_url: $release_url,
+              builds: [{chipFamily: "ESP32-P4", ota: {path: $ota_path, md5: $md5}}]
+            }' > firmware/esp32-dash-jc8012p4a1.manifest.json
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
