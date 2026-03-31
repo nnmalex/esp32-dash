@@ -138,6 +138,10 @@ globals:
     type: int
     initial_value: '0'
 
+  - id: feels_like_sub_gen
+    type: int
+    initial_value: '0'
+
   # True when a local temperature sensor is active and overrides weather temp
   - id: use_local_temp
     type: bool
@@ -187,6 +191,20 @@ text:
     max_length: 100
     on_value:
       - script.execute: subscribe_local_temp
+
+  - platform: template
+    name: "Feels Like Sensor"
+    id: feels_like_entity_select
+    entity_category: config
+    icon: "mdi:thermometer-lines"
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: ""
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: subscribe_feels_like
 
   - platform: template
     name: "Sensor Tile: Slot 1"
@@ -581,6 +599,21 @@ text_sensor:
           snprintf(buf, sizeof(buf), "%d\xc2\xb0", (int)(v.value() + 0.5f));
           lv_label_set_text(id(idle_weather_temp_label), buf);
 
+  # Feels-like temperature  e.g. "19.2" → "(feels 19°)"
+  - platform: template
+    id: idle_weather_feels_sensor
+    on_value:
+      - lambda: |-
+          auto v = esphome::parse_number<float>(x);
+          if (!v.has_value()) {
+            lv_obj_add_flag(id(idle_weather_feels_label), LV_OBJ_FLAG_HIDDEN);
+            return;
+          }
+          char buf[24];
+          snprintf(buf, sizeof(buf), "(feels %d\xc2\xb0)", (int)(v.value() + 0.5f));
+          lv_label_set_text(id(idle_weather_feels_label), buf);
+          lv_obj_clear_flag(id(idle_weather_feels_label), LV_OBJ_FLAG_HIDDEN);
+
   # Sensor tile states
   - platform: template
     id: idle_sensor_state_0
@@ -792,6 +825,40 @@ script:
               }));
 
           ESP_LOGI("weather", "Local temp sensor: subscribed to '%s'", entity.c_str());
+
+  # ---------------------------------------------------------------------------
+  # subscribe_feels_like: subscribes to an optional HA sensor entity for
+  # apparent/feels-like temperature. Shows "(feels N°)" below the main temp.
+  # Hides the label when entity is cleared.
+  # ---------------------------------------------------------------------------
+  - id: subscribe_feels_like
+    mode: restart
+    then:
+      - lambda: |-
+          std::string entity = id(feels_like_entity_select).state;
+
+          if (entity.empty()) {
+            lv_obj_add_flag(id(idle_weather_feels_label), LV_OBJ_FLAG_HIDDEN);
+            lv_label_set_text(id(idle_weather_feels_label), "");
+            return;
+          }
+
+          if (esphome::api::global_api_server == nullptr) return;
+
+          id(feels_like_sub_gen) += 1;
+          int gen = id(feels_like_sub_gen);
+          int *gen_ptr = &id(feels_like_sub_gen);
+
+          auto *api = esphome::api::global_api_server;
+          using str_cb = std::function<void(const std::string &)>;
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                id(idle_weather_feels_sensor).publish_state(state);
+              }));
+
+          ESP_LOGI("weather", "Feels-like sensor: subscribed to '%s'", entity.c_str());
 
   # ---------------------------------------------------------------------------
   # subscribe_idle_sensor_N: subscribes to state + friendly_name of sensor N.
@@ -2224,6 +2291,7 @@ api:
   on_client_connected:
     - script.execute: subscribe_weather
     - script.execute: subscribe_local_temp
+    - script.execute: subscribe_feels_like
     - script.execute: subscribe_idle_sensor_0
     - script.execute: subscribe_idle_sensor_1
     - script.execute: subscribe_idle_sensor_2

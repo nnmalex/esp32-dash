@@ -191,6 +191,7 @@ touchscreen:
           id(touch_x_end) = touch.x;
           id(touch_y_end) = touch.y;
       - script.execute: backlight_wake_timeout
+      - script.execute: start_view_return_timeout
       - lambda: |-
           if (id(is_panel_open)) id(start_speaker_panel_timeout).execute();
     on_update:
