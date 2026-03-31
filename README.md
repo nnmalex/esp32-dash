@@ -109,6 +109,18 @@ The left panel displays a JPEG image that matches the current weather condition.
 
 Leave `weather_bg_path` commented out (default) to skip background images and show a plain dark panel instead.
 
+## Firmware updates
+
+The dashboard checks for updates automatically. Controls are on the HA device settings page:
+
+| Setting | Default | Description |
+|---|---|---|
+| **Auto Update** | On | Automatically install when a new version is found |
+| **Update Frequency** | Daily | How often to check — Hourly, Daily, or Weekly |
+| **Install Latest Firmware** | — | Button to trigger an immediate check and install |
+
+Updates are fetched from GitHub Pages (`nnmalex.github.io/esp32-dash/firmware/`) and built from the `main` branch on every push. A new version is published automatically — no action needed on your part.
+
 ## Calendar week view
 
 The calendar screen shows a 5-day grid with events from all three configured calendar entities. The view defaults to 6 AM–9 PM and can be scrolled up/down; nav arrows shift the window one day back or up to two days forward.
