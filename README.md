@@ -1,3 +1,5 @@
+[![Build firmware](https://github.com/nnmalex/esp32-dash/actions/workflows/firmware.yml/badge.svg)](https://github.com/nnmalex/esp32-dash/actions/workflows/firmware.yml)
+
 # esp32-dash
 
 Multi-view ESPHome kitchen dashboard for the **Guition ESP32-P4-JC8012P4A1** (10", 1280×800).
