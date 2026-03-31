@@ -4,7 +4,7 @@ substitutions:
   ha_host: "homeassistant.local"
   ha_protocol: "http"
   ha_verify_ssl: "true"
-  ha_token: ""   # Long-lived access token — also configurable at runtime via HA device settings
+  ha_token: ""   # Long-lived access token for calendar/forecast REST API
   # Display rotation: 90 (default landscape) or 270 (flipped landscape)
   # Flip to 270 if mounting with the power cable on the opposite side
   display_rotation: "90"
