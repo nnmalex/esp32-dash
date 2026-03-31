@@ -167,6 +167,24 @@ The left pane of the idle page displays a full-panel weather background image lo
    ```
    When set, this sensor's value replaces the weather entity's temperature on the idle page. Can also be configured at runtime in HA device settings.
 
+## Creating GitHub releases
+
+When the user asks to create a release, follow this process:
+
+1. **Find the previous release tag** — `gh release list --limit 1` to get the last tag.
+2. **Collect commits since last release** — `git log <last-tag>..HEAD --oneline`. If no prior release, use the last 20 commits.
+3. **Write user-friendly release notes** — rewrite the raw commit messages as plain-English bullet points grouped by theme (e.g. "New features", "Improvements", "Bug fixes"). Rules:
+   - Drop internal/tooling commits (CI tweaks, CLAUDE.md updates, doc-only fixes) unless they affect users.
+   - Translate technical shorthand into what the user actually sees change (e.g. "Fix #18: move ha_host/port to substitutions" → "HA connection settings (host, port, token) are now configured in your `packages.yaml` substitutions instead of the HA device settings UI").
+   - Keep each bullet to one sentence. No jargon, no commit hashes.
+4. **Create the release** — pick a version tag (`YYYY.MM.DD` or semantic if appropriate):
+   ```bash
+   gh release create <tag> --title "<tag>: <one-line summary>" --notes "<notes>"
+   ```
+5. **Trigger a build** — the release itself does not rebuild firmware; that only happens on push to `main`. If the release corresponds to the current `HEAD`, the CI run already in flight (or the next push) will pick up the new release notes via the `gh api releases/latest` step and embed them in the manifest.
+
+The `summary` and `release_url` fields in the published manifest are populated from the **latest GitHub release** at CI build time — so release notes appear to users in the HA firmware update entity the next time firmware is built and deployed.
+
 ## Idle page: key substitutions summary
 
 | Substitution | Default | Purpose |
