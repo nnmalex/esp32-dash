@@ -12,9 +12,12 @@ substitutions:
   friendly_name: "ESP32 Dash"
 
   # ── Network / HA connection ────────────────────────────────────────────────
+  # ha_host, ha_port, ha_protocol, and ha_token are configurable at runtime
+  # via the HA device settings page — no substitutions or recompile needed.
+  # Uncomment below only if you want to set initial values at compile time:
   # ha_host: "homeassistant.local"  # change if HA is on a different host
   # ha_port: "8123"
-  ha_token: !secret ha_token        # long-lived token — required for calendar
+  # ha_token: !secret ha_token      # long-lived token — or set via HA device settings
 
   # ── Display orientation ────────────────────────────────────────────────────
   # display_rotation: "270"         # 90 (default) or 270 (cable on left side)
@@ -116,11 +119,6 @@ Events are fetched from the HA REST API, which requires a long-lived access toke
 
 1. In HA, go to your **Profile → Security → Long-lived access tokens** and create a token.
 
-2. Add it to your `secrets.yaml`:
-   ```yaml
-   ha_token: eyJhbGc...your_token_here
-   ```
+2. On the HA device settings page for ESP32 Dash, paste the token into the **HA Token** field.
 
-3. The `ha_token` substitution in the installation config snippet above references it via `!secret ha_token` — no other changes needed.
-
-The token is compiled into the firmware and never exposed in the HA device settings UI.
+The token is stored in device flash (NVS) and takes effect immediately on the next fetch — no recompile needed. Alternatively, set it at compile time via the `ha_token` substitution in your config (`ha_token: !secret ha_token` in `secrets.yaml`).

@@ -32,6 +32,7 @@ guition-esp32-p4-jc8012p4a1/
     placeholder.png     # fallback album art
   device/
     device.yaml         # hardware config, globals, touch gestures, state machine
+    ha_settings.yaml    # NVS-backed ha_host/ha_port/ha_protocol/ha_token UI components
     lvgl.yaml           # all LVGL widget definitions (music_page + overlays)
     sensors.yaml        # template sensors, 1s playback interpolation
     media_player_select.yaml  # dynamic HA entity subscription
@@ -92,7 +93,7 @@ Four LVGL pages defined across two files (`device/lvgl.yaml` + `device/navbar.ya
   - Header (y=0..60): 5 day-column labels (day name + date), highlighted today, prev/next nav (offset -1..+2)
   - All-day strip (y=60..84): one chip per column for all-day events
   - Time grid (y=84..740, scrollable 656px): 44px/hour, default scroll shows 6 AM–9 PM; 30 pre-allocated event blocks (6 per column), current-time red indicator
-  - Data: fetched via HA REST API (`GET /api/calendars/<entity>?start=...&end=...`) sequential chain for 3 calendars; requires `ha_token` substitution (set via `!secret ha_token` in your config)
+  - Data: fetched via HA REST API (`GET /api/calendars/<entity>?start=...&end=...`) sequential chain for 3 calendars; requires `ha_token_text` to be set (configurable via HA device settings page)
   - Legacy 9 labels kept hidden for idle-agenda subscription compatibility
 - **`forecast_page`** — (Phase 5 complete) 7-day weather forecast
   - 7 columns (183 px wide each); column centres at 91+i×183
@@ -100,7 +101,7 @@ Four LVGL pages defined across two files (`device/lvgl.yaml` + `device/navbar.ya
   - Temperature chart (y=90..450): `lv_chart` line type, 2 series (high 0x6CB4F0, low 0x4B78B0); `pad_left/right=91` aligns points to column centres; floating temp labels above/below each dot
   - Precipitation (y=452..608): bars scaled to daily max, opacity ∝ probability; mm + % labels
   - Condition icons (y=614): MDI weather icons per day (14 condition glyphs added to `icon_font`)
-  - Data: `POST /api/services/weather/get_forecasts?return_response=true`; reuses `weather_entity_select` + `ha_token`
+  - Data: `POST /api/services/weather/get_forecasts?return_response=true`; reuses `weather_entity_select` + `ha_token_text`
   - Key IDs: `wf_chart`, `wf_col_bg/day/date/high_lbl/low_lbl/precip_bar/mm_lbl/pct_lbl/icon_0..6`
   - Key scripts: `init_forecast_chart` (lvgl.on_boot), `fetch_forecast`, `render_forecast`
   - Globals: `wf_data_buf` (pipe-delimited lines), `wf_chart_high/low` (lv_chart_series_t*), `wf_today_col`, `wf_fetch_gen`
@@ -130,7 +131,7 @@ Phase 1 (complete): scaffolding — 10" device, URLs updated, `main_page` → `m
 Phase 2 (complete): navbar, `current_view` global, auto-switching, swipe gestures scoped per view, swipe-up to idle.
 Phase 3 (complete): `device/idle_view.yaml` + `device/weather_sensors.yaml` — real idle page with clock, weather card, calendar preview placeholders, 4-tile sensor row; weather entity + 4 sensor row entities (NVS-persisted, gen-counter subscriptions).
 Phase 4 (complete): `device/calendar_view.yaml` + `device/calendar_sensors.yaml` — real calendar page; 3 calendar entity slots.
-Phase 4c (complete): Calendar view redesigned as 5-day week grid. Key IDs: `cal_grid_scroll` (scrollable time grid), `cal_col_hdr_0..4`, `cal_ev_00..29` (event blocks), `cal_ad_0..4` (all-day chips), `cal_now_line` (current time). New globals: `cal_view_offset`, `cal_events_buf`, `cal_fetch_start/end`. New scripts: `fetch_calendar_week`, `fetch_cal_http_0/1/2`, `render_calendar_grid`. New substitution: `ha_token` (HA long-lived access token, set via `!secret ha_token`).
+Phase 4c (complete): Calendar view redesigned as 5-day week grid. Key IDs: `cal_grid_scroll` (scrollable time grid), `cal_col_hdr_0..4`, `cal_ev_00..29` (event blocks), `cal_ad_0..4` (all-day chips), `cal_now_line` (current time). New globals: `cal_view_offset`, `cal_events_buf`, `cal_fetch_start/end`. New scripts: `fetch_calendar_week`, `fetch_cal_http_0/1/2`, `render_calendar_grid`. Token set via `ha_token_text` (HA device settings page) or `ha_token` substitution for initial value.
 Phase 4b (complete): Idle view redesign — two-pane layout (800px left + 480px right). Left pane: weather background image (online_image, loaded from HA `/local/` path by condition name), dark overlay, clock+date top-left, weather condition+temperature top-right, two columns of 5 sensor tiles each (left col x=0..389 = tiles 0-4, right col x=400..789 = tiles 5-9; hidden when entity not configured). Right pane: merged calendar agenda (today+tomorrow from all 3 calendars, sorted, past events greyed out). New substitutions: `weather_bg_path`, `local_temp_entity`, `idle_sensor_1..10`. Key new IDs: `idle_weather_bg_image` (online_image in weather_sensors.yaml), `idle_sensor_tile_0..9`, `idle_agenda_slot_0..4`, `render_idle_agenda` script.
 
 ### Phase 5 (complete): forecast view
