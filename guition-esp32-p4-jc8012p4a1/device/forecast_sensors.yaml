@@ -5,7 +5,7 @@
 #   POST /api/services/weather/get_forecasts?return_response=true
 #   Body: {"entity_id": "<weather_entity>", "type": "daily"}
 #
-# Requires: ha_token substitution (set via !secret ha_token)
+# Requires: ha_token_text component (set via HA device settings page)
 # Requires: weather_entity_select (from weather_sensors.yaml)
 # Produces: wf_data_buf — pipe-delimited lines, one per forecast day:
 #           "DAYNAME|DAYNUM|HIGH|LOW|PRECIP|PROB|COND\n"
@@ -37,7 +37,7 @@ script:
     then:
       - lambda: |-
           std::string entity = id(weather_entity_select).state;
-          std::string token  = "${ha_token}";
+          std::string token  = id(ha_token_text).state;
 
           if (entity.empty() || entity.substr(0, 8) != "weather.") {
             ESP_LOGW("forecast", "No weather entity configured — skipping fetch");
@@ -51,7 +51,7 @@ script:
           id(wf_fetch_gen)++;
           int my_gen = id(wf_fetch_gen);
 
-          std::string url  = std::string("${ha_protocol}://${ha_host}:${ha_port}")
+          std::string url  = id(ha_base_url)
                            + "/api/services/weather/get_forecasts?return_response=true";
           std::string body = "{\"entity_id\": \"" + entity + "\", \"type\": \"daily\"}";
 

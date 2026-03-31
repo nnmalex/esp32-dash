@@ -2,8 +2,11 @@
 substitutions:
   name: "esp32-dash"
   friendly_name: "ESP32 Dash"
-  # ha_host: "homeassistant.local"  # Home Assistant hostname or IP (change if HA runs on a different host)
-  # ha_port: "8123"  # Home Assistant port (change if HA runs on a non-standard port)
+  # ha_host / ha_port / ha_protocol / ha_token are now configurable at runtime
+  # via the HA device settings page — no recompile needed.
+  # Set them here only if you want to override the defaults at compile time.
+  # ha_host: "homeassistant.local"
+  # ha_port: "8123"
   # Display rotation: 90 (default landscape) or 270 (flipped landscape)
   # display_rotation: "270"
   # Touch transform (must match display_rotation):

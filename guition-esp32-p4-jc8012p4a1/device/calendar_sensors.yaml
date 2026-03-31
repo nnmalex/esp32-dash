@@ -404,13 +404,13 @@ script:
             lambda: |-
               std::string e = id(calendar_entity_select_0).state;
               return !e.empty() && e.length() > 9 && e.substr(0,9) == "calendar."
-                     && std::string("${ha_token}").length() > 0;
+                     && !id(ha_token_text).state.empty();
           then:
             - lambda: |-
                 std::string entity = id(calendar_entity_select_0).state;
-                std::string token  = "${ha_token}";
+                std::string token  = id(ha_token_text).state;
                 std::string url =
-                    std::string("${ha_protocol}://${ha_host}:${ha_port}/api/calendars/") +
+                    id(ha_base_url) + "/api/calendars/" +
                     entity +
                     "?start=" + id(idle_fetch_start) +
                     "&end="   + id(idle_fetch_end);
@@ -510,13 +510,13 @@ script:
             lambda: |-
               std::string e = id(calendar_entity_select_1).state;
               return !e.empty() && e.length() > 9 && e.substr(0,9) == "calendar."
-                     && std::string("${ha_token}").length() > 0;
+                     && !id(ha_token_text).state.empty();
           then:
             - lambda: |-
                 std::string entity = id(calendar_entity_select_1).state;
-                std::string token  = "${ha_token}";
+                std::string token  = id(ha_token_text).state;
                 std::string url =
-                    std::string("${ha_protocol}://${ha_host}:${ha_port}/api/calendars/") +
+                    id(ha_base_url) + "/api/calendars/" +
                     entity +
                     "?start=" + id(idle_fetch_start) +
                     "&end="   + id(idle_fetch_end);
@@ -616,13 +616,13 @@ script:
             lambda: |-
               std::string e = id(calendar_entity_select_2).state;
               return !e.empty() && e.length() > 9 && e.substr(0,9) == "calendar."
-                     && std::string("${ha_token}").length() > 0;
+                     && !id(ha_token_text).state.empty();
           then:
             - lambda: |-
                 std::string entity = id(calendar_entity_select_2).state;
-                std::string token  = "${ha_token}";
+                std::string token  = id(ha_token_text).state;
                 std::string url =
-                    std::string("${ha_protocol}://${ha_host}:${ha_port}/api/calendars/") +
+                    id(ha_base_url) + "/api/calendars/" +
                     entity +
                     "?start=" + id(idle_fetch_start) +
                     "&end="   + id(idle_fetch_end);
@@ -1004,10 +1004,10 @@ script:
 # Requires the user to set "HA Access Token" in HA device settings to a
 # Home Assistant long-lived access token.
 #
-# ha_host / ha_port / ha_protocol substitutions come from packages.yaml.
+# ha_base_url is set at runtime from ha_host_text / ha_port_text / ha_protocol_select
+# (configurable via HA device settings page, no recompile needed).
+# ha_token is read at runtime from ha_token_text (set via HA device settings page).
 # =============================================================================
-
-# ha_token comes from the ha_token substitution (set via !secret ha_token in your config)
 
   # ---------------------------------------------------------------------------
   # fetch_calendar_week
@@ -1064,13 +1064,13 @@ script:
             lambda: |-
               std::string e = id(calendar_entity_select_0).state;
               return !e.empty() && e.length() > 9 && e.substr(0,9) == "calendar."
-                     && std::string("${ha_token}").length() > 0;
+                     && !id(ha_token_text).state.empty();
           then:
             - lambda: |-
                 std::string entity = id(calendar_entity_select_0).state;
-                std::string token  = "${ha_token}";
+                std::string token  = id(ha_token_text).state;
                 std::string url =
-                    std::string("${ha_protocol}://${ha_host}:${ha_port}/api/calendars/") +
+                    id(ha_base_url) + "/api/calendars/" +
                     entity +
                     "?start=" + id(cal_fetch_start) +
                     "&end="   + id(cal_fetch_end);
@@ -1175,13 +1175,13 @@ script:
             lambda: |-
               std::string e = id(calendar_entity_select_1).state;
               return !e.empty() && e.length() > 9 && e.substr(0,9) == "calendar."
-                     && std::string("${ha_token}").length() > 0;
+                     && !id(ha_token_text).state.empty();
           then:
             - lambda: |-
                 std::string entity = id(calendar_entity_select_1).state;
-                std::string token  = "${ha_token}";
+                std::string token  = id(ha_token_text).state;
                 std::string url =
-                    std::string("${ha_protocol}://${ha_host}:${ha_port}/api/calendars/") +
+                    id(ha_base_url) + "/api/calendars/" +
                     entity +
                     "?start=" + id(cal_fetch_start) +
                     "&end="   + id(cal_fetch_end);
@@ -1281,13 +1281,13 @@ script:
             lambda: |-
               std::string e = id(calendar_entity_select_2).state;
               return !e.empty() && e.length() > 9 && e.substr(0,9) == "calendar."
-                     && std::string("${ha_token}").length() > 0;
+                     && !id(ha_token_text).state.empty();
           then:
             - lambda: |-
                 std::string entity = id(calendar_entity_select_2).state;
-                std::string token  = "${ha_token}";
+                std::string token  = id(ha_token_text).state;
                 std::string url =
-                    std::string("${ha_protocol}://${ha_host}:${ha_port}/api/calendars/") +
+                    id(ha_base_url) + "/api/calendars/" +
                     entity +
                     "?start=" + id(cal_fetch_start) +
                     "&end="   + id(cal_fetch_end);

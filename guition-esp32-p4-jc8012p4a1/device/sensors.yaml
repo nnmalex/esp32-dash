@@ -7,14 +7,15 @@ substitutions:
 # Template sensors receive state from dynamic subscriptions managed by
 # subscribe_media_player. Updates LVGL labels, bar, image, and play/pause
 # icon via on_value automations.
-# Album art URL is built automatically from the ha_host substitution;
-# override ha_host or ha_port in substitutions for non-standard setups.
+# Album art URL (ha_base_url) is initialised on boot from HA connection
+# settings (ha_host_text / ha_port_text / ha_protocol_select) and updated
+# on HA API connect. Configure via HA device settings without recompiling.
 # =============================================================================
 
 globals:
   - id: ha_base_url
     type: std::string
-    initial_value: '"${ha_protocol}://${ha_host}:${ha_port}"'
+    initial_value: '""'
   - id: last_media_position
     type: float
     initial_value: '0.0'
