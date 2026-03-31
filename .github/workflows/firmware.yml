@@ -9,10 +9,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v6.0.2
 
       - name: Cache PlatformIO toolchain
-        uses: actions/cache@v4.2.3
+        uses: actions/cache@v5.0.4
         with:
           path: ~/.platformio
           key: pio-${{ runner.os }}-${{ hashFiles('builds/guition-esp32-p4-jc8012p4a1.yaml') }}
@@ -74,6 +74,9 @@ jobs:
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
+        # peaceiris/actions-gh-pages has no Node 24 release yet; allow Node 20 until a v5 is available
+        env:
+          ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: "true"
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./firmware
