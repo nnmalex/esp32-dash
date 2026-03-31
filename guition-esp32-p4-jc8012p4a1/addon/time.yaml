@@ -14,3 +14,8 @@ time:
               : id(ha_time).now().timestamp;
           }
           id(apply_timezone).execute();
+          // fetch_idle_agenda bails out on boot if time isn't valid yet; retry
+          // now that we have a valid clock so the idle agenda loads at startup.
+          if (id(idle_events_buf).empty()) {
+            id(fetch_idle_agenda).execute();
+          }
