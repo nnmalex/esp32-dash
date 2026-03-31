@@ -1,20 +1,11 @@
 # =============================================================================
-# HA CONNECTION SETTINGS — Runtime-configurable via HA device page
+# HA CONNECTION SETTINGS — compile-time substitutions
 # =============================================================================
-# Provides NVS-backed components for Home Assistant connection settings that
-# previously required recompiling as substitutions:
+# ha_base_url is built from ha_protocol / ha_host / ha_port substitutions.
+# ha_token_global holds the long-lived access token for calendar/forecast REST API.
 #
-#   ha_host_text       — HA hostname or IP  (default: homeassistant.local)
-#   ha_port_text       — HA port            (default: 8123)
-#   ha_protocol_select — http or https      (default: http)
-#   ha_token_text      — Long-lived access token for calendar/forecast REST API
-#
-# All values persist across reboots. Changes to host/port/protocol take effect
-# on the next HA API reconnect; token changes take effect on the next fetch.
-#
-# Default values fall back to substitutions from packages.yaml so existing
-# installs that set those substitutions (e.g. via !secret ha_token) keep
-# working on first boot.
+# All values are set at compile time via substitutions in packages.yaml (or the
+# user's esphome.yaml).  No runtime HA entity is exposed for these settings.
 # =============================================================================
 
 substitutions:
@@ -24,56 +15,11 @@ substitutions:
   ha_token: ""
 
 
-text:
-  - platform: template
-    name: "HA Host"
-    id: ha_host_text
-    entity_category: config
-    icon: "mdi:server-network"
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${ha_host}"
-    min_length: 0
-    max_length: 100
-
-  - platform: template
-    name: "HA Port"
-    id: ha_port_text
-    entity_category: config
-    icon: "mdi:numeric"
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${ha_port}"
-    min_length: 1
-    max_length: 5
-
-  - platform: template
-    name: "HA Token"
-    id: ha_token_text
-    entity_category: config
-    icon: "mdi:key"
-    mode: password
-    optimistic: true
-    restore_value: true
-    initial_value: "${ha_token}"
-    min_length: 0
-    max_length: 255
-
-
-select:
-  - platform: template
-    name: "HA Protocol"
-    id: ha_protocol_select
-    entity_category: config
-    icon: "mdi:lock-outline"
-    optimistic: true
-    restore_value: true
-    initial_option: "${ha_protocol}"
-    options:
-      - "http"
-      - "https"
+globals:
+  - id: ha_token_global
+    type: std::string
+    restore_value: false
+    initial_value: '"${ha_token}"'
 
 
 esphome:
@@ -81,12 +27,12 @@ esphome:
     priority: -100
     then:
       - lambda: |-
-          // Initialise ha_base_url from NVS-restored settings on boot,
-          // before the HA API connects. on_client_connected overwrites
-          // this with the live client IP for http/homeassistant.local setups.
-          std::string protocol = id(ha_protocol_select).state;
-          std::string host = id(ha_host_text).state;
-          std::string port = id(ha_port_text).state;
+          // Build ha_base_url from compile-time substitutions.
+          // on_client_connected overwrites this with the live client IP for
+          // http/homeassistant.local setups.
+          std::string protocol = "${ha_protocol}";
+          std::string host     = "${ha_host}";
+          std::string port     = "${ha_port}";
           if (!host.empty() && !port.empty() && !protocol.empty()) {
             id(ha_base_url) = protocol + "://" + host + ":" + port;
             ESP_LOGI("ha_settings", "ha_base_url = %s", id(ha_base_url).c_str());

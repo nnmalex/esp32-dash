@@ -71,9 +71,9 @@ api:
   on_client_connected:
     - lambda: |-
         if (client_info.find("Home Assistant") != std::string::npos) {
-          std::string protocol = id(ha_protocol_select).state;
-          std::string host = id(ha_host_text).state;
-          std::string port = id(ha_port_text).state;
+          std::string protocol = "${ha_protocol}";
+          std::string host = "${ha_host}";
+          std::string port = "${ha_port}";
           // Use the HA API client IP for http (avoids mDNS lookup for artwork),
           // but keep the configured hostname for https (raw IPs won't match SSL certs).
           if (protocol == "http" && host == "homeassistant.local") {

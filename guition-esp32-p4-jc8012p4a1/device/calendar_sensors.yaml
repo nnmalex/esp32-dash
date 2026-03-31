@@ -415,10 +415,10 @@ script:
                 default: return false;
               }
               return !e.empty() && e.length() > 9 && e.substr(0,9) == "calendar."
-                     && !id(ha_token_text).state.empty();
+                     && !id(ha_token_global).empty();
           then:
             - lambda: |-
-                std::string entity, token = id(ha_token_text).state;
+                std::string entity, token = id(ha_token_global);
                 switch (slot) {
                   case 0: entity = id(calendar_entity_select_0).state; break;
                   case 1: entity = id(calendar_entity_select_1).state; break;
@@ -659,9 +659,8 @@ script:
 # Requires the user to set "HA Access Token" in HA device settings to a
 # Home Assistant long-lived access token.
 #
-# ha_base_url is set at runtime from ha_host_text / ha_port_text / ha_protocol_select
-# (configurable via HA device settings page, no recompile needed).
-# ha_token is read at runtime from ha_token_text (set via HA device settings page).
+# ha_base_url is built from ha_protocol / ha_host / ha_port substitutions at boot.
+# ha_token is read from the ha_token_global string (set via ha_token substitution).
 # =============================================================================
 
   # ---------------------------------------------------------------------------
@@ -730,10 +729,10 @@ script:
                 default: return false;
               }
               return !e.empty() && e.length() > 9 && e.substr(0,9) == "calendar."
-                     && !id(ha_token_text).state.empty();
+                     && !id(ha_token_global).empty();
           then:
             - lambda: |-
-                std::string entity, token = id(ha_token_text).state;
+                std::string entity, token = id(ha_token_global);
                 switch (slot) {
                   case 0: entity = id(calendar_entity_select_0).state; break;
                   case 1: entity = id(calendar_entity_select_1).state; break;
