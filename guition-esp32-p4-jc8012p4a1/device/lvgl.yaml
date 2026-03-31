@@ -6,7 +6,7 @@
 # =============================================================================
 
 lvgl:
-  buffer_size: 12%
+  buffer_size: 25%
   byte_order: little_endian
   on_boot:
     - lambda: |-

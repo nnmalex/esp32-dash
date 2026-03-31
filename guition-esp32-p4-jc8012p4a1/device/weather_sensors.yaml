@@ -71,68 +71,14 @@ globals:
     type: int
     initial_value: '0'
 
-  - id: idle_sensor_gen_0
-    type: int
-    initial_value: '0'
-  - id: idle_sensor_gen_1
-    type: int
-    initial_value: '0'
-  - id: idle_sensor_gen_2
-    type: int
-    initial_value: '0'
-  - id: idle_sensor_gen_3
-    type: int
-    initial_value: '0'
-  - id: idle_sensor_gen_4
-    type: int
-    initial_value: '0'
-  - id: idle_sensor_gen_5
-    type: int
-    initial_value: '0'
-  - id: idle_sensor_gen_6
-    type: int
-    initial_value: '0'
-  - id: idle_sensor_gen_7
-    type: int
-    initial_value: '0'
-  - id: idle_sensor_gen_8
-    type: int
-    initial_value: '0'
-  - id: idle_sensor_gen_9
-    type: int
-    initial_value: '0'
+  - id: idle_sensor_gen
+    type: std::array<int, 10>
+    initial_value: '{0,0,0,0,0,0,0,0,0,0}'
 
   # Last raw state string per tile; needed to reformat when precision changes
-  - id: idle_sensor_raw_0
-    type: std::string
-    initial_value: '""'
-  - id: idle_sensor_raw_1
-    type: std::string
-    initial_value: '""'
-  - id: idle_sensor_raw_2
-    type: std::string
-    initial_value: '""'
-  - id: idle_sensor_raw_3
-    type: std::string
-    initial_value: '""'
-  - id: idle_sensor_raw_4
-    type: std::string
-    initial_value: '""'
-  - id: idle_sensor_raw_5
-    type: std::string
-    initial_value: '""'
-  - id: idle_sensor_raw_6
-    type: std::string
-    initial_value: '""'
-  - id: idle_sensor_raw_7
-    type: std::string
-    initial_value: '""'
-  - id: idle_sensor_raw_8
-    type: std::string
-    initial_value: '""'
-  - id: idle_sensor_raw_9
-    type: std::string
-    initial_value: '""'
+  - id: idle_sensor_raw
+    type: std::array<std::string, 10>
+    initial_value: '{"","","","","","","","","",""}'
 
   - id: local_temp_sub_gen
     type: int
@@ -218,7 +164,9 @@ text:
     min_length: 0
     max_length: 100
     on_value:
-      - script.execute: subscribe_idle_sensor_0
+      - script.execute:
+          id: subscribe_idle_sensor
+          slot: 0
 
   - platform: template
     name: "Sensor Tile: Slot 2"
@@ -232,7 +180,9 @@ text:
     min_length: 0
     max_length: 100
     on_value:
-      - script.execute: subscribe_idle_sensor_1
+      - script.execute:
+          id: subscribe_idle_sensor
+          slot: 1
 
   - platform: template
     name: "Sensor Tile: Slot 3"
@@ -246,7 +196,9 @@ text:
     min_length: 0
     max_length: 100
     on_value:
-      - script.execute: subscribe_idle_sensor_2
+      - script.execute:
+          id: subscribe_idle_sensor
+          slot: 2
 
   - platform: template
     name: "Sensor Tile: Slot 4"
@@ -260,7 +212,9 @@ text:
     min_length: 0
     max_length: 100
     on_value:
-      - script.execute: subscribe_idle_sensor_3
+      - script.execute:
+          id: subscribe_idle_sensor
+          slot: 3
 
   - platform: template
     name: "Sensor Tile: Slot 5"
@@ -274,7 +228,9 @@ text:
     min_length: 0
     max_length: 100
     on_value:
-      - script.execute: subscribe_idle_sensor_4
+      - script.execute:
+          id: subscribe_idle_sensor
+          slot: 4
 
   - platform: template
     name: "Sensor Tile: Slot 6"
@@ -288,7 +244,9 @@ text:
     min_length: 0
     max_length: 100
     on_value:
-      - script.execute: subscribe_idle_sensor_5
+      - script.execute:
+          id: subscribe_idle_sensor
+          slot: 5
 
   - platform: template
     name: "Sensor Tile: Slot 7"
@@ -302,7 +260,9 @@ text:
     min_length: 0
     max_length: 100
     on_value:
-      - script.execute: subscribe_idle_sensor_6
+      - script.execute:
+          id: subscribe_idle_sensor
+          slot: 6
 
   - platform: template
     name: "Sensor Tile: Slot 8"
@@ -316,7 +276,9 @@ text:
     min_length: 0
     max_length: 100
     on_value:
-      - script.execute: subscribe_idle_sensor_7
+      - script.execute:
+          id: subscribe_idle_sensor
+          slot: 7
 
   - platform: template
     name: "Sensor Tile: Slot 9"
@@ -330,7 +292,9 @@ text:
     min_length: 0
     max_length: 100
     on_value:
-      - script.execute: subscribe_idle_sensor_8
+      - script.execute:
+          id: subscribe_idle_sensor
+          slot: 8
 
   - platform: template
     name: "Sensor Tile: Slot 10"
@@ -344,7 +308,9 @@ text:
     min_length: 0
     max_length: 100
     on_value:
-      - script.execute: subscribe_idle_sensor_9
+      - script.execute:
+          id: subscribe_idle_sensor
+          slot: 9
 
 
 # -----------------------------------------------------------------------------
@@ -366,7 +332,7 @@ number:
     initial_value: -1
     set_action:
       - lambda: |-
-          const std::string &raw = id(idle_sensor_raw_0);
+          const std::string &raw = id(idle_sensor_raw)[0];
           if (raw.empty() || (int)x < 0) return;
           char *ep; float val = strtof(raw.c_str(), &ep);
           if (ep == raw.c_str()) return;
@@ -386,7 +352,7 @@ number:
     initial_value: -1
     set_action:
       - lambda: |-
-          const std::string &raw = id(idle_sensor_raw_1);
+          const std::string &raw = id(idle_sensor_raw)[1];
           if (raw.empty() || (int)x < 0) return;
           char *ep; float val = strtof(raw.c_str(), &ep);
           if (ep == raw.c_str()) return;
@@ -406,7 +372,7 @@ number:
     initial_value: -1
     set_action:
       - lambda: |-
-          const std::string &raw = id(idle_sensor_raw_2);
+          const std::string &raw = id(idle_sensor_raw)[2];
           if (raw.empty() || (int)x < 0) return;
           char *ep; float val = strtof(raw.c_str(), &ep);
           if (ep == raw.c_str()) return;
@@ -426,7 +392,7 @@ number:
     initial_value: -1
     set_action:
       - lambda: |-
-          const std::string &raw = id(idle_sensor_raw_3);
+          const std::string &raw = id(idle_sensor_raw)[3];
           if (raw.empty() || (int)x < 0) return;
           char *ep; float val = strtof(raw.c_str(), &ep);
           if (ep == raw.c_str()) return;
@@ -446,7 +412,7 @@ number:
     initial_value: -1
     set_action:
       - lambda: |-
-          const std::string &raw = id(idle_sensor_raw_4);
+          const std::string &raw = id(idle_sensor_raw)[4];
           if (raw.empty() || (int)x < 0) return;
           char *ep; float val = strtof(raw.c_str(), &ep);
           if (ep == raw.c_str()) return;
@@ -466,7 +432,7 @@ number:
     initial_value: -1
     set_action:
       - lambda: |-
-          const std::string &raw = id(idle_sensor_raw_5);
+          const std::string &raw = id(idle_sensor_raw)[5];
           if (raw.empty() || (int)x < 0) return;
           char *ep; float val = strtof(raw.c_str(), &ep);
           if (ep == raw.c_str()) return;
@@ -486,7 +452,7 @@ number:
     initial_value: -1
     set_action:
       - lambda: |-
-          const std::string &raw = id(idle_sensor_raw_6);
+          const std::string &raw = id(idle_sensor_raw)[6];
           if (raw.empty() || (int)x < 0) return;
           char *ep; float val = strtof(raw.c_str(), &ep);
           if (ep == raw.c_str()) return;
@@ -506,7 +472,7 @@ number:
     initial_value: -1
     set_action:
       - lambda: |-
-          const std::string &raw = id(idle_sensor_raw_7);
+          const std::string &raw = id(idle_sensor_raw)[7];
           if (raw.empty() || (int)x < 0) return;
           char *ep; float val = strtof(raw.c_str(), &ep);
           if (ep == raw.c_str()) return;
@@ -526,7 +492,7 @@ number:
     initial_value: -1
     set_action:
       - lambda: |-
-          const std::string &raw = id(idle_sensor_raw_8);
+          const std::string &raw = id(idle_sensor_raw)[8];
           if (raw.empty() || (int)x < 0) return;
           char *ep; float val = strtof(raw.c_str(), &ep);
           if (ep == raw.c_str()) return;
@@ -546,7 +512,7 @@ number:
     initial_value: -1
     set_action:
       - lambda: |-
-          const std::string &raw = id(idle_sensor_raw_9);
+          const std::string &raw = id(idle_sensor_raw)[9];
           if (raw.empty() || (int)x < 0) return;
           char *ep; float val = strtof(raw.c_str(), &ep);
           if (ep == raw.c_str()) return;
@@ -861,22 +827,68 @@ script:
           ESP_LOGI("weather", "Feels-like sensor: subscribed to '%s'", entity.c_str());
 
   # ---------------------------------------------------------------------------
-  # subscribe_idle_sensor_N: subscribes to state + friendly_name of sensor N.
+  # subscribe_idle_sensor: subscribes to state + attributes of sensor tile N.
   # Shows the tile container when an entity is configured; hides it when empty.
+  # Slots 0-4 are left-column (dynamic unit positioning); 5-9 are right-column.
   # ---------------------------------------------------------------------------
-  - id: subscribe_idle_sensor_0
+  - id: subscribe_idle_sensor
+    parameters:
+      - name: slot
+        type: int
     mode: restart
     then:
       - lambda: |-
-          std::string entity = id(idle_sensor_entity_0).state;
+          // Resolve per-slot LVGL widget pointers
+          lv_obj_t *t_tiles[]  = { id(idle_sensor_tile_0),  id(idle_sensor_tile_1),  id(idle_sensor_tile_2),
+                                    id(idle_sensor_tile_3),  id(idle_sensor_tile_4),  id(idle_sensor_tile_5),
+                                    id(idle_sensor_tile_6),  id(idle_sensor_tile_7),  id(idle_sensor_tile_8),
+                                    id(idle_sensor_tile_9) };
+          lv_obj_t *t_names[]  = { id(idle_sensor_name_0),  id(idle_sensor_name_1),  id(idle_sensor_name_2),
+                                    id(idle_sensor_name_3),  id(idle_sensor_name_4),  id(idle_sensor_name_5),
+                                    id(idle_sensor_name_6),  id(idle_sensor_name_7),  id(idle_sensor_name_8),
+                                    id(idle_sensor_name_9) };
+          lv_obj_t *t_values[] = { id(idle_sensor_value_0), id(idle_sensor_value_1), id(idle_sensor_value_2),
+                                    id(idle_sensor_value_3), id(idle_sensor_value_4), id(idle_sensor_value_5),
+                                    id(idle_sensor_value_6), id(idle_sensor_value_7), id(idle_sensor_value_8),
+                                    id(idle_sensor_value_9) };
+          lv_obj_t *t_icons[]  = { id(idle_sensor_icon_0),  id(idle_sensor_icon_1),  id(idle_sensor_icon_2),
+                                    id(idle_sensor_icon_3),  id(idle_sensor_icon_4),  id(idle_sensor_icon_5),
+                                    id(idle_sensor_icon_6),  id(idle_sensor_icon_7),  id(idle_sensor_icon_8),
+                                    id(idle_sensor_icon_9) };
+          lv_obj_t *t_units[]  = { id(idle_sensor_unit_0),  id(idle_sensor_unit_1),  id(idle_sensor_unit_2),
+                                    id(idle_sensor_unit_3),  id(idle_sensor_unit_4),  id(idle_sensor_unit_5),
+                                    id(idle_sensor_unit_6),  id(idle_sensor_unit_7),  id(idle_sensor_unit_8),
+                                    id(idle_sensor_unit_9) };
+
+          lv_obj_t *tile      = t_tiles[slot];
+          lv_obj_t *name_lbl  = t_names[slot];
+          lv_obj_t *value_lbl = t_values[slot];
+          lv_obj_t *icon_lbl  = t_icons[slot];
+          lv_obj_t *unit_lbl  = t_units[slot];
+
+          // Get entity ID for this slot
+          std::string entity;
+          switch (slot) {
+            case 0: entity = id(idle_sensor_entity_0).state; break;
+            case 1: entity = id(idle_sensor_entity_1).state; break;
+            case 2: entity = id(idle_sensor_entity_2).state; break;
+            case 3: entity = id(idle_sensor_entity_3).state; break;
+            case 4: entity = id(idle_sensor_entity_4).state; break;
+            case 5: entity = id(idle_sensor_entity_5).state; break;
+            case 6: entity = id(idle_sensor_entity_6).state; break;
+            case 7: entity = id(idle_sensor_entity_7).state; break;
+            case 8: entity = id(idle_sensor_entity_8).state; break;
+            case 9: entity = id(idle_sensor_entity_9).state; break;
+            default: return;
+          }
 
           if (entity.empty()) {
-            lv_obj_add_flag(id(idle_sensor_tile_0), LV_OBJ_FLAG_HIDDEN);
-            lv_label_set_text(id(idle_sensor_name_0), "");
-            lv_label_set_text(id(idle_sensor_value_0), "\xe2\x80\x94");
-            lv_label_set_text(id(idle_sensor_icon_0), "");
-            lv_label_set_text(id(idle_sensor_unit_0), "");
-            id(idle_sensor_raw_0) = "";
+            lv_obj_add_flag(tile, LV_OBJ_FLAG_HIDDEN);
+            lv_label_set_text(name_lbl,  "");
+            lv_label_set_text(value_lbl, "\xe2\x80\x94");
+            lv_label_set_text(icon_lbl,  "");
+            lv_label_set_text(unit_lbl,  "");
+            id(idle_sensor_raw)[slot] = "";
             return;
           }
 
@@ -890,26 +902,39 @@ script:
             else if (cap && isalpha((unsigned char)c)) { c = toupper(c); cap = false; }
             else { cap = false; }
           }
-          lv_label_set_text(id(idle_sensor_name_0), name.c_str());
-          lv_label_set_text(id(idle_sensor_icon_0), "\U000F0208");  // eye fallback
-          lv_label_set_text(id(idle_sensor_unit_0), "");
-          lv_obj_clear_flag(id(idle_sensor_tile_0), LV_OBJ_FLAG_HIDDEN);
+          lv_label_set_text(name_lbl, name.c_str());
+          lv_label_set_text(icon_lbl, "\U000F0208");  // eye fallback
+          lv_label_set_text(unit_lbl, "");
+          lv_obj_clear_flag(tile, LV_OBJ_FLAG_HIDDEN);
 
           if (esphome::api::global_api_server == nullptr) return;
 
-          id(idle_sensor_gen_0) += 1;
-          int gen = id(idle_sensor_gen_0);
-          int *gen_ptr = &id(idle_sensor_gen_0);
+          id(idle_sensor_gen)[slot] += 1;
+          int gen = id(idle_sensor_gen)[slot];
+          int *gen_ptr = &id(idle_sensor_gen)[slot];
 
           auto *api = esphome::api::global_api_server;
           using str_cb = std::function<void(const std::string &)>;
 
+          // State subscription — format with per-slot precision, publish to text sensor
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
-              str_cb([gen, gen_ptr](const std::string &state) {
+              str_cb([gen, gen_ptr, slot](const std::string &state) {
                 if (gen != *gen_ptr) return;
-                id(idle_sensor_raw_0) = state;
+                id(idle_sensor_raw)[slot] = state;
                 std::string out = state;
-                int prec = (int)id(idle_sensor_prec_0).state;
+                int prec;
+                switch (slot) {
+                  case 0: prec = (int)id(idle_sensor_prec_0).state; break;
+                  case 1: prec = (int)id(idle_sensor_prec_1).state; break;
+                  case 2: prec = (int)id(idle_sensor_prec_2).state; break;
+                  case 3: prec = (int)id(idle_sensor_prec_3).state; break;
+                  case 4: prec = (int)id(idle_sensor_prec_4).state; break;
+                  case 5: prec = (int)id(idle_sensor_prec_5).state; break;
+                  case 6: prec = (int)id(idle_sensor_prec_6).state; break;
+                  case 7: prec = (int)id(idle_sensor_prec_7).state; break;
+                  case 8: prec = (int)id(idle_sensor_prec_8).state; break;
+                  default: prec = (int)id(idle_sensor_prec_9).state; break;
+                }
                 if (prec >= 0 && !state.empty()) {
                   char *end; float val = strtof(state.c_str(), &end);
                   if (end != state.c_str()) {
@@ -917,29 +942,45 @@ script:
                     out = buf;
                   }
                 }
-                id(idle_sensor_state_0).publish_state(out);
+                switch (slot) {
+                  case 0: id(idle_sensor_state_0).publish_state(out); break;
+                  case 1: id(idle_sensor_state_1).publish_state(out); break;
+                  case 2: id(idle_sensor_state_2).publish_state(out); break;
+                  case 3: id(idle_sensor_state_3).publish_state(out); break;
+                  case 4: id(idle_sensor_state_4).publish_state(out); break;
+                  case 5: id(idle_sensor_state_5).publish_state(out); break;
+                  case 6: id(idle_sensor_state_6).publish_state(out); break;
+                  case 7: id(idle_sensor_state_7).publish_state(out); break;
+                  case 8: id(idle_sensor_state_8).publish_state(out); break;
+                  default: id(idle_sensor_state_9).publish_state(out); break;
+                }
               }));
 
+          // Friendly name subscription — update name label when HA provides it
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
-              str_cb([gen, gen_ptr](const std::string &state) {
+              str_cb([gen, gen_ptr, name_lbl](const std::string &state) {
                 if (gen != *gen_ptr) return;
-                if (!state.empty()) lv_label_set_text(id(idle_sensor_name_0), state.c_str());
+                if (!state.empty()) lv_label_set_text(name_lbl, state.c_str());
               }));
 
+          // Unit subscription — left-column tiles (0-4) reposition unit after value label
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("unit_of_measurement"),
-              str_cb([gen, gen_ptr](const std::string &unit) {
+              str_cb([gen, gen_ptr, slot, unit_lbl, value_lbl](const std::string &unit) {
                 if (gen != *gen_ptr) return;
-                lv_label_set_text(id(idle_sensor_unit_0), unit.c_str());
-                lv_point_t _sz;
-                lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_0)),
-                  lv_obj_get_style_text_font(id(idle_sensor_value_0), LV_PART_MAIN),
-                  lv_obj_get_style_text_letter_space(id(idle_sensor_value_0), LV_PART_MAIN),
-                  0, LV_COORD_MAX, 0);
-                lv_obj_set_x(id(idle_sensor_unit_0), 70 + _sz.x + 6);
+                lv_label_set_text(unit_lbl, unit.c_str());
+                if (slot < 5) {
+                  lv_point_t _sz;
+                  lv_txt_get_size(&_sz, lv_label_get_text(value_lbl),
+                    lv_obj_get_style_text_font(value_lbl, LV_PART_MAIN),
+                    lv_obj_get_style_text_letter_space(value_lbl, LV_PART_MAIN),
+                    0, LV_COORD_MAX, 0);
+                  lv_obj_set_x(unit_lbl, 70 + _sz.x + 6);
+                }
               }));
 
+          // Icon subscription — maps mdi:* attribute to compiled glyph codepoint
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
-              str_cb([gen, gen_ptr](const std::string &icon_attr) {
+              str_cb([gen, gen_ptr, icon_lbl](const std::string &icon_attr) {
                 if (gen != *gen_ptr) return;
                 const char *ic;
                 if (icon_attr == "mdi:thermometer" ||
@@ -1005,1285 +1046,10 @@ script:
                 } else {
                   ic = "\U000F0208";  // mdi:eye fallback
                 }
-                lv_label_set_text(id(idle_sensor_icon_0), ic);
+                lv_label_set_text(icon_lbl, ic);
               }));
 
-          ESP_LOGI("idle_sensors", "Tile 0: subscribed to '%s'", entity.c_str());
-
-  - id: subscribe_idle_sensor_1
-    mode: restart
-    then:
-      - lambda: |-
-          std::string entity = id(idle_sensor_entity_1).state;
-
-          if (entity.empty()) {
-            lv_obj_add_flag(id(idle_sensor_tile_1), LV_OBJ_FLAG_HIDDEN);
-            lv_label_set_text(id(idle_sensor_name_1), "");
-            lv_label_set_text(id(idle_sensor_value_1), "\xe2\x80\x94");
-            lv_label_set_text(id(idle_sensor_icon_1), "");
-            lv_label_set_text(id(idle_sensor_unit_1), "");
-            id(idle_sensor_raw_1) = "";
-            return;
-          }
-
-          std::string name = entity;
-          size_t dot = name.rfind('.');
-          if (dot != std::string::npos) name = name.substr(dot + 1);
-          bool cap = true;
-          for (char &c : name) {
-            if (c == '_') { c = ' '; cap = true; }
-            else if (cap && isalpha((unsigned char)c)) { c = toupper(c); cap = false; }
-            else { cap = false; }
-          }
-          lv_label_set_text(id(idle_sensor_name_1), name.c_str());
-          lv_label_set_text(id(idle_sensor_icon_1), "\U000F0208");  // eye fallback
-          lv_label_set_text(id(idle_sensor_unit_1), "");
-          lv_obj_clear_flag(id(idle_sensor_tile_1), LV_OBJ_FLAG_HIDDEN);
-
-          if (esphome::api::global_api_server == nullptr) return;
-
-          id(idle_sensor_gen_1) += 1;
-          int gen = id(idle_sensor_gen_1);
-          int *gen_ptr = &id(idle_sensor_gen_1);
-
-          auto *api = esphome::api::global_api_server;
-          using str_cb = std::function<void(const std::string &)>;
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
-              str_cb([gen, gen_ptr](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                id(idle_sensor_raw_1) = state;
-                std::string out = state;
-                int prec = (int)id(idle_sensor_prec_1).state;
-                if (prec >= 0 && !state.empty()) {
-                  char *end; float val = strtof(state.c_str(), &end);
-                  if (end != state.c_str()) {
-                    char buf[32]; snprintf(buf, sizeof(buf), "%.*f", prec, val);
-                    out = buf;
-                  }
-                }
-                id(idle_sensor_state_1).publish_state(out);
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
-              str_cb([gen, gen_ptr](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                if (!state.empty()) lv_label_set_text(id(idle_sensor_name_1), state.c_str());
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("unit_of_measurement"),
-              str_cb([gen, gen_ptr](const std::string &unit) {
-                if (gen != *gen_ptr) return;
-                lv_label_set_text(id(idle_sensor_unit_1), unit.c_str());
-                lv_point_t _sz;
-                lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_1)),
-                  lv_obj_get_style_text_font(id(idle_sensor_value_1), LV_PART_MAIN),
-                  lv_obj_get_style_text_letter_space(id(idle_sensor_value_1), LV_PART_MAIN),
-                  0, LV_COORD_MAX, 0);
-                lv_obj_set_x(id(idle_sensor_unit_1), 70 + _sz.x + 6);
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
-              str_cb([gen, gen_ptr](const std::string &icon_attr) {
-                if (gen != *gen_ptr) return;
-                const char *ic;
-                if (icon_attr == "mdi:thermometer" ||
-                    icon_attr == "mdi:thermometer-low" ||
-                    icon_attr == "mdi:thermometer-high") {
-                  ic = "\U000F050F";
-                } else if (icon_attr == "mdi:home-thermometer" ||
-                           icon_attr == "mdi:home-thermometer-outline") {
-                  ic = "\U000F0F54";
-                } else if (icon_attr == "mdi:water-percent") {
-                  ic = "\U000F058E";
-                } else if (icon_attr == "mdi:gauge") {
-                  ic = "\U000F028A";
-                } else if (icon_attr == "mdi:water") {
-                  ic = "\U000F058C";
-                } else if (icon_attr == "mdi:weather-windy") {
-                  ic = "\U000F059E";
-                } else if (icon_attr == "mdi:lightning-bolt" ||
-                           icon_attr == "mdi:flash") {
-                  ic = "\U000F140B";
-                } else if (icon_attr == "mdi:molecule-co2") {
-                  ic = "\U000F07E4";
-                } else if (icon_attr == "mdi:brightness-5" ||
-                           icon_attr == "mdi:white-balance-sunny") {
-                  ic = "\U000F05A8";
-                } else if (icon_attr == "mdi:motion-sensor") {
-                  ic = "\U000F0D91";
-                } else if (icon_attr == "mdi:power") {
-                  ic = "\U000F0425";
-                } else if (icon_attr == "mdi:clock-outline") {
-                  ic = "\U000F0150";
-                } else if (icon_attr == "mdi:sine-wave" ||
-                           icon_attr == "mdi:current-ac") {
-                  ic = "\U000F095B";
-                } else if (icon_attr == "mdi:run") {
-                  ic = "\U000F070E";
-                } else if (icon_attr == "mdi:walk") {
-                  ic = "\U000F0583";
-                } else if (icon_attr == "mdi:battery" ||
-                           icon_attr == "mdi:battery-charging" ||
-                           icon_attr == "mdi:battery-unknown") {
-                  ic = "\U000F0079";
-                } else if (icon_attr == "mdi:battery-high") {
-                  ic = "\U000F12A3";
-                } else if (icon_attr == "mdi:battery-medium") {
-                  ic = "\U000F12A2";
-                } else if (icon_attr == "mdi:battery-low") {
-                  ic = "\U000F12A1";
-                } else if (icon_attr == "mdi:solar-power") {
-                  ic = "\U000F0A72";
-                } else if (icon_attr == "mdi:solar-power-variant") {
-                  ic = "\U000F1A73";
-                } else if (icon_attr == "mdi:car-electric") {
-                  ic = "\U000F0B6C";
-                } else if (icon_attr == "mdi:home-battery") {
-                  ic = "\U000F1901";
-                } else if (icon_attr == "mdi:home") {
-                  ic = "\U000F02DC";
-                } else if (icon_attr == "mdi:delete-restore") {
-                  ic = "\U000F0819";
-                } else if (icon_attr == "mdi:trash-can") {
-                  ic = "\U000F0A79";
-                } else {
-                  ic = "\U000F0208";  // mdi:eye fallback
-                }
-                lv_label_set_text(id(idle_sensor_icon_1), ic);
-              }));
-
-          ESP_LOGI("idle_sensors", "Tile 1: subscribed to '%s'", entity.c_str());
-
-  - id: subscribe_idle_sensor_2
-    mode: restart
-    then:
-      - lambda: |-
-          std::string entity = id(idle_sensor_entity_2).state;
-
-          if (entity.empty()) {
-            lv_obj_add_flag(id(idle_sensor_tile_2), LV_OBJ_FLAG_HIDDEN);
-            lv_label_set_text(id(idle_sensor_name_2), "");
-            lv_label_set_text(id(idle_sensor_value_2), "\xe2\x80\x94");
-            lv_label_set_text(id(idle_sensor_icon_2), "");
-            lv_label_set_text(id(idle_sensor_unit_2), "");
-            id(idle_sensor_raw_2) = "";
-            return;
-          }
-
-          std::string name = entity;
-          size_t dot = name.rfind('.');
-          if (dot != std::string::npos) name = name.substr(dot + 1);
-          bool cap = true;
-          for (char &c : name) {
-            if (c == '_') { c = ' '; cap = true; }
-            else if (cap && isalpha((unsigned char)c)) { c = toupper(c); cap = false; }
-            else { cap = false; }
-          }
-          lv_label_set_text(id(idle_sensor_name_2), name.c_str());
-          lv_label_set_text(id(idle_sensor_icon_2), "\U000F0208");  // eye fallback
-          lv_label_set_text(id(idle_sensor_unit_2), "");
-          lv_obj_clear_flag(id(idle_sensor_tile_2), LV_OBJ_FLAG_HIDDEN);
-
-          if (esphome::api::global_api_server == nullptr) return;
-
-          id(idle_sensor_gen_2) += 1;
-          int gen = id(idle_sensor_gen_2);
-          int *gen_ptr = &id(idle_sensor_gen_2);
-
-          auto *api = esphome::api::global_api_server;
-          using str_cb = std::function<void(const std::string &)>;
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
-              str_cb([gen, gen_ptr](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                id(idle_sensor_raw_2) = state;
-                std::string out = state;
-                int prec = (int)id(idle_sensor_prec_2).state;
-                if (prec >= 0 && !state.empty()) {
-                  char *end; float val = strtof(state.c_str(), &end);
-                  if (end != state.c_str()) {
-                    char buf[32]; snprintf(buf, sizeof(buf), "%.*f", prec, val);
-                    out = buf;
-                  }
-                }
-                id(idle_sensor_state_2).publish_state(out);
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
-              str_cb([gen, gen_ptr](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                if (!state.empty()) lv_label_set_text(id(idle_sensor_name_2), state.c_str());
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("unit_of_measurement"),
-              str_cb([gen, gen_ptr](const std::string &unit) {
-                if (gen != *gen_ptr) return;
-                lv_label_set_text(id(idle_sensor_unit_2), unit.c_str());
-                lv_point_t _sz;
-                lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_2)),
-                  lv_obj_get_style_text_font(id(idle_sensor_value_2), LV_PART_MAIN),
-                  lv_obj_get_style_text_letter_space(id(idle_sensor_value_2), LV_PART_MAIN),
-                  0, LV_COORD_MAX, 0);
-                lv_obj_set_x(id(idle_sensor_unit_2), 70 + _sz.x + 6);
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
-              str_cb([gen, gen_ptr](const std::string &icon_attr) {
-                if (gen != *gen_ptr) return;
-                const char *ic;
-                if (icon_attr == "mdi:thermometer" ||
-                    icon_attr == "mdi:thermometer-low" ||
-                    icon_attr == "mdi:thermometer-high") {
-                  ic = "\U000F050F";
-                } else if (icon_attr == "mdi:home-thermometer" ||
-                           icon_attr == "mdi:home-thermometer-outline") {
-                  ic = "\U000F0F54";
-                } else if (icon_attr == "mdi:water-percent") {
-                  ic = "\U000F058E";
-                } else if (icon_attr == "mdi:gauge") {
-                  ic = "\U000F028A";
-                } else if (icon_attr == "mdi:water") {
-                  ic = "\U000F058C";
-                } else if (icon_attr == "mdi:weather-windy") {
-                  ic = "\U000F059E";
-                } else if (icon_attr == "mdi:lightning-bolt" ||
-                           icon_attr == "mdi:flash") {
-                  ic = "\U000F140B";
-                } else if (icon_attr == "mdi:molecule-co2") {
-                  ic = "\U000F07E4";
-                } else if (icon_attr == "mdi:brightness-5" ||
-                           icon_attr == "mdi:white-balance-sunny") {
-                  ic = "\U000F05A8";
-                } else if (icon_attr == "mdi:motion-sensor") {
-                  ic = "\U000F0D91";
-                } else if (icon_attr == "mdi:power") {
-                  ic = "\U000F0425";
-                } else if (icon_attr == "mdi:clock-outline") {
-                  ic = "\U000F0150";
-                } else if (icon_attr == "mdi:sine-wave" ||
-                           icon_attr == "mdi:current-ac") {
-                  ic = "\U000F095B";
-                } else if (icon_attr == "mdi:run") {
-                  ic = "\U000F070E";
-                } else if (icon_attr == "mdi:walk") {
-                  ic = "\U000F0583";
-                } else if (icon_attr == "mdi:battery" ||
-                           icon_attr == "mdi:battery-charging" ||
-                           icon_attr == "mdi:battery-unknown") {
-                  ic = "\U000F0079";
-                } else if (icon_attr == "mdi:battery-high") {
-                  ic = "\U000F12A3";
-                } else if (icon_attr == "mdi:battery-medium") {
-                  ic = "\U000F12A2";
-                } else if (icon_attr == "mdi:battery-low") {
-                  ic = "\U000F12A1";
-                } else if (icon_attr == "mdi:solar-power") {
-                  ic = "\U000F0A72";
-                } else if (icon_attr == "mdi:solar-power-variant") {
-                  ic = "\U000F1A73";
-                } else if (icon_attr == "mdi:car-electric") {
-                  ic = "\U000F0B6C";
-                } else if (icon_attr == "mdi:home-battery") {
-                  ic = "\U000F1901";
-                } else if (icon_attr == "mdi:home") {
-                  ic = "\U000F02DC";
-                } else if (icon_attr == "mdi:delete-restore") {
-                  ic = "\U000F0819";
-                } else if (icon_attr == "mdi:trash-can") {
-                  ic = "\U000F0A79";
-                } else {
-                  ic = "\U000F0208";  // mdi:eye fallback
-                }
-                lv_label_set_text(id(idle_sensor_icon_2), ic);
-              }));
-
-          ESP_LOGI("idle_sensors", "Tile 2: subscribed to '%s'", entity.c_str());
-
-  - id: subscribe_idle_sensor_3
-    mode: restart
-    then:
-      - lambda: |-
-          std::string entity = id(idle_sensor_entity_3).state;
-
-          if (entity.empty()) {
-            lv_obj_add_flag(id(idle_sensor_tile_3), LV_OBJ_FLAG_HIDDEN);
-            lv_label_set_text(id(idle_sensor_name_3), "");
-            lv_label_set_text(id(idle_sensor_value_3), "\xe2\x80\x94");
-            lv_label_set_text(id(idle_sensor_icon_3), "");
-            lv_label_set_text(id(idle_sensor_unit_3), "");
-            id(idle_sensor_raw_3) = "";
-            return;
-          }
-
-          std::string name = entity;
-          size_t dot = name.rfind('.');
-          if (dot != std::string::npos) name = name.substr(dot + 1);
-          bool cap = true;
-          for (char &c : name) {
-            if (c == '_') { c = ' '; cap = true; }
-            else if (cap && isalpha((unsigned char)c)) { c = toupper(c); cap = false; }
-            else { cap = false; }
-          }
-          lv_label_set_text(id(idle_sensor_name_3), name.c_str());
-          lv_label_set_text(id(idle_sensor_icon_3), "\U000F0208");  // eye fallback
-          lv_label_set_text(id(idle_sensor_unit_3), "");
-          lv_obj_clear_flag(id(idle_sensor_tile_3), LV_OBJ_FLAG_HIDDEN);
-
-          if (esphome::api::global_api_server == nullptr) return;
-
-          id(idle_sensor_gen_3) += 1;
-          int gen = id(idle_sensor_gen_3);
-          int *gen_ptr = &id(idle_sensor_gen_3);
-
-          auto *api = esphome::api::global_api_server;
-          using str_cb = std::function<void(const std::string &)>;
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
-              str_cb([gen, gen_ptr](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                id(idle_sensor_raw_3) = state;
-                std::string out = state;
-                int prec = (int)id(idle_sensor_prec_3).state;
-                if (prec >= 0 && !state.empty()) {
-                  char *end; float val = strtof(state.c_str(), &end);
-                  if (end != state.c_str()) {
-                    char buf[32]; snprintf(buf, sizeof(buf), "%.*f", prec, val);
-                    out = buf;
-                  }
-                }
-                id(idle_sensor_state_3).publish_state(out);
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
-              str_cb([gen, gen_ptr](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                if (!state.empty()) lv_label_set_text(id(idle_sensor_name_3), state.c_str());
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("unit_of_measurement"),
-              str_cb([gen, gen_ptr](const std::string &unit) {
-                if (gen != *gen_ptr) return;
-                lv_label_set_text(id(idle_sensor_unit_3), unit.c_str());
-                lv_point_t _sz;
-                lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_3)),
-                  lv_obj_get_style_text_font(id(idle_sensor_value_3), LV_PART_MAIN),
-                  lv_obj_get_style_text_letter_space(id(idle_sensor_value_3), LV_PART_MAIN),
-                  0, LV_COORD_MAX, 0);
-                lv_obj_set_x(id(idle_sensor_unit_3), 70 + _sz.x + 6);
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
-              str_cb([gen, gen_ptr](const std::string &icon_attr) {
-                if (gen != *gen_ptr) return;
-                const char *ic;
-                if (icon_attr == "mdi:thermometer" ||
-                    icon_attr == "mdi:thermometer-low" ||
-                    icon_attr == "mdi:thermometer-high") {
-                  ic = "\U000F050F";
-                } else if (icon_attr == "mdi:home-thermometer" ||
-                           icon_attr == "mdi:home-thermometer-outline") {
-                  ic = "\U000F0F54";
-                } else if (icon_attr == "mdi:water-percent") {
-                  ic = "\U000F058E";
-                } else if (icon_attr == "mdi:gauge") {
-                  ic = "\U000F028A";
-                } else if (icon_attr == "mdi:water") {
-                  ic = "\U000F058C";
-                } else if (icon_attr == "mdi:weather-windy") {
-                  ic = "\U000F059E";
-                } else if (icon_attr == "mdi:lightning-bolt" ||
-                           icon_attr == "mdi:flash") {
-                  ic = "\U000F140B";
-                } else if (icon_attr == "mdi:molecule-co2") {
-                  ic = "\U000F07E4";
-                } else if (icon_attr == "mdi:brightness-5" ||
-                           icon_attr == "mdi:white-balance-sunny") {
-                  ic = "\U000F05A8";
-                } else if (icon_attr == "mdi:motion-sensor") {
-                  ic = "\U000F0D91";
-                } else if (icon_attr == "mdi:power") {
-                  ic = "\U000F0425";
-                } else if (icon_attr == "mdi:clock-outline") {
-                  ic = "\U000F0150";
-                } else if (icon_attr == "mdi:sine-wave" ||
-                           icon_attr == "mdi:current-ac") {
-                  ic = "\U000F095B";
-                } else if (icon_attr == "mdi:run") {
-                  ic = "\U000F070E";
-                } else if (icon_attr == "mdi:walk") {
-                  ic = "\U000F0583";
-                } else if (icon_attr == "mdi:battery" ||
-                           icon_attr == "mdi:battery-charging" ||
-                           icon_attr == "mdi:battery-unknown") {
-                  ic = "\U000F0079";
-                } else if (icon_attr == "mdi:battery-high") {
-                  ic = "\U000F12A3";
-                } else if (icon_attr == "mdi:battery-medium") {
-                  ic = "\U000F12A2";
-                } else if (icon_attr == "mdi:battery-low") {
-                  ic = "\U000F12A1";
-                } else if (icon_attr == "mdi:solar-power") {
-                  ic = "\U000F0A72";
-                } else if (icon_attr == "mdi:solar-power-variant") {
-                  ic = "\U000F1A73";
-                } else if (icon_attr == "mdi:car-electric") {
-                  ic = "\U000F0B6C";
-                } else if (icon_attr == "mdi:home-battery") {
-                  ic = "\U000F1901";
-                } else if (icon_attr == "mdi:home") {
-                  ic = "\U000F02DC";
-                } else if (icon_attr == "mdi:delete-restore") {
-                  ic = "\U000F0819";
-                } else if (icon_attr == "mdi:trash-can") {
-                  ic = "\U000F0A79";
-                } else {
-                  ic = "\U000F0208";  // mdi:eye fallback
-                }
-                lv_label_set_text(id(idle_sensor_icon_3), ic);
-              }));
-
-          ESP_LOGI("idle_sensors", "Tile 3: subscribed to '%s'", entity.c_str());
-
-  - id: subscribe_idle_sensor_4
-    mode: restart
-    then:
-      - lambda: |-
-          std::string entity = id(idle_sensor_entity_4).state;
-
-          if (entity.empty()) {
-            lv_obj_add_flag(id(idle_sensor_tile_4), LV_OBJ_FLAG_HIDDEN);
-            lv_label_set_text(id(idle_sensor_name_4), "");
-            lv_label_set_text(id(idle_sensor_value_4), "\xe2\x80\x94");
-            lv_label_set_text(id(idle_sensor_icon_4), "");
-            lv_label_set_text(id(idle_sensor_unit_4), "");
-            id(idle_sensor_raw_4) = "";
-            return;
-          }
-
-          std::string name = entity;
-          size_t dot = name.rfind('.');
-          if (dot != std::string::npos) name = name.substr(dot + 1);
-          bool cap = true;
-          for (char &c : name) {
-            if (c == '_') { c = ' '; cap = true; }
-            else if (cap && isalpha((unsigned char)c)) { c = toupper(c); cap = false; }
-            else { cap = false; }
-          }
-          lv_label_set_text(id(idle_sensor_name_4), name.c_str());
-          lv_label_set_text(id(idle_sensor_icon_4), "\U000F0208");  // eye fallback
-          lv_label_set_text(id(idle_sensor_unit_4), "");
-          lv_obj_clear_flag(id(idle_sensor_tile_4), LV_OBJ_FLAG_HIDDEN);
-
-          if (esphome::api::global_api_server == nullptr) return;
-
-          id(idle_sensor_gen_4) += 1;
-          int gen = id(idle_sensor_gen_4);
-          int *gen_ptr = &id(idle_sensor_gen_4);
-
-          auto *api = esphome::api::global_api_server;
-          using str_cb = std::function<void(const std::string &)>;
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
-              str_cb([gen, gen_ptr](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                id(idle_sensor_raw_4) = state;
-                std::string out = state;
-                int prec = (int)id(idle_sensor_prec_4).state;
-                if (prec >= 0 && !state.empty()) {
-                  char *end; float val = strtof(state.c_str(), &end);
-                  if (end != state.c_str()) {
-                    char buf[32]; snprintf(buf, sizeof(buf), "%.*f", prec, val);
-                    out = buf;
-                  }
-                }
-                id(idle_sensor_state_4).publish_state(out);
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
-              str_cb([gen, gen_ptr](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                if (!state.empty()) lv_label_set_text(id(idle_sensor_name_4), state.c_str());
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("unit_of_measurement"),
-              str_cb([gen, gen_ptr](const std::string &unit) {
-                if (gen != *gen_ptr) return;
-                lv_label_set_text(id(idle_sensor_unit_4), unit.c_str());
-                lv_point_t _sz;
-                lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_4)),
-                  lv_obj_get_style_text_font(id(idle_sensor_value_4), LV_PART_MAIN),
-                  lv_obj_get_style_text_letter_space(id(idle_sensor_value_4), LV_PART_MAIN),
-                  0, LV_COORD_MAX, 0);
-                lv_obj_set_x(id(idle_sensor_unit_4), 70 + _sz.x + 6);
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
-              str_cb([gen, gen_ptr](const std::string &icon_attr) {
-                if (gen != *gen_ptr) return;
-                const char *ic;
-                if (icon_attr == "mdi:thermometer" ||
-                    icon_attr == "mdi:thermometer-low" ||
-                    icon_attr == "mdi:thermometer-high") {
-                  ic = "\U000F050F";
-                } else if (icon_attr == "mdi:home-thermometer" ||
-                           icon_attr == "mdi:home-thermometer-outline") {
-                  ic = "\U000F0F54";
-                } else if (icon_attr == "mdi:water-percent") {
-                  ic = "\U000F058E";
-                } else if (icon_attr == "mdi:gauge") {
-                  ic = "\U000F028A";
-                } else if (icon_attr == "mdi:water") {
-                  ic = "\U000F058C";
-                } else if (icon_attr == "mdi:weather-windy") {
-                  ic = "\U000F059E";
-                } else if (icon_attr == "mdi:lightning-bolt" ||
-                           icon_attr == "mdi:flash") {
-                  ic = "\U000F140B";
-                } else if (icon_attr == "mdi:molecule-co2") {
-                  ic = "\U000F07E4";
-                } else if (icon_attr == "mdi:brightness-5" ||
-                           icon_attr == "mdi:white-balance-sunny") {
-                  ic = "\U000F05A8";
-                } else if (icon_attr == "mdi:motion-sensor") {
-                  ic = "\U000F0D91";
-                } else if (icon_attr == "mdi:power") {
-                  ic = "\U000F0425";
-                } else if (icon_attr == "mdi:clock-outline") {
-                  ic = "\U000F0150";
-                } else if (icon_attr == "mdi:sine-wave" ||
-                           icon_attr == "mdi:current-ac") {
-                  ic = "\U000F095B";
-                } else if (icon_attr == "mdi:run") {
-                  ic = "\U000F070E";
-                } else if (icon_attr == "mdi:walk") {
-                  ic = "\U000F0583";
-                } else if (icon_attr == "mdi:battery" ||
-                           icon_attr == "mdi:battery-charging" ||
-                           icon_attr == "mdi:battery-unknown") {
-                  ic = "\U000F0079";
-                } else if (icon_attr == "mdi:battery-high") {
-                  ic = "\U000F12A3";
-                } else if (icon_attr == "mdi:battery-medium") {
-                  ic = "\U000F12A2";
-                } else if (icon_attr == "mdi:battery-low") {
-                  ic = "\U000F12A1";
-                } else if (icon_attr == "mdi:solar-power") {
-                  ic = "\U000F0A72";
-                } else if (icon_attr == "mdi:solar-power-variant") {
-                  ic = "\U000F1A73";
-                } else if (icon_attr == "mdi:car-electric") {
-                  ic = "\U000F0B6C";
-                } else if (icon_attr == "mdi:home-battery") {
-                  ic = "\U000F1901";
-                } else if (icon_attr == "mdi:home") {
-                  ic = "\U000F02DC";
-                } else if (icon_attr == "mdi:delete-restore") {
-                  ic = "\U000F0819";
-                } else if (icon_attr == "mdi:trash-can") {
-                  ic = "\U000F0A79";
-                } else {
-                  ic = "\U000F0208";  // mdi:eye fallback
-                }
-                lv_label_set_text(id(idle_sensor_icon_4), ic);
-              }));
-
-          ESP_LOGI("idle_sensors", "Tile 4: subscribed to '%s'", entity.c_str());
-
-  - id: subscribe_idle_sensor_5
-    mode: restart
-    then:
-      - lambda: |-
-          std::string entity = id(idle_sensor_entity_5).state;
-
-          if (entity.empty()) {
-            lv_obj_add_flag(id(idle_sensor_tile_5), LV_OBJ_FLAG_HIDDEN);
-            lv_label_set_text(id(idle_sensor_name_5), "");
-            lv_label_set_text(id(idle_sensor_value_5), "\xe2\x80\x94");
-            lv_label_set_text(id(idle_sensor_icon_5), "");
-            lv_label_set_text(id(idle_sensor_unit_5), "");
-            id(idle_sensor_raw_5) = "";
-            return;
-          }
-
-          std::string name = entity;
-          size_t dot = name.rfind('.');
-          if (dot != std::string::npos) name = name.substr(dot + 1);
-          bool cap = true;
-          for (char &c : name) {
-            if (c == '_') { c = ' '; cap = true; }
-            else if (cap && isalpha((unsigned char)c)) { c = toupper(c); cap = false; }
-            else { cap = false; }
-          }
-          lv_label_set_text(id(idle_sensor_name_5), name.c_str());
-          lv_label_set_text(id(idle_sensor_icon_5), "\U000F0208");  // eye fallback
-          lv_label_set_text(id(idle_sensor_unit_5), "");
-          lv_obj_clear_flag(id(idle_sensor_tile_5), LV_OBJ_FLAG_HIDDEN);
-
-          if (esphome::api::global_api_server == nullptr) return;
-
-          id(idle_sensor_gen_5) += 1;
-          int gen = id(idle_sensor_gen_5);
-          int *gen_ptr = &id(idle_sensor_gen_5);
-
-          auto *api = esphome::api::global_api_server;
-          using str_cb = std::function<void(const std::string &)>;
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
-              str_cb([gen, gen_ptr](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                id(idle_sensor_raw_5) = state;
-                std::string out = state;
-                int prec = (int)id(idle_sensor_prec_5).state;
-                if (prec >= 0 && !state.empty()) {
-                  char *end; float val = strtof(state.c_str(), &end);
-                  if (end != state.c_str()) {
-                    char buf[32]; snprintf(buf, sizeof(buf), "%.*f", prec, val);
-                    out = buf;
-                  }
-                }
-                id(idle_sensor_state_5).publish_state(out);
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
-              str_cb([gen, gen_ptr](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                if (!state.empty()) lv_label_set_text(id(idle_sensor_name_5), state.c_str());
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("unit_of_measurement"),
-              str_cb([gen, gen_ptr](const std::string &unit) {
-                if (gen != *gen_ptr) return;
-                lv_label_set_text(id(idle_sensor_unit_5), unit.c_str());
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
-              str_cb([gen, gen_ptr](const std::string &icon_attr) {
-                if (gen != *gen_ptr) return;
-                const char *ic;
-                if (icon_attr == "mdi:thermometer" ||
-                    icon_attr == "mdi:thermometer-low" ||
-                    icon_attr == "mdi:thermometer-high") {
-                  ic = "\U000F050F";
-                } else if (icon_attr == "mdi:home-thermometer" ||
-                           icon_attr == "mdi:home-thermometer-outline") {
-                  ic = "\U000F0F54";
-                } else if (icon_attr == "mdi:water-percent") {
-                  ic = "\U000F058E";
-                } else if (icon_attr == "mdi:gauge") {
-                  ic = "\U000F028A";
-                } else if (icon_attr == "mdi:water") {
-                  ic = "\U000F058C";
-                } else if (icon_attr == "mdi:weather-windy") {
-                  ic = "\U000F059E";
-                } else if (icon_attr == "mdi:lightning-bolt" ||
-                           icon_attr == "mdi:flash") {
-                  ic = "\U000F140B";
-                } else if (icon_attr == "mdi:molecule-co2") {
-                  ic = "\U000F07E4";
-                } else if (icon_attr == "mdi:brightness-5" ||
-                           icon_attr == "mdi:white-balance-sunny") {
-                  ic = "\U000F05A8";
-                } else if (icon_attr == "mdi:motion-sensor") {
-                  ic = "\U000F0D91";
-                } else if (icon_attr == "mdi:power") {
-                  ic = "\U000F0425";
-                } else if (icon_attr == "mdi:clock-outline") {
-                  ic = "\U000F0150";
-                } else if (icon_attr == "mdi:sine-wave" ||
-                           icon_attr == "mdi:current-ac") {
-                  ic = "\U000F095B";
-                } else if (icon_attr == "mdi:run") {
-                  ic = "\U000F070E";
-                } else if (icon_attr == "mdi:walk") {
-                  ic = "\U000F0583";
-                } else if (icon_attr == "mdi:battery" ||
-                           icon_attr == "mdi:battery-charging" ||
-                           icon_attr == "mdi:battery-unknown") {
-                  ic = "\U000F0079";
-                } else if (icon_attr == "mdi:battery-high") {
-                  ic = "\U000F12A3";
-                } else if (icon_attr == "mdi:battery-medium") {
-                  ic = "\U000F12A2";
-                } else if (icon_attr == "mdi:battery-low") {
-                  ic = "\U000F12A1";
-                } else if (icon_attr == "mdi:solar-power") {
-                  ic = "\U000F0A72";
-                } else if (icon_attr == "mdi:solar-power-variant") {
-                  ic = "\U000F1A73";
-                } else if (icon_attr == "mdi:car-electric") {
-                  ic = "\U000F0B6C";
-                } else if (icon_attr == "mdi:home-battery") {
-                  ic = "\U000F1901";
-                } else if (icon_attr == "mdi:home") {
-                  ic = "\U000F02DC";
-                } else if (icon_attr == "mdi:delete-restore") {
-                  ic = "\U000F0819";
-                } else if (icon_attr == "mdi:trash-can") {
-                  ic = "\U000F0A79";
-                } else {
-                  ic = "\U000F0208";  // mdi:eye fallback
-                }
-                lv_label_set_text(id(idle_sensor_icon_5), ic);
-              }));
-
-          ESP_LOGI("idle_sensors", "Tile 5: subscribed to '%s'", entity.c_str());
-
-  - id: subscribe_idle_sensor_6
-    mode: restart
-    then:
-      - lambda: |-
-          std::string entity = id(idle_sensor_entity_6).state;
-
-          if (entity.empty()) {
-            lv_obj_add_flag(id(idle_sensor_tile_6), LV_OBJ_FLAG_HIDDEN);
-            lv_label_set_text(id(idle_sensor_name_6), "");
-            lv_label_set_text(id(idle_sensor_value_6), "\xe2\x80\x94");
-            lv_label_set_text(id(idle_sensor_icon_6), "");
-            lv_label_set_text(id(idle_sensor_unit_6), "");
-            id(idle_sensor_raw_6) = "";
-            return;
-          }
-
-          std::string name = entity;
-          size_t dot = name.rfind('.');
-          if (dot != std::string::npos) name = name.substr(dot + 1);
-          bool cap = true;
-          for (char &c : name) {
-            if (c == '_') { c = ' '; cap = true; }
-            else if (cap && isalpha((unsigned char)c)) { c = toupper(c); cap = false; }
-            else { cap = false; }
-          }
-          lv_label_set_text(id(idle_sensor_name_6), name.c_str());
-          lv_label_set_text(id(idle_sensor_icon_6), "\U000F0208");  // eye fallback
-          lv_label_set_text(id(idle_sensor_unit_6), "");
-          lv_obj_clear_flag(id(idle_sensor_tile_6), LV_OBJ_FLAG_HIDDEN);
-
-          if (esphome::api::global_api_server == nullptr) return;
-
-          id(idle_sensor_gen_6) += 1;
-          int gen = id(idle_sensor_gen_6);
-          int *gen_ptr = &id(idle_sensor_gen_6);
-
-          auto *api = esphome::api::global_api_server;
-          using str_cb = std::function<void(const std::string &)>;
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
-              str_cb([gen, gen_ptr](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                id(idle_sensor_raw_6) = state;
-                std::string out = state;
-                int prec = (int)id(idle_sensor_prec_6).state;
-                if (prec >= 0 && !state.empty()) {
-                  char *end; float val = strtof(state.c_str(), &end);
-                  if (end != state.c_str()) {
-                    char buf[32]; snprintf(buf, sizeof(buf), "%.*f", prec, val);
-                    out = buf;
-                  }
-                }
-                id(idle_sensor_state_6).publish_state(out);
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
-              str_cb([gen, gen_ptr](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                if (!state.empty()) lv_label_set_text(id(idle_sensor_name_6), state.c_str());
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("unit_of_measurement"),
-              str_cb([gen, gen_ptr](const std::string &unit) {
-                if (gen != *gen_ptr) return;
-                lv_label_set_text(id(idle_sensor_unit_6), unit.c_str());
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
-              str_cb([gen, gen_ptr](const std::string &icon_attr) {
-                if (gen != *gen_ptr) return;
-                const char *ic;
-                if (icon_attr == "mdi:thermometer" ||
-                    icon_attr == "mdi:thermometer-low" ||
-                    icon_attr == "mdi:thermometer-high") {
-                  ic = "\U000F050F";
-                } else if (icon_attr == "mdi:home-thermometer" ||
-                           icon_attr == "mdi:home-thermometer-outline") {
-                  ic = "\U000F0F54";
-                } else if (icon_attr == "mdi:water-percent") {
-                  ic = "\U000F058E";
-                } else if (icon_attr == "mdi:gauge") {
-                  ic = "\U000F028A";
-                } else if (icon_attr == "mdi:water") {
-                  ic = "\U000F058C";
-                } else if (icon_attr == "mdi:weather-windy") {
-                  ic = "\U000F059E";
-                } else if (icon_attr == "mdi:lightning-bolt" ||
-                           icon_attr == "mdi:flash") {
-                  ic = "\U000F140B";
-                } else if (icon_attr == "mdi:molecule-co2") {
-                  ic = "\U000F07E4";
-                } else if (icon_attr == "mdi:brightness-5" ||
-                           icon_attr == "mdi:white-balance-sunny") {
-                  ic = "\U000F05A8";
-                } else if (icon_attr == "mdi:motion-sensor") {
-                  ic = "\U000F0D91";
-                } else if (icon_attr == "mdi:power") {
-                  ic = "\U000F0425";
-                } else if (icon_attr == "mdi:clock-outline") {
-                  ic = "\U000F0150";
-                } else if (icon_attr == "mdi:sine-wave" ||
-                           icon_attr == "mdi:current-ac") {
-                  ic = "\U000F095B";
-                } else if (icon_attr == "mdi:run") {
-                  ic = "\U000F070E";
-                } else if (icon_attr == "mdi:walk") {
-                  ic = "\U000F0583";
-                } else if (icon_attr == "mdi:battery" ||
-                           icon_attr == "mdi:battery-charging" ||
-                           icon_attr == "mdi:battery-unknown") {
-                  ic = "\U000F0079";
-                } else if (icon_attr == "mdi:battery-high") {
-                  ic = "\U000F12A3";
-                } else if (icon_attr == "mdi:battery-medium") {
-                  ic = "\U000F12A2";
-                } else if (icon_attr == "mdi:battery-low") {
-                  ic = "\U000F12A1";
-                } else if (icon_attr == "mdi:solar-power") {
-                  ic = "\U000F0A72";
-                } else if (icon_attr == "mdi:solar-power-variant") {
-                  ic = "\U000F1A73";
-                } else if (icon_attr == "mdi:car-electric") {
-                  ic = "\U000F0B6C";
-                } else if (icon_attr == "mdi:home-battery") {
-                  ic = "\U000F1901";
-                } else if (icon_attr == "mdi:home") {
-                  ic = "\U000F02DC";
-                } else if (icon_attr == "mdi:delete-restore") {
-                  ic = "\U000F0819";
-                } else if (icon_attr == "mdi:trash-can") {
-                  ic = "\U000F0A79";
-                } else {
-                  ic = "\U000F0208";  // mdi:eye fallback
-                }
-                lv_label_set_text(id(idle_sensor_icon_6), ic);
-              }));
-
-          ESP_LOGI("idle_sensors", "Tile 6: subscribed to '%s'", entity.c_str());
-
-  - id: subscribe_idle_sensor_7
-    mode: restart
-    then:
-      - lambda: |-
-          std::string entity = id(idle_sensor_entity_7).state;
-
-          if (entity.empty()) {
-            lv_obj_add_flag(id(idle_sensor_tile_7), LV_OBJ_FLAG_HIDDEN);
-            lv_label_set_text(id(idle_sensor_name_7), "");
-            lv_label_set_text(id(idle_sensor_value_7), "\xe2\x80\x94");
-            lv_label_set_text(id(idle_sensor_icon_7), "");
-            lv_label_set_text(id(idle_sensor_unit_7), "");
-            id(idle_sensor_raw_7) = "";
-            return;
-          }
-
-          std::string name = entity;
-          size_t dot = name.rfind('.');
-          if (dot != std::string::npos) name = name.substr(dot + 1);
-          bool cap = true;
-          for (char &c : name) {
-            if (c == '_') { c = ' '; cap = true; }
-            else if (cap && isalpha((unsigned char)c)) { c = toupper(c); cap = false; }
-            else { cap = false; }
-          }
-          lv_label_set_text(id(idle_sensor_name_7), name.c_str());
-          lv_label_set_text(id(idle_sensor_icon_7), "\U000F0208");  // eye fallback
-          lv_label_set_text(id(idle_sensor_unit_7), "");
-          lv_obj_clear_flag(id(idle_sensor_tile_7), LV_OBJ_FLAG_HIDDEN);
-
-          if (esphome::api::global_api_server == nullptr) return;
-
-          id(idle_sensor_gen_7) += 1;
-          int gen = id(idle_sensor_gen_7);
-          int *gen_ptr = &id(idle_sensor_gen_7);
-
-          auto *api = esphome::api::global_api_server;
-          using str_cb = std::function<void(const std::string &)>;
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
-              str_cb([gen, gen_ptr](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                id(idle_sensor_raw_7) = state;
-                std::string out = state;
-                int prec = (int)id(idle_sensor_prec_7).state;
-                if (prec >= 0 && !state.empty()) {
-                  char *end; float val = strtof(state.c_str(), &end);
-                  if (end != state.c_str()) {
-                    char buf[32]; snprintf(buf, sizeof(buf), "%.*f", prec, val);
-                    out = buf;
-                  }
-                }
-                id(idle_sensor_state_7).publish_state(out);
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
-              str_cb([gen, gen_ptr](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                if (!state.empty()) lv_label_set_text(id(idle_sensor_name_7), state.c_str());
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("unit_of_measurement"),
-              str_cb([gen, gen_ptr](const std::string &unit) {
-                if (gen != *gen_ptr) return;
-                lv_label_set_text(id(idle_sensor_unit_7), unit.c_str());
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
-              str_cb([gen, gen_ptr](const std::string &icon_attr) {
-                if (gen != *gen_ptr) return;
-                const char *ic;
-                if (icon_attr == "mdi:thermometer" ||
-                    icon_attr == "mdi:thermometer-low" ||
-                    icon_attr == "mdi:thermometer-high") {
-                  ic = "\U000F050F";
-                } else if (icon_attr == "mdi:home-thermometer" ||
-                           icon_attr == "mdi:home-thermometer-outline") {
-                  ic = "\U000F0F54";
-                } else if (icon_attr == "mdi:water-percent") {
-                  ic = "\U000F058E";
-                } else if (icon_attr == "mdi:gauge") {
-                  ic = "\U000F028A";
-                } else if (icon_attr == "mdi:water") {
-                  ic = "\U000F058C";
-                } else if (icon_attr == "mdi:weather-windy") {
-                  ic = "\U000F059E";
-                } else if (icon_attr == "mdi:lightning-bolt" ||
-                           icon_attr == "mdi:flash") {
-                  ic = "\U000F140B";
-                } else if (icon_attr == "mdi:molecule-co2") {
-                  ic = "\U000F07E4";
-                } else if (icon_attr == "mdi:brightness-5" ||
-                           icon_attr == "mdi:white-balance-sunny") {
-                  ic = "\U000F05A8";
-                } else if (icon_attr == "mdi:motion-sensor") {
-                  ic = "\U000F0D91";
-                } else if (icon_attr == "mdi:power") {
-                  ic = "\U000F0425";
-                } else if (icon_attr == "mdi:clock-outline") {
-                  ic = "\U000F0150";
-                } else if (icon_attr == "mdi:sine-wave" ||
-                           icon_attr == "mdi:current-ac") {
-                  ic = "\U000F095B";
-                } else if (icon_attr == "mdi:run") {
-                  ic = "\U000F070E";
-                } else if (icon_attr == "mdi:walk") {
-                  ic = "\U000F0583";
-                } else if (icon_attr == "mdi:battery" ||
-                           icon_attr == "mdi:battery-charging" ||
-                           icon_attr == "mdi:battery-unknown") {
-                  ic = "\U000F0079";
-                } else if (icon_attr == "mdi:battery-high") {
-                  ic = "\U000F12A3";
-                } else if (icon_attr == "mdi:battery-medium") {
-                  ic = "\U000F12A2";
-                } else if (icon_attr == "mdi:battery-low") {
-                  ic = "\U000F12A1";
-                } else if (icon_attr == "mdi:solar-power") {
-                  ic = "\U000F0A72";
-                } else if (icon_attr == "mdi:solar-power-variant") {
-                  ic = "\U000F1A73";
-                } else if (icon_attr == "mdi:car-electric") {
-                  ic = "\U000F0B6C";
-                } else if (icon_attr == "mdi:home-battery") {
-                  ic = "\U000F1901";
-                } else if (icon_attr == "mdi:home") {
-                  ic = "\U000F02DC";
-                } else if (icon_attr == "mdi:delete-restore") {
-                  ic = "\U000F0819";
-                } else if (icon_attr == "mdi:trash-can") {
-                  ic = "\U000F0A79";
-                } else {
-                  ic = "\U000F0208";  // mdi:eye fallback
-                }
-                lv_label_set_text(id(idle_sensor_icon_7), ic);
-              }));
-
-          ESP_LOGI("idle_sensors", "Tile 7: subscribed to '%s'", entity.c_str());
-
-  - id: subscribe_idle_sensor_8
-    mode: restart
-    then:
-      - lambda: |-
-          std::string entity = id(idle_sensor_entity_8).state;
-
-          if (entity.empty()) {
-            lv_obj_add_flag(id(idle_sensor_tile_8), LV_OBJ_FLAG_HIDDEN);
-            lv_label_set_text(id(idle_sensor_name_8), "");
-            lv_label_set_text(id(idle_sensor_value_8), "\xe2\x80\x94");
-            lv_label_set_text(id(idle_sensor_icon_8), "");
-            lv_label_set_text(id(idle_sensor_unit_8), "");
-            id(idle_sensor_raw_8) = "";
-            return;
-          }
-
-          std::string name = entity;
-          size_t dot = name.rfind('.');
-          if (dot != std::string::npos) name = name.substr(dot + 1);
-          bool cap = true;
-          for (char &c : name) {
-            if (c == '_') { c = ' '; cap = true; }
-            else if (cap && isalpha((unsigned char)c)) { c = toupper(c); cap = false; }
-            else { cap = false; }
-          }
-          lv_label_set_text(id(idle_sensor_name_8), name.c_str());
-          lv_label_set_text(id(idle_sensor_icon_8), "\U000F0208");  // eye fallback
-          lv_label_set_text(id(idle_sensor_unit_8), "");
-          lv_obj_clear_flag(id(idle_sensor_tile_8), LV_OBJ_FLAG_HIDDEN);
-
-          if (esphome::api::global_api_server == nullptr) return;
-
-          id(idle_sensor_gen_8) += 1;
-          int gen = id(idle_sensor_gen_8);
-          int *gen_ptr = &id(idle_sensor_gen_8);
-
-          auto *api = esphome::api::global_api_server;
-          using str_cb = std::function<void(const std::string &)>;
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
-              str_cb([gen, gen_ptr](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                id(idle_sensor_raw_8) = state;
-                std::string out = state;
-                int prec = (int)id(idle_sensor_prec_8).state;
-                if (prec >= 0 && !state.empty()) {
-                  char *end; float val = strtof(state.c_str(), &end);
-                  if (end != state.c_str()) {
-                    char buf[32]; snprintf(buf, sizeof(buf), "%.*f", prec, val);
-                    out = buf;
-                  }
-                }
-                id(idle_sensor_state_8).publish_state(out);
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
-              str_cb([gen, gen_ptr](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                if (!state.empty()) lv_label_set_text(id(idle_sensor_name_8), state.c_str());
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("unit_of_measurement"),
-              str_cb([gen, gen_ptr](const std::string &unit) {
-                if (gen != *gen_ptr) return;
-                lv_label_set_text(id(idle_sensor_unit_8), unit.c_str());
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
-              str_cb([gen, gen_ptr](const std::string &icon_attr) {
-                if (gen != *gen_ptr) return;
-                const char *ic;
-                if (icon_attr == "mdi:thermometer" ||
-                    icon_attr == "mdi:thermometer-low" ||
-                    icon_attr == "mdi:thermometer-high") {
-                  ic = "\U000F050F";
-                } else if (icon_attr == "mdi:home-thermometer" ||
-                           icon_attr == "mdi:home-thermometer-outline") {
-                  ic = "\U000F0F54";
-                } else if (icon_attr == "mdi:water-percent") {
-                  ic = "\U000F058E";
-                } else if (icon_attr == "mdi:gauge") {
-                  ic = "\U000F028A";
-                } else if (icon_attr == "mdi:water") {
-                  ic = "\U000F058C";
-                } else if (icon_attr == "mdi:weather-windy") {
-                  ic = "\U000F059E";
-                } else if (icon_attr == "mdi:lightning-bolt" ||
-                           icon_attr == "mdi:flash") {
-                  ic = "\U000F140B";
-                } else if (icon_attr == "mdi:molecule-co2") {
-                  ic = "\U000F07E4";
-                } else if (icon_attr == "mdi:brightness-5" ||
-                           icon_attr == "mdi:white-balance-sunny") {
-                  ic = "\U000F05A8";
-                } else if (icon_attr == "mdi:motion-sensor") {
-                  ic = "\U000F0D91";
-                } else if (icon_attr == "mdi:power") {
-                  ic = "\U000F0425";
-                } else if (icon_attr == "mdi:clock-outline") {
-                  ic = "\U000F0150";
-                } else if (icon_attr == "mdi:sine-wave" ||
-                           icon_attr == "mdi:current-ac") {
-                  ic = "\U000F095B";
-                } else if (icon_attr == "mdi:run") {
-                  ic = "\U000F070E";
-                } else if (icon_attr == "mdi:walk") {
-                  ic = "\U000F0583";
-                } else if (icon_attr == "mdi:battery" ||
-                           icon_attr == "mdi:battery-charging" ||
-                           icon_attr == "mdi:battery-unknown") {
-                  ic = "\U000F0079";
-                } else if (icon_attr == "mdi:battery-high") {
-                  ic = "\U000F12A3";
-                } else if (icon_attr == "mdi:battery-medium") {
-                  ic = "\U000F12A2";
-                } else if (icon_attr == "mdi:battery-low") {
-                  ic = "\U000F12A1";
-                } else if (icon_attr == "mdi:solar-power") {
-                  ic = "\U000F0A72";
-                } else if (icon_attr == "mdi:solar-power-variant") {
-                  ic = "\U000F1A73";
-                } else if (icon_attr == "mdi:car-electric") {
-                  ic = "\U000F0B6C";
-                } else if (icon_attr == "mdi:home-battery") {
-                  ic = "\U000F1901";
-                } else if (icon_attr == "mdi:home") {
-                  ic = "\U000F02DC";
-                } else if (icon_attr == "mdi:delete-restore") {
-                  ic = "\U000F0819";
-                } else if (icon_attr == "mdi:trash-can") {
-                  ic = "\U000F0A79";
-                } else {
-                  ic = "\U000F0208";  // mdi:eye fallback
-                }
-                lv_label_set_text(id(idle_sensor_icon_8), ic);
-              }));
-
-          ESP_LOGI("idle_sensors", "Tile 8: subscribed to '%s'", entity.c_str());
-
-  - id: subscribe_idle_sensor_9
-    mode: restart
-    then:
-      - lambda: |-
-          std::string entity = id(idle_sensor_entity_9).state;
-
-          if (entity.empty()) {
-            lv_obj_add_flag(id(idle_sensor_tile_9), LV_OBJ_FLAG_HIDDEN);
-            lv_label_set_text(id(idle_sensor_name_9), "");
-            lv_label_set_text(id(idle_sensor_value_9), "\xe2\x80\x94");
-            lv_label_set_text(id(idle_sensor_icon_9), "");
-            lv_label_set_text(id(idle_sensor_unit_9), "");
-            id(idle_sensor_raw_9) = "";
-            return;
-          }
-
-          std::string name = entity;
-          size_t dot = name.rfind('.');
-          if (dot != std::string::npos) name = name.substr(dot + 1);
-          bool cap = true;
-          for (char &c : name) {
-            if (c == '_') { c = ' '; cap = true; }
-            else if (cap && isalpha((unsigned char)c)) { c = toupper(c); cap = false; }
-            else { cap = false; }
-          }
-          lv_label_set_text(id(idle_sensor_name_9), name.c_str());
-          lv_label_set_text(id(idle_sensor_icon_9), "\U000F0208");  // eye fallback
-          lv_label_set_text(id(idle_sensor_unit_9), "");
-          lv_obj_clear_flag(id(idle_sensor_tile_9), LV_OBJ_FLAG_HIDDEN);
-
-          if (esphome::api::global_api_server == nullptr) return;
-
-          id(idle_sensor_gen_9) += 1;
-          int gen = id(idle_sensor_gen_9);
-          int *gen_ptr = &id(idle_sensor_gen_9);
-
-          auto *api = esphome::api::global_api_server;
-          using str_cb = std::function<void(const std::string &)>;
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
-              str_cb([gen, gen_ptr](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                id(idle_sensor_raw_9) = state;
-                std::string out = state;
-                int prec = (int)id(idle_sensor_prec_9).state;
-                if (prec >= 0 && !state.empty()) {
-                  char *end; float val = strtof(state.c_str(), &end);
-                  if (end != state.c_str()) {
-                    char buf[32]; snprintf(buf, sizeof(buf), "%.*f", prec, val);
-                    out = buf;
-                  }
-                }
-                id(idle_sensor_state_9).publish_state(out);
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
-              str_cb([gen, gen_ptr](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                if (!state.empty()) lv_label_set_text(id(idle_sensor_name_9), state.c_str());
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("unit_of_measurement"),
-              str_cb([gen, gen_ptr](const std::string &unit) {
-                if (gen != *gen_ptr) return;
-                lv_label_set_text(id(idle_sensor_unit_9), unit.c_str());
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
-              str_cb([gen, gen_ptr](const std::string &icon_attr) {
-                if (gen != *gen_ptr) return;
-                const char *ic;
-                if (icon_attr == "mdi:thermometer" ||
-                    icon_attr == "mdi:thermometer-low" ||
-                    icon_attr == "mdi:thermometer-high") {
-                  ic = "\U000F050F";
-                } else if (icon_attr == "mdi:home-thermometer" ||
-                           icon_attr == "mdi:home-thermometer-outline") {
-                  ic = "\U000F0F54";
-                } else if (icon_attr == "mdi:water-percent") {
-                  ic = "\U000F058E";
-                } else if (icon_attr == "mdi:gauge") {
-                  ic = "\U000F028A";
-                } else if (icon_attr == "mdi:water") {
-                  ic = "\U000F058C";
-                } else if (icon_attr == "mdi:weather-windy") {
-                  ic = "\U000F059E";
-                } else if (icon_attr == "mdi:lightning-bolt" ||
-                           icon_attr == "mdi:flash") {
-                  ic = "\U000F140B";
-                } else if (icon_attr == "mdi:molecule-co2") {
-                  ic = "\U000F07E4";
-                } else if (icon_attr == "mdi:brightness-5" ||
-                           icon_attr == "mdi:white-balance-sunny") {
-                  ic = "\U000F05A8";
-                } else if (icon_attr == "mdi:motion-sensor") {
-                  ic = "\U000F0D91";
-                } else if (icon_attr == "mdi:power") {
-                  ic = "\U000F0425";
-                } else if (icon_attr == "mdi:clock-outline") {
-                  ic = "\U000F0150";
-                } else if (icon_attr == "mdi:sine-wave" ||
-                           icon_attr == "mdi:current-ac") {
-                  ic = "\U000F095B";
-                } else if (icon_attr == "mdi:run") {
-                  ic = "\U000F070E";
-                } else if (icon_attr == "mdi:walk") {
-                  ic = "\U000F0583";
-                } else if (icon_attr == "mdi:battery" ||
-                           icon_attr == "mdi:battery-charging" ||
-                           icon_attr == "mdi:battery-unknown") {
-                  ic = "\U000F0079";
-                } else if (icon_attr == "mdi:battery-high") {
-                  ic = "\U000F12A3";
-                } else if (icon_attr == "mdi:battery-medium") {
-                  ic = "\U000F12A2";
-                } else if (icon_attr == "mdi:battery-low") {
-                  ic = "\U000F12A1";
-                } else if (icon_attr == "mdi:solar-power") {
-                  ic = "\U000F0A72";
-                } else if (icon_attr == "mdi:solar-power-variant") {
-                  ic = "\U000F1A73";
-                } else if (icon_attr == "mdi:car-electric") {
-                  ic = "\U000F0B6C";
-                } else if (icon_attr == "mdi:home-battery") {
-                  ic = "\U000F1901";
-                } else if (icon_attr == "mdi:home") {
-                  ic = "\U000F02DC";
-                } else if (icon_attr == "mdi:delete-restore") {
-                  ic = "\U000F0819";
-                } else if (icon_attr == "mdi:trash-can") {
-                  ic = "\U000F0A79";
-                } else {
-                  ic = "\U000F0208";  // mdi:eye fallback
-                }
-                lv_label_set_text(id(idle_sensor_icon_9), ic);
-              }));
-
-          ESP_LOGI("idle_sensors", "Tile 9: subscribed to '%s'", entity.c_str());
+          ESP_LOGI("idle_sensors", "Tile %d: subscribed to '%s'", slot, entity.c_str());
 
 
 # Re-subscribe after HA reconnect (merged with api block in device.yaml)
@@ -2292,13 +1058,13 @@ api:
     - script.execute: subscribe_weather
     - script.execute: subscribe_local_temp
     - script.execute: subscribe_feels_like
-    - script.execute: subscribe_idle_sensor_0
-    - script.execute: subscribe_idle_sensor_1
-    - script.execute: subscribe_idle_sensor_2
-    - script.execute: subscribe_idle_sensor_3
-    - script.execute: subscribe_idle_sensor_4
-    - script.execute: subscribe_idle_sensor_5
-    - script.execute: subscribe_idle_sensor_6
-    - script.execute: subscribe_idle_sensor_7
-    - script.execute: subscribe_idle_sensor_8
-    - script.execute: subscribe_idle_sensor_9
+    - script.execute: {id: subscribe_idle_sensor, slot: 0}
+    - script.execute: {id: subscribe_idle_sensor, slot: 1}
+    - script.execute: {id: subscribe_idle_sensor, slot: 2}
+    - script.execute: {id: subscribe_idle_sensor, slot: 3}
+    - script.execute: {id: subscribe_idle_sensor, slot: 4}
+    - script.execute: {id: subscribe_idle_sensor, slot: 5}
+    - script.execute: {id: subscribe_idle_sensor, slot: 6}
+    - script.execute: {id: subscribe_idle_sensor, slot: 7}
+    - script.execute: {id: subscribe_idle_sensor, slot: 8}
+    - script.execute: {id: subscribe_idle_sensor, slot: 9}

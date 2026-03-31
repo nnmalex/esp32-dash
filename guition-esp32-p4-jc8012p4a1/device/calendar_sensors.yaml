@@ -118,7 +118,7 @@ text:
     min_length: 0
     max_length: 100
     on_value:
-      - script.execute: subscribe_calendar_0
+      - script.execute: {id: subscribe_calendar, slot: 0}
 
   - platform: template
     name: "Calendar 2 Entity"
@@ -132,7 +132,7 @@ text:
     min_length: 0
     max_length: 100
     on_value:
-      - script.execute: subscribe_calendar_1
+      - script.execute: {id: subscribe_calendar, slot: 1}
 
   - platform: template
     name: "Calendar 3 Entity"
@@ -146,7 +146,7 @@ text:
     min_length: 0
     max_length: 100
     on_value:
-      - script.execute: subscribe_calendar_2
+      - script.execute: {id: subscribe_calendar, slot: 2}
 
 
 # -----------------------------------------------------------------------------
@@ -357,7 +357,7 @@ script:
   # ---------------------------------------------------------------------------
   # Entry point for fetching all today+tomorrow events for the idle agenda.
   # Computes a 2-day window (today T00:00:00 → day-after-tomorrow T00:00:00),
-  # clears idle_events_buf, then chains through fetch_idle_http_0/1/2 before
+  # clears idle_events_buf, then chains through fetch_idle_http(0→1→2) before
   # calling render_idle_agenda.
   # Called by show_idle_view (navbar.yaml) and hourly from idle_view.yaml.
   # ---------------------------------------------------------------------------
@@ -391,41 +391,54 @@ script:
           id(idle_events_buf)  = "";
 
           ESP_LOGI("idle_fetch", "Window %s .. %s", s, e);
-      - script.execute: fetch_idle_http_0
+      - script.execute:
+          id: fetch_idle_http
+          slot: 0
 
   # ---------------------------------------------------------------------------
-  # fetch_idle_http_0  — fetch calendar entity 0 for idle agenda
+  # fetch_idle_http: fetch one calendar entity's events for the idle agenda.
+  # Called with slot=0; self-chains to slot+1, then triggers render_idle_agenda.
   # ---------------------------------------------------------------------------
-  - id: fetch_idle_http_0
+  - id: fetch_idle_http
+    parameters:
+      - name: slot
+        type: int
     mode: single
     then:
       - if:
           condition:
             lambda: |-
-              std::string e = id(calendar_entity_select_0).state;
+              std::string e;
+              switch (slot) {
+                case 0: e = id(calendar_entity_select_0).state; break;
+                case 1: e = id(calendar_entity_select_1).state; break;
+                case 2: e = id(calendar_entity_select_2).state; break;
+                default: return false;
+              }
               return !e.empty() && e.length() > 9 && e.substr(0,9) == "calendar."
                      && !id(ha_token_text).state.empty();
           then:
             - lambda: |-
-                std::string entity = id(calendar_entity_select_0).state;
-                std::string token  = id(ha_token_text).state;
+                std::string entity, token = id(ha_token_text).state;
+                switch (slot) {
+                  case 0: entity = id(calendar_entity_select_0).state; break;
+                  case 1: entity = id(calendar_entity_select_1).state; break;
+                  default: entity = id(calendar_entity_select_2).state; break;
+                }
                 std::string url =
-                    id(ha_base_url) + "/api/calendars/" +
-                    entity +
-                    "?start=" + id(idle_fetch_start) +
-                    "&end="   + id(idle_fetch_end);
+                    id(ha_base_url) + "/api/calendars/" + entity +
+                    "?start=" + id(idle_fetch_start) + "&end=" + id(idle_fetch_end);
 
                 std::list<esphome::http_request::Header> hdrs;
                 std::string auth = "Bearer " + token;
                 hdrs.push_back({"Authorization", auth.c_str()});
 
-                ESP_LOGI("idle_fetch", "GET cal 0: %s", url.c_str());
+                ESP_LOGI("idle_fetch", "GET cal %d: %s", slot, url.c_str());
                 auto container = id(http_req)->get(url, hdrs);
                 if (!container || container->status_code != 200) {
-                  ESP_LOGW("idle_fetch", "cal0 HTTP %d",
+                  ESP_LOGW("idle_fetch", "cal%d HTTP %d", slot,
                            container ? container->status_code : -1);
                   if (container) container->end();
-                  id(fetch_idle_http_1).execute();
                   return;
                 }
 
@@ -438,7 +451,7 @@ script:
                 container->end();
 
                 {
-                  int cal_idx = 0;
+                  int cal_idx = slot;
                   const char *p = body.c_str();
                   int depth = 0;
                   const char *ev_start = nullptr;
@@ -495,262 +508,91 @@ script:
                     }
                     p++;
                   }
-                  ESP_LOGI("idle_fetch", "cal0 parsed OK, buf len=%d", (int)id(idle_events_buf).length());
+                  ESP_LOGI("idle_fetch", "cal%d parsed OK, buf len=%d", slot,
+                           (int)id(idle_events_buf).length());
                 }
-      - script.execute: fetch_idle_http_1
+      - lambda: |-
+          if (slot < 2) id(fetch_idle_http).execute(slot + 1);
+          else id(render_idle_agenda).execute();
 
   # ---------------------------------------------------------------------------
-  # fetch_idle_http_1  — fetch calendar entity 1 for idle agenda
+  # subscribe_calendar: subscribes to HA state + attributes of calendar slot N.
   # ---------------------------------------------------------------------------
-  - id: fetch_idle_http_1
-    mode: single
-    then:
-      - if:
-          condition:
-            lambda: |-
-              std::string e = id(calendar_entity_select_1).state;
-              return !e.empty() && e.length() > 9 && e.substr(0,9) == "calendar."
-                     && !id(ha_token_text).state.empty();
-          then:
-            - lambda: |-
-                std::string entity = id(calendar_entity_select_1).state;
-                std::string token  = id(ha_token_text).state;
-                std::string url =
-                    id(ha_base_url) + "/api/calendars/" +
-                    entity +
-                    "?start=" + id(idle_fetch_start) +
-                    "&end="   + id(idle_fetch_end);
-
-                std::list<esphome::http_request::Header> hdrs;
-                std::string auth = "Bearer " + token;
-                hdrs.push_back({"Authorization", auth.c_str()});
-
-                ESP_LOGI("idle_fetch", "GET cal 1: %s", url.c_str());
-                auto container = id(http_req)->get(url, hdrs);
-                if (!container || container->status_code != 200) {
-                  ESP_LOGW("idle_fetch", "cal1 HTTP %d",
-                           container ? container->status_code : -1);
-                  if (container) container->end();
-                  id(fetch_idle_http_2).execute();
-                  return;
-                }
-
-                std::string body;
-                body.reserve(4096);
-                uint8_t buf[512];
-                int n;
-                while ((n = container->read(buf, sizeof(buf))) > 0)
-                  body.append(reinterpret_cast<char*>(buf), n);
-                container->end();
-
-                {
-                  int cal_idx = 1;
-                  const char *p = body.c_str();
-                  int depth = 0;
-                  const char *ev_start = nullptr;
-                  while (*p) {
-                    if (*p == '{') { if (++depth == 1) ev_start = p; }
-                    else if (*p == '}' && depth-- == 1 && ev_start) {
-                      std::string ev(ev_start, p + 1);
-                      ev_start = nullptr;
-
-                      const char *sk = strstr(ev.c_str(), "\"summary\":");
-                      if (!sk) { p++; continue; }
-                      const char *q1 = strchr(sk + 10, '"');
-                      if (!q1) { p++; continue; }
-                      q1++;
-                      const char *q2 = q1;
-                      while (*q2 && *q2 != '"') { if (*q2 == '\\') q2++; q2++; }
-                      std::string title(q1, q2);
-                      for (auto &c : title) if (c == '|') c = ' ';
-                      if (title.empty()) { p++; continue; }
-
-                      bool allday = false;
-                      char start_val[25] = "", end_val[25] = "";
-                      const char *stk = strstr(ev.c_str(), "\"start\":");
-                      if (stk) {
-                        const char *dt = strstr(stk, "\"dateTime\":");
-                        const char *d  = strstr(stk, "\"date\":");
-                        if (dt && (!d || dt < d)) {
-                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 19)); }
-                        } else if (d) {
-                          allday = true;
-                          const char *v1 = strchr(d + 7, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 10)); }
-                        }
-                      }
-                      if (start_val[0] == '\0') { p++; continue; }
-
-                      const char *enk = strstr(ev.c_str(), "\"end\":");
-                      if (enk && !allday) {
-                        const char *dt = strstr(enk, "\"dateTime\":");
-                        if (dt) {
-                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(end_val, v1, std::min((int)(v2-v1), 19)); }
-                        }
-                      }
-
-                      char line[300];
-                      snprintf(line, sizeof(line), "%d|%s|%s|%s|%d\n",
-                               cal_idx, title.c_str(), start_val, end_val, allday ? 1 : 0);
-                      id(idle_events_buf) += line;
-                    }
-                    p++;
-                  }
-                  ESP_LOGI("idle_fetch", "cal1 parsed OK, buf len=%d", (int)id(idle_events_buf).length());
-                }
-      - script.execute: fetch_idle_http_2
-
-  # ---------------------------------------------------------------------------
-  # fetch_idle_http_2  — fetch calendar entity 2 for idle agenda, then render
-  # ---------------------------------------------------------------------------
-  - id: fetch_idle_http_2
-    mode: single
-    then:
-      - if:
-          condition:
-            lambda: |-
-              std::string e = id(calendar_entity_select_2).state;
-              return !e.empty() && e.length() > 9 && e.substr(0,9) == "calendar."
-                     && !id(ha_token_text).state.empty();
-          then:
-            - lambda: |-
-                std::string entity = id(calendar_entity_select_2).state;
-                std::string token  = id(ha_token_text).state;
-                std::string url =
-                    id(ha_base_url) + "/api/calendars/" +
-                    entity +
-                    "?start=" + id(idle_fetch_start) +
-                    "&end="   + id(idle_fetch_end);
-
-                std::list<esphome::http_request::Header> hdrs;
-                std::string auth = "Bearer " + token;
-                hdrs.push_back({"Authorization", auth.c_str()});
-
-                ESP_LOGI("idle_fetch", "GET cal 2: %s", url.c_str());
-                auto container = id(http_req)->get(url, hdrs);
-                if (!container || container->status_code != 200) {
-                  ESP_LOGW("idle_fetch", "cal2 HTTP %d",
-                           container ? container->status_code : -1);
-                  if (container) container->end();
-                  id(render_idle_agenda).execute();
-                  return;
-                }
-
-                std::string body;
-                body.reserve(4096);
-                uint8_t buf[512];
-                int n;
-                while ((n = container->read(buf, sizeof(buf))) > 0)
-                  body.append(reinterpret_cast<char*>(buf), n);
-                container->end();
-
-                {
-                  int cal_idx = 2;
-                  const char *p = body.c_str();
-                  int depth = 0;
-                  const char *ev_start = nullptr;
-                  while (*p) {
-                    if (*p == '{') { if (++depth == 1) ev_start = p; }
-                    else if (*p == '}' && depth-- == 1 && ev_start) {
-                      std::string ev(ev_start, p + 1);
-                      ev_start = nullptr;
-
-                      const char *sk = strstr(ev.c_str(), "\"summary\":");
-                      if (!sk) { p++; continue; }
-                      const char *q1 = strchr(sk + 10, '"');
-                      if (!q1) { p++; continue; }
-                      q1++;
-                      const char *q2 = q1;
-                      while (*q2 && *q2 != '"') { if (*q2 == '\\') q2++; q2++; }
-                      std::string title(q1, q2);
-                      for (auto &c : title) if (c == '|') c = ' ';
-                      if (title.empty()) { p++; continue; }
-
-                      bool allday = false;
-                      char start_val[25] = "", end_val[25] = "";
-                      const char *stk = strstr(ev.c_str(), "\"start\":");
-                      if (stk) {
-                        const char *dt = strstr(stk, "\"dateTime\":");
-                        const char *d  = strstr(stk, "\"date\":");
-                        if (dt && (!d || dt < d)) {
-                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 19)); }
-                        } else if (d) {
-                          allday = true;
-                          const char *v1 = strchr(d + 7, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 10)); }
-                        }
-                      }
-                      if (start_val[0] == '\0') { p++; continue; }
-
-                      const char *enk = strstr(ev.c_str(), "\"end\":");
-                      if (enk && !allday) {
-                        const char *dt = strstr(enk, "\"dateTime\":");
-                        if (dt) {
-                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(end_val, v1, std::min((int)(v2-v1), 19)); }
-                        }
-                      }
-
-                      char line[300];
-                      snprintf(line, sizeof(line), "%d|%s|%s|%s|%d\n",
-                               cal_idx, title.c_str(), start_val, end_val, allday ? 1 : 0);
-                      id(idle_events_buf) += line;
-                    }
-                    p++;
-                  }
-                  ESP_LOGI("idle_fetch", "cal2 parsed OK, buf len=%d", (int)id(idle_events_buf).length());
-                }
-      - script.execute: render_idle_agenda
-
-  # ---------------------------------------------------------------------------
-  # subscribe_calendar_0
-  # ---------------------------------------------------------------------------
-  - id: subscribe_calendar_0
+  - id: subscribe_calendar
+    parameters:
+      - name: slot
+        type: int
     mode: restart
     then:
       - lambda: |-
-          std::string entity = id(calendar_entity_select_0).state;
+          std::string entity;
+          switch (slot) {
+            case 0: entity = id(calendar_entity_select_0).state; break;
+            case 1: entity = id(calendar_entity_select_1).state; break;
+            case 2: entity = id(calendar_entity_select_2).state; break;
+            default: return;
+          }
 
           // Reset slot to unconfigured state
           if (entity.empty() || entity.substr(0, 9) != "calendar.") {
-            id(cal_title_0) = "";
-            id(cal_start_0) = "";
-            id(cal_end_0)   = "";
-            id(cal_all_day_0) = "";
-            lv_label_set_text(id(cal_time_label_0), "\xe2\x80\x94");
-            lv_label_set_text(id(cal_title_label_0), "No calendar set");
-            lv_label_set_text(id(cal_desc_label_0), "");
+            switch (slot) {
+              case 0:
+                id(cal_title_0) = ""; id(cal_start_0) = ""; id(cal_end_0) = ""; id(cal_all_day_0) = "";
+                lv_label_set_text(id(cal_time_label_0), "\xe2\x80\x94");
+                lv_label_set_text(id(cal_title_label_0), "No calendar set");
+                lv_label_set_text(id(cal_desc_label_0), ""); break;
+              case 1:
+                id(cal_title_1) = ""; id(cal_start_1) = ""; id(cal_end_1) = ""; id(cal_all_day_1) = "";
+                lv_label_set_text(id(cal_time_label_1), "\xe2\x80\x94");
+                lv_label_set_text(id(cal_title_label_1), "No calendar set");
+                lv_label_set_text(id(cal_desc_label_1), ""); break;
+              default:
+                id(cal_title_2) = ""; id(cal_start_2) = ""; id(cal_end_2) = ""; id(cal_all_day_2) = "";
+                lv_label_set_text(id(cal_time_label_2), "\xe2\x80\x94");
+                lv_label_set_text(id(cal_title_label_2), "No calendar set");
+                lv_label_set_text(id(cal_desc_label_2), ""); break;
+            }
             id(render_idle_agenda).execute();
             if (!entity.empty()) {
-              ESP_LOGW("calendar", "Slot 0: '%s' must start with 'calendar.'", entity.c_str());
+              ESP_LOGW("calendar", "Slot %d: '%s' must start with 'calendar.'", slot, entity.c_str());
             }
             return;
           }
 
           if (esphome::api::global_api_server == nullptr) return;
 
-          id(cal_sub_gen_0) += 1;
-          int gen = id(cal_sub_gen_0);
-          int *gen_ptr = &id(cal_sub_gen_0);
+          // Resolve pointers to per-slot globals and labels
+          int *gen_ctr;
+          std::string *title_ptr, *start_ptr, *end_ptr, *allday_ptr;
+          lv_obj_t *time_lbl, *title_lbl, *desc_lbl;
+          switch (slot) {
+            case 0:
+              gen_ctr = &id(cal_sub_gen_0);
+              title_ptr = &id(cal_title_0); start_ptr = &id(cal_start_0);
+              end_ptr = &id(cal_end_0); allday_ptr = &id(cal_all_day_0);
+              time_lbl = id(cal_time_label_0); title_lbl = id(cal_title_label_0);
+              desc_lbl = id(cal_desc_label_0); break;
+            case 1:
+              gen_ctr = &id(cal_sub_gen_1);
+              title_ptr = &id(cal_title_1); start_ptr = &id(cal_start_1);
+              end_ptr = &id(cal_end_1); allday_ptr = &id(cal_all_day_1);
+              time_lbl = id(cal_time_label_1); title_lbl = id(cal_title_label_1);
+              desc_lbl = id(cal_desc_label_1); break;
+            default:
+              gen_ctr = &id(cal_sub_gen_2);
+              title_ptr = &id(cal_title_2); start_ptr = &id(cal_start_2);
+              end_ptr = &id(cal_end_2); allday_ptr = &id(cal_all_day_2);
+              time_lbl = id(cal_time_label_2); title_lbl = id(cal_title_label_2);
+              desc_lbl = id(cal_desc_label_2); break;
+          }
 
-          std::string *title_ptr   = &id(cal_title_0);
-          std::string *start_ptr   = &id(cal_start_0);
-          std::string *end_ptr     = &id(cal_end_0);
-          std::string *allday_ptr  = &id(cal_all_day_0);
+          (*gen_ctr) += 1;
+          int gen = *gen_ctr;
+          int *gen_ptr = gen_ctr;
 
           auto *api = esphome::api::global_api_server;
           using str_cb = std::function<void(const std::string &)>;
 
-          // ---- Helper: format start+all_day → "H:MM AM" or "All Day" ----
           auto fmt_time = [](const std::string &start, const std::string &all_day) -> std::string {
             if (all_day == "True" || all_day == "true" || all_day == "1") return std::string("All Day");
             if (start.length() < 16) return std::string("");
@@ -763,27 +605,26 @@ script:
             return std::string(buf);
           };
 
-          // message → title
+          // message → title label + agenda re-render
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("message"),
-              str_cb([gen, gen_ptr, title_ptr](const std::string &state) {
+              str_cb([gen, gen_ptr, title_ptr, title_lbl](const std::string &state) {
                 if (gen != *gen_ptr) return;
                 *title_ptr = state;
-                lv_label_set_text(id(cal_title_label_0),
-                    state.empty() ? "No upcoming events" : state.c_str());
+                lv_label_set_text(title_lbl, state.empty() ? "No upcoming events" : state.c_str());
                 id(render_idle_agenda).execute();
               }));
 
-          // start_time → time label on calendar page + triggers agenda re-render
+          // start_time → time label + agenda re-render
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("start_time"),
-              str_cb([gen, gen_ptr, start_ptr, allday_ptr, fmt_time](const std::string &state) {
+              str_cb([gen, gen_ptr, start_ptr, allday_ptr, time_lbl, fmt_time](const std::string &state) {
                 if (gen != *gen_ptr) return;
                 *start_ptr = state;
                 std::string ts = fmt_time(state, *allday_ptr);
-                lv_label_set_text(id(cal_time_label_0), ts.empty() ? "\xe2\x80\x94" : ts.c_str());
+                lv_label_set_text(time_lbl, ts.empty() ? "\xe2\x80\x94" : ts.c_str());
                 id(render_idle_agenda).execute();
               }));
 
-          // end_time → stored for past-event detection in render_idle_agenda
+          // end_time → stored for past-event detection
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("end_time"),
               str_cb([gen, gen_ptr, end_ptr](const std::string &state) {
                 if (gen != *gen_ptr) return;
@@ -793,206 +634,22 @@ script:
 
           // all_day → update time label
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("all_day"),
-              str_cb([gen, gen_ptr, allday_ptr, start_ptr, fmt_time](const std::string &state) {
+              str_cb([gen, gen_ptr, allday_ptr, start_ptr, time_lbl, fmt_time](const std::string &state) {
                 if (gen != *gen_ptr) return;
                 *allday_ptr = state;
                 std::string ts = fmt_time(*start_ptr, state);
-                lv_label_set_text(id(cal_time_label_0), ts.empty() ? "\xe2\x80\x94" : ts.c_str());
+                lv_label_set_text(time_lbl, ts.empty() ? "\xe2\x80\x94" : ts.c_str());
               }));
 
           // location → description label (calendar page only)
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("location"),
-              str_cb([gen, gen_ptr](const std::string &state) {
+              str_cb([gen, gen_ptr, desc_lbl](const std::string &state) {
                 if (gen != *gen_ptr) return;
-                lv_label_set_text(id(cal_desc_label_0), state.c_str());
+                lv_label_set_text(desc_lbl, state.c_str());
               }));
 
-          ESP_LOGI("calendar", "Slot 0: subscribed to '%s'", entity.c_str());
+          ESP_LOGI("calendar", "Slot %d: subscribed to '%s'", slot, entity.c_str());
 
-  # ---------------------------------------------------------------------------
-  # subscribe_calendar_1
-  # ---------------------------------------------------------------------------
-  - id: subscribe_calendar_1
-    mode: restart
-    then:
-      - lambda: |-
-          std::string entity = id(calendar_entity_select_1).state;
-
-          if (entity.empty() || entity.substr(0, 9) != "calendar.") {
-            id(cal_title_1) = "";
-            id(cal_start_1) = "";
-            id(cal_end_1)   = "";
-            id(cal_all_day_1) = "";
-            lv_label_set_text(id(cal_time_label_1), "\xe2\x80\x94");
-            lv_label_set_text(id(cal_title_label_1), "No calendar set");
-            lv_label_set_text(id(cal_desc_label_1), "");
-            id(render_idle_agenda).execute();
-            if (!entity.empty()) {
-              ESP_LOGW("calendar", "Slot 1: '%s' must start with 'calendar.'", entity.c_str());
-            }
-            return;
-          }
-
-          if (esphome::api::global_api_server == nullptr) return;
-
-          id(cal_sub_gen_1) += 1;
-          int gen = id(cal_sub_gen_1);
-          int *gen_ptr = &id(cal_sub_gen_1);
-
-          std::string *title_ptr   = &id(cal_title_1);
-          std::string *start_ptr   = &id(cal_start_1);
-          std::string *end_ptr     = &id(cal_end_1);
-          std::string *allday_ptr  = &id(cal_all_day_1);
-
-          auto *api = esphome::api::global_api_server;
-          using str_cb = std::function<void(const std::string &)>;
-
-          auto fmt_time = [](const std::string &start, const std::string &all_day) -> std::string {
-            if (all_day == "True" || all_day == "true" || all_day == "1") return std::string("All Day");
-            if (start.length() < 16) return std::string("");
-            int hour   = atoi(start.substr(11, 2).c_str());
-            int minute = atoi(start.substr(14, 2).c_str());
-            const char *ap = hour >= 12 ? "PM" : "AM";
-            int h12 = hour % 12; if (h12 == 0) h12 = 12;
-            char buf[16];
-            snprintf(buf, sizeof(buf), "%d:%02d %s", h12, minute, ap);
-            return std::string(buf);
-          };
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("message"),
-              str_cb([gen, gen_ptr, title_ptr](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                *title_ptr = state;
-                lv_label_set_text(id(cal_title_label_1),
-                    state.empty() ? "No upcoming events" : state.c_str());
-                id(render_idle_agenda).execute();
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("start_time"),
-              str_cb([gen, gen_ptr, start_ptr, allday_ptr, fmt_time](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                *start_ptr = state;
-                std::string ts = fmt_time(state, *allday_ptr);
-                lv_label_set_text(id(cal_time_label_1), ts.empty() ? "\xe2\x80\x94" : ts.c_str());
-                id(render_idle_agenda).execute();
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("end_time"),
-              str_cb([gen, gen_ptr, end_ptr](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                *end_ptr = state;
-                id(render_idle_agenda).execute();
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("all_day"),
-              str_cb([gen, gen_ptr, allday_ptr, start_ptr, fmt_time](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                *allday_ptr = state;
-                std::string ts = fmt_time(*start_ptr, state);
-                lv_label_set_text(id(cal_time_label_1), ts.empty() ? "\xe2\x80\x94" : ts.c_str());
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("location"),
-              str_cb([gen, gen_ptr](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                lv_label_set_text(id(cal_desc_label_1), state.c_str());
-              }));
-
-          ESP_LOGI("calendar", "Slot 1: subscribed to '%s'", entity.c_str());
-
-  # ---------------------------------------------------------------------------
-  # subscribe_calendar_2
-  # ---------------------------------------------------------------------------
-  - id: subscribe_calendar_2
-    mode: restart
-    then:
-      - lambda: |-
-          std::string entity = id(calendar_entity_select_2).state;
-
-          if (entity.empty() || entity.substr(0, 9) != "calendar.") {
-            id(cal_title_2) = "";
-            id(cal_start_2) = "";
-            id(cal_end_2)   = "";
-            id(cal_all_day_2) = "";
-            lv_label_set_text(id(cal_time_label_2), "\xe2\x80\x94");
-            lv_label_set_text(id(cal_title_label_2), "No calendar set");
-            lv_label_set_text(id(cal_desc_label_2), "");
-            id(render_idle_agenda).execute();
-            if (!entity.empty()) {
-              ESP_LOGW("calendar", "Slot 2: '%s' must start with 'calendar.'", entity.c_str());
-            }
-            return;
-          }
-
-          if (esphome::api::global_api_server == nullptr) return;
-
-          id(cal_sub_gen_2) += 1;
-          int gen = id(cal_sub_gen_2);
-          int *gen_ptr = &id(cal_sub_gen_2);
-
-          std::string *title_ptr   = &id(cal_title_2);
-          std::string *start_ptr   = &id(cal_start_2);
-          std::string *end_ptr     = &id(cal_end_2);
-          std::string *allday_ptr  = &id(cal_all_day_2);
-
-          auto *api = esphome::api::global_api_server;
-          using str_cb = std::function<void(const std::string &)>;
-
-          auto fmt_time = [](const std::string &start, const std::string &all_day) -> std::string {
-            if (all_day == "True" || all_day == "true" || all_day == "1") return std::string("All Day");
-            if (start.length() < 16) return std::string("");
-            int hour   = atoi(start.substr(11, 2).c_str());
-            int minute = atoi(start.substr(14, 2).c_str());
-            const char *ap = hour >= 12 ? "PM" : "AM";
-            int h12 = hour % 12; if (h12 == 0) h12 = 12;
-            char buf[16];
-            snprintf(buf, sizeof(buf), "%d:%02d %s", h12, minute, ap);
-            return std::string(buf);
-          };
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("message"),
-              str_cb([gen, gen_ptr, title_ptr](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                *title_ptr = state;
-                lv_label_set_text(id(cal_title_label_2),
-                    state.empty() ? "No upcoming events" : state.c_str());
-                id(render_idle_agenda).execute();
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("start_time"),
-              str_cb([gen, gen_ptr, start_ptr, allday_ptr, fmt_time](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                *start_ptr = state;
-                std::string ts = fmt_time(state, *allday_ptr);
-                lv_label_set_text(id(cal_time_label_2), ts.empty() ? "\xe2\x80\x94" : ts.c_str());
-                id(render_idle_agenda).execute();
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("end_time"),
-              str_cb([gen, gen_ptr, end_ptr](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                *end_ptr = state;
-                id(render_idle_agenda).execute();
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("all_day"),
-              str_cb([gen, gen_ptr, allday_ptr, start_ptr, fmt_time](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                *allday_ptr = state;
-                std::string ts = fmt_time(*start_ptr, state);
-                lv_label_set_text(id(cal_time_label_2), ts.empty() ? "\xe2\x80\x94" : ts.c_str());
-              }));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("location"),
-              str_cb([gen, gen_ptr](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                lv_label_set_text(id(cal_desc_label_2), state.c_str());
-              }));
-
-          ESP_LOGI("calendar", "Slot 2: subscribed to '%s'", entity.c_str());
-
-
-# =============================================================================
 # WEEK GRID — HTTP fetch from HA calendar REST API
 # =============================================================================
 # fetch_calendar_week  fetches up to 6 days of events from all 3 calendar
@@ -1045,7 +702,9 @@ script:
           id(cal_events_buf)  = "";
 
           ESP_LOGI("cal_fetch", "Window %s .. %s", s, e);
-      - script.execute: fetch_cal_http_0
+      - script.execute:
+          id: fetch_cal_http
+          slot: 0
 
   # ---------------------------------------------------------------------------
   # Shared inline JSON parser — used by all three fetch scripts.
@@ -1054,38 +713,49 @@ script:
   # ---------------------------------------------------------------------------
 
   # ---------------------------------------------------------------------------
-  # fetch_cal_http_0  — fetch calendar entity 0
+  # fetch_cal_http: fetch one calendar entity's events for the week grid view.
+  # Called with slot=0; self-chains to slot+1, then triggers render_calendar_grid.
   # ---------------------------------------------------------------------------
-  - id: fetch_cal_http_0
+  - id: fetch_cal_http
+    parameters:
+      - name: slot
+        type: int
     mode: single
     then:
       - if:
           condition:
             lambda: |-
-              std::string e = id(calendar_entity_select_0).state;
+              std::string e;
+              switch (slot) {
+                case 0: e = id(calendar_entity_select_0).state; break;
+                case 1: e = id(calendar_entity_select_1).state; break;
+                case 2: e = id(calendar_entity_select_2).state; break;
+                default: return false;
+              }
               return !e.empty() && e.length() > 9 && e.substr(0,9) == "calendar."
                      && !id(ha_token_text).state.empty();
           then:
             - lambda: |-
-                std::string entity = id(calendar_entity_select_0).state;
-                std::string token  = id(ha_token_text).state;
+                std::string entity, token = id(ha_token_text).state;
+                switch (slot) {
+                  case 0: entity = id(calendar_entity_select_0).state; break;
+                  case 1: entity = id(calendar_entity_select_1).state; break;
+                  default: entity = id(calendar_entity_select_2).state; break;
+                }
                 std::string url =
-                    id(ha_base_url) + "/api/calendars/" +
-                    entity +
-                    "?start=" + id(cal_fetch_start) +
-                    "&end="   + id(cal_fetch_end);
+                    id(ha_base_url) + "/api/calendars/" + entity +
+                    "?start=" + id(cal_fetch_start) + "&end=" + id(cal_fetch_end);
 
                 std::list<esphome::http_request::Header> hdrs;
                 std::string auth = "Bearer " + token;
                 hdrs.push_back({"Authorization", auth.c_str()});
 
-                ESP_LOGI("cal_fetch", "GET cal 0: %s", url.c_str());
+                ESP_LOGI("cal_fetch", "GET cal %d: %s", slot, url.c_str());
                 auto container = id(http_req)->get(url, hdrs);
                 if (!container || container->status_code != 200) {
-                  ESP_LOGW("cal_fetch", "cal0 HTTP %d",
+                  ESP_LOGW("cal_fetch", "cal%d HTTP %d", slot,
                            container ? container->status_code : -1);
                   if (container) container->end();
-                  id(fetch_cal_http_1).execute();
                   return;
                 }
 
@@ -1098,118 +768,9 @@ script:
                   body.append(reinterpret_cast<char*>(buf), n);
                 container->end();
 
-                // Parse JSON and append to cal_events_buf (cal_idx = 0)
+                // Parse JSON and append to cal_events_buf
                 {
-                  int cal_idx = 0;
-                  const char *p = body.c_str();
-                  int depth = 0;
-                  const char *ev_start = nullptr;
-                  while (*p) {
-                    if (*p == '{') { if (++depth == 1) ev_start = p; }
-                    else if (*p == '}' && depth-- == 1 && ev_start) {
-                      std::string ev(ev_start, p + 1);
-                      ev_start = nullptr;
-
-                      // Extract summary
-                      const char *sk = strstr(ev.c_str(), "\"summary\":");
-                      if (!sk) { p++; continue; }
-                      const char *q1 = strchr(sk + 10, '"');
-                      if (!q1) { p++; continue; }
-                      q1++;
-                      const char *q2 = q1;
-                      while (*q2 && *q2 != '"') { if (*q2 == '\\') q2++; q2++; }
-                      std::string title(q1, q2);
-                      for (auto &c : title) if (c == '|') c = ' ';
-                      if (title.empty()) { p++; continue; }
-
-                      // Extract start (prefer dateTime over date)
-                      bool allday = false;
-                      char start_val[25] = "", end_val[25] = "";
-                      const char *stk = strstr(ev.c_str(), "\"start\":");
-                      if (stk) {
-                        const char *dt = strstr(stk, "\"dateTime\":");
-                        const char *d  = strstr(stk, "\"date\":");
-                        if (dt && (!d || dt < d)) {
-                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 19)); }
-                        } else if (d) {
-                          allday = true;
-                          const char *v1 = strchr(d + 7, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 10)); }
-                        }
-                      }
-                      if (start_val[0] == '\0') { p++; continue; }
-
-                      // Extract end dateTime
-                      const char *enk = strstr(ev.c_str(), "\"end\":");
-                      if (enk && !allday) {
-                        const char *dt = strstr(enk, "\"dateTime\":");
-                        if (dt) {
-                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(end_val, v1, std::min((int)(v2-v1), 19)); }
-                        }
-                      }
-
-                      char line[300];
-                      snprintf(line, sizeof(line), "%d|%s|%s|%s|%d\n",
-                               cal_idx, title.c_str(), start_val, end_val, allday ? 1 : 0);
-                      id(cal_events_buf) += line;
-                    }
-                    p++;
-                  }
-                  ESP_LOGI("cal_fetch", "cal0 parsed OK, buf len=%d", (int)id(cal_events_buf).length());
-                }
-      - script.execute: fetch_cal_http_1
-
-  # ---------------------------------------------------------------------------
-  # fetch_cal_http_1  — fetch calendar entity 1
-  # ---------------------------------------------------------------------------
-  - id: fetch_cal_http_1
-    mode: single
-    then:
-      - if:
-          condition:
-            lambda: |-
-              std::string e = id(calendar_entity_select_1).state;
-              return !e.empty() && e.length() > 9 && e.substr(0,9) == "calendar."
-                     && !id(ha_token_text).state.empty();
-          then:
-            - lambda: |-
-                std::string entity = id(calendar_entity_select_1).state;
-                std::string token  = id(ha_token_text).state;
-                std::string url =
-                    id(ha_base_url) + "/api/calendars/" +
-                    entity +
-                    "?start=" + id(cal_fetch_start) +
-                    "&end="   + id(cal_fetch_end);
-
-                std::list<esphome::http_request::Header> hdrs;
-                std::string auth = "Bearer " + token;
-                hdrs.push_back({"Authorization", auth.c_str()});
-
-                ESP_LOGI("cal_fetch", "GET cal 1: %s", url.c_str());
-                auto container = id(http_req)->get(url, hdrs);
-                if (!container || container->status_code != 200) {
-                  ESP_LOGW("cal_fetch", "cal1 HTTP %d",
-                           container ? container->status_code : -1);
-                  if (container) container->end();
-                  id(fetch_cal_http_2).execute();
-                  return;
-                }
-
-                std::string body;
-                body.reserve(8192);
-                uint8_t buf[512];
-                int n;
-                while ((n = container->read(buf, sizeof(buf))) > 0)
-                  body.append(reinterpret_cast<char*>(buf), n);
-                container->end();
-
-                {
-                  int cal_idx = 1;
+                  int cal_idx = slot;
                   const char *p = body.c_str();
                   int depth = 0;
                   const char *ev_start = nullptr;
@@ -1266,120 +827,17 @@ script:
                     }
                     p++;
                   }
-                  ESP_LOGI("cal_fetch", "cal1 parsed OK, buf len=%d", (int)id(cal_events_buf).length());
+                  ESP_LOGI("cal_fetch", "cal%d parsed OK, buf len=%d", slot,
+                           (int)id(cal_events_buf).length());
                 }
-      - script.execute: fetch_cal_http_2
-
-  # ---------------------------------------------------------------------------
-  # fetch_cal_http_2  — fetch calendar entity 2, then render
-  # ---------------------------------------------------------------------------
-  - id: fetch_cal_http_2
-    mode: single
-    then:
-      - if:
-          condition:
-            lambda: |-
-              std::string e = id(calendar_entity_select_2).state;
-              return !e.empty() && e.length() > 9 && e.substr(0,9) == "calendar."
-                     && !id(ha_token_text).state.empty();
-          then:
-            - lambda: |-
-                std::string entity = id(calendar_entity_select_2).state;
-                std::string token  = id(ha_token_text).state;
-                std::string url =
-                    id(ha_base_url) + "/api/calendars/" +
-                    entity +
-                    "?start=" + id(cal_fetch_start) +
-                    "&end="   + id(cal_fetch_end);
-
-                std::list<esphome::http_request::Header> hdrs;
-                std::string auth = "Bearer " + token;
-                hdrs.push_back({"Authorization", auth.c_str()});
-
-                ESP_LOGI("cal_fetch", "GET cal 2: %s", url.c_str());
-                auto container = id(http_req)->get(url, hdrs);
-                if (!container || container->status_code != 200) {
-                  ESP_LOGW("cal_fetch", "cal2 HTTP %d",
-                           container ? container->status_code : -1);
-                  if (container) container->end();
-                  id(render_calendar_grid).execute();
-                  return;
-                }
-
-                std::string body;
-                body.reserve(8192);
-                uint8_t buf[512];
-                int n;
-                while ((n = container->read(buf, sizeof(buf))) > 0)
-                  body.append(reinterpret_cast<char*>(buf), n);
-                container->end();
-
-                {
-                  int cal_idx = 2;
-                  const char *p = body.c_str();
-                  int depth = 0;
-                  const char *ev_start = nullptr;
-                  while (*p) {
-                    if (*p == '{') { if (++depth == 1) ev_start = p; }
-                    else if (*p == '}' && depth-- == 1 && ev_start) {
-                      std::string ev(ev_start, p + 1);
-                      ev_start = nullptr;
-
-                      const char *sk = strstr(ev.c_str(), "\"summary\":");
-                      if (!sk) { p++; continue; }
-                      const char *q1 = strchr(sk + 10, '"');
-                      if (!q1) { p++; continue; }
-                      q1++;
-                      const char *q2 = q1;
-                      while (*q2 && *q2 != '"') { if (*q2 == '\\') q2++; q2++; }
-                      std::string title(q1, q2);
-                      for (auto &c : title) if (c == '|') c = ' ';
-                      if (title.empty()) { p++; continue; }
-
-                      bool allday = false;
-                      char start_val[25] = "", end_val[25] = "";
-                      const char *stk = strstr(ev.c_str(), "\"start\":");
-                      if (stk) {
-                        const char *dt = strstr(stk, "\"dateTime\":");
-                        const char *d  = strstr(stk, "\"date\":");
-                        if (dt && (!d || dt < d)) {
-                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 19)); }
-                        } else if (d) {
-                          allday = true;
-                          const char *v1 = strchr(d + 7, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 10)); }
-                        }
-                      }
-                      if (start_val[0] == '\0') { p++; continue; }
-
-                      const char *enk = strstr(ev.c_str(), "\"end\":");
-                      if (enk && !allday) {
-                        const char *dt = strstr(enk, "\"dateTime\":");
-                        if (dt) {
-                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(end_val, v1, std::min((int)(v2-v1), 19)); }
-                        }
-                      }
-
-                      char line[300];
-                      snprintf(line, sizeof(line), "%d|%s|%s|%s|%d\n",
-                               cal_idx, title.c_str(), start_val, end_val, allday ? 1 : 0);
-                      id(cal_events_buf) += line;
-                    }
-                    p++;
-                  }
-                  ESP_LOGI("cal_fetch", "cal2 parsed OK, buf len=%d", (int)id(cal_events_buf).length());
-                }
-      - script.execute: render_calendar_grid
+      - lambda: |-
+          if (slot < 2) id(fetch_cal_http).execute(slot + 1);
+          else id(render_calendar_grid).execute();
 
 
 # Re-subscribe after HA reconnect (merged with api block in device.yaml)
 api:
   on_client_connected:
-    - script.execute: subscribe_calendar_0
-    - script.execute: subscribe_calendar_1
-    - script.execute: subscribe_calendar_2
+    - script.execute: {id: subscribe_calendar, slot: 0}
+    - script.execute: {id: subscribe_calendar, slot: 1}
+    - script.execute: {id: subscribe_calendar, slot: 2}
