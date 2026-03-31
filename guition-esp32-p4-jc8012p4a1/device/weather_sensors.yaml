@@ -88,6 +88,13 @@ globals:
     type: int
     initial_value: '0'
 
+  # Rounded integer of the currently displayed temperature (-9999 = unknown).
+  # Updated whenever weather temp or local temp sensor changes.
+  # Used by the feels-like label to decide whether to show or hide.
+  - id: current_temp_int
+    type: int
+    initial_value: '-9999'
+
   # True when a local temperature sensor is active and overrides weather temp
   - id: use_local_temp
     type: bool
@@ -559,24 +566,36 @@ text_sensor:
           auto v = esphome::parse_number<float>(x);
           if (!v.has_value()) {
             lv_label_set_text(id(idle_weather_temp_label), "\xe2\x80\x94");
-            return;
+            id(current_temp_int) = -9999;
+          } else {
+            int rounded = (int)(v.value() + 0.5f);
+            char buf[16];
+            snprintf(buf, sizeof(buf), "%d\xc2\xb0", rounded);
+            lv_label_set_text(id(idle_weather_temp_label), buf);
+            id(current_temp_int) = rounded;
           }
-          char buf[16];
-          snprintf(buf, sizeof(buf), "%d\xc2\xb0", (int)(v.value() + 0.5f));
-          lv_label_set_text(id(idle_weather_temp_label), buf);
+          // Re-evaluate feels-like visibility now that main temp may have changed.
+          if (id(idle_weather_feels_sensor).has_state())
+            id(idle_weather_feels_sensor).publish_state(id(idle_weather_feels_sensor).state);
 
   # Feels-like temperature  e.g. "19.2" → "(feels 19°)"
+  # Hidden when feels-like rounds to the same integer as the current display temp.
   - platform: template
     id: idle_weather_feels_sensor
     on_value:
       - lambda: |-
           auto v = esphome::parse_number<float>(x);
-          if (!v.has_value()) {
+          if (!v.has_value() || id(current_temp_int) == -9999) {
+            lv_obj_add_flag(id(idle_weather_feels_label), LV_OBJ_FLAG_HIDDEN);
+            return;
+          }
+          int feels = (int)(v.value() + 0.5f);
+          if (feels == id(current_temp_int)) {
             lv_obj_add_flag(id(idle_weather_feels_label), LV_OBJ_FLAG_HIDDEN);
             return;
           }
           char buf[24];
-          snprintf(buf, sizeof(buf), "(feels %d\xc2\xb0)", (int)(v.value() + 0.5f));
+          snprintf(buf, sizeof(buf), "(feels %d\xc2\xb0)", feels);
           lv_label_set_text(id(idle_weather_feels_label), buf);
           lv_obj_clear_flag(id(idle_weather_feels_label), LV_OBJ_FLAG_HIDDEN);
 
@@ -785,9 +804,14 @@ script:
                 auto v = esphome::parse_number<float>(state);
                 if (!v.has_value()) return;
                 id(use_local_temp) = true;
+                int rounded = (int)(v.value() + 0.5f);
                 char buf[16];
-                snprintf(buf, sizeof(buf), "%d\xc2\xb0", (int)(v.value() + 0.5f));
+                snprintf(buf, sizeof(buf), "%d\xc2\xb0", rounded);
                 lv_label_set_text(id(idle_weather_temp_label), buf);
+                id(current_temp_int) = rounded;
+                // Re-evaluate feels-like visibility now that main temp may have changed.
+                if (id(idle_weather_feels_sensor).has_state())
+                  id(idle_weather_feels_sensor).publish_state(id(idle_weather_feels_sensor).state);
               }));
 
           ESP_LOGI("weather", "Local temp sensor: subscribed to '%s'", entity.c_str());
