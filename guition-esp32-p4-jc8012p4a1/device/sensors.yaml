@@ -332,6 +332,19 @@ sensor:
 
 number:
   - platform: template
+    name: "Screen: Return Timeout"
+    id: view_return_timeout
+    min_value: 0
+    max_value: 600
+    step: 5
+    initial_value: 60
+    optimistic: true
+    restore_value: true
+    unit_of_measurement: "s"
+    icon: "mdi:timer-outline"
+    entity_category: config
+
+  - platform: template
     name: "Speakers: Auto-Close Timeout"
     id: speaker_panel_timeout
     min_value: 0
