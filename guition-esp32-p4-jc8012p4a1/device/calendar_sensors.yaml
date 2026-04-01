@@ -1195,9 +1195,18 @@ script:
       - script.execute: render_calendar_grid
 
 
-# Re-subscribe after HA reconnect (merged with api block in device.yaml)
+# Background refresh — runs every 15 min regardless of current view
+interval:
+  - interval: 15min
+    then:
+      - script.execute: fetch_idle_agenda
+      - script.execute: fetch_calendar_week
+
+
+# Re-subscribe and seed data after HA reconnect (merged with api block in device.yaml)
 api:
   on_client_connected:
     - script.execute: {id: subscribe_calendar, slot: 0}
     - script.execute: {id: subscribe_calendar, slot: 1}
     - script.execute: {id: subscribe_calendar, slot: 2}
+    - script.execute: fetch_calendar_week
