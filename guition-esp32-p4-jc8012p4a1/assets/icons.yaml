@@ -64,6 +64,7 @@ font:
       - "\U000F059F"  # mdi-weather-windy-variant
       - "\U000F067E"  # mdi-weather-lightning-rainy
       - "\U000F067F"  # mdi-weather-snowy-rainy
+      - "\U000F051B"  # mdi-timer-outline
   - file: 'https://github.com/Templarian/MaterialDesign-Webfont/raw/v7.4.47/fonts/materialdesignicons-webfont.ttf'
     id: icon_font_small
     size: 28
@@ -113,3 +114,4 @@ substitutions:
   icon_skip_next:     "\U000F04AD"
   icon_heart:         "\U000F02D1"
   icon_heart_outline: "\U000F02D5"
+  icon_timer:         "\U000F051B"

@@ -1,0 +1,389 @@
+# =============================================================================
+# TIMER OVERLAY — floating bar above the nav bar showing active HA timers
+# =============================================================================
+# When any configured timer.* entity is active, a 42 px bar appears above the
+# nav bar (y=698) showing the soonest-expiring timer name and time remaining,
+# plus a "+N more" badge when multiple timers are running.
+#
+# The bar dismisses on tap and reappears on the next HA remaining update.
+# A local 1-second interval decrements remaining seconds between HA updates,
+# following the same pattern as playback position interpolation in sensors.yaml.
+#
+# Substitutions (set in packages.yaml or user config):
+#   timer_entity_1..3  — HA timer.* entity IDs (default "")
+#
+# Entity selectors are also exposed as NVS-persisted text entities in HA device
+# settings, following the same pattern as calendar_entity_1..3.
+# =============================================================================
+
+substitutions:
+  timer_entity_1: ""
+  timer_entity_2: ""
+  timer_entity_3: ""
+
+
+globals:
+  - id: tmr_state_0
+    type: std::string
+    initial_value: '""'
+  - id: tmr_state_1
+    type: std::string
+    initial_value: '""'
+  - id: tmr_state_2
+    type: std::string
+    initial_value: '""'
+
+  - id: tmr_remaining_secs_0
+    type: int
+    initial_value: '0'
+  - id: tmr_remaining_secs_1
+    type: int
+    initial_value: '0'
+  - id: tmr_remaining_secs_2
+    type: int
+    initial_value: '0'
+
+  - id: tmr_name_0
+    type: std::string
+    initial_value: '""'
+  - id: tmr_name_1
+    type: std::string
+    initial_value: '""'
+  - id: tmr_name_2
+    type: std::string
+    initial_value: '""'
+
+  - id: tmr_active_count
+    type: int
+    initial_value: '0'
+
+  - id: tmr_dismissed
+    type: bool
+    initial_value: 'false'
+
+  - id: tmr_sub_gen_0
+    type: int
+    initial_value: '0'
+  - id: tmr_sub_gen_1
+    type: int
+    initial_value: '0'
+  - id: tmr_sub_gen_2
+    type: int
+    initial_value: '0'
+
+
+# -----------------------------------------------------------------------------
+# Entity selector text entities (NVS-persisted, visible in device settings)
+# -----------------------------------------------------------------------------
+text:
+  - platform: template
+    name: "Timer 1 Entity"
+    id: timer_entity_select_0
+    entity_category: config
+    icon: "mdi:timer"
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${timer_entity_1}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: {id: subscribe_timer, slot: 0}
+
+  - platform: template
+    name: "Timer 2 Entity"
+    id: timer_entity_select_1
+    entity_category: config
+    icon: "mdi:timer"
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${timer_entity_2}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: {id: subscribe_timer, slot: 1}
+
+  - platform: template
+    name: "Timer 3 Entity"
+    id: timer_entity_select_2
+    entity_category: config
+    icon: "mdi:timer"
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${timer_entity_3}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: {id: subscribe_timer, slot: 2}
+
+
+# -----------------------------------------------------------------------------
+# Scripts
+# -----------------------------------------------------------------------------
+script:
+
+  # ---------------------------------------------------------------------------
+  # update_timer_bar: finds the soonest active timer, updates the overlay UI.
+  # Hides the bar when no timers are active or when dismissed.
+  # ---------------------------------------------------------------------------
+  - id: update_timer_bar
+    mode: single
+    then:
+      - lambda: |-
+          std::string *states[3] = {&id(tmr_state_0), &id(tmr_state_1), &id(tmr_state_2)};
+          int *secs[3] = {&id(tmr_remaining_secs_0), &id(tmr_remaining_secs_1), &id(tmr_remaining_secs_2)};
+
+          int active_count = 0;
+          int soonest_secs = INT_MAX;
+          int soonest_idx = -1;
+          for (int i = 0; i < 3; i++) {
+            if (*states[i] == "active") {
+              active_count++;
+              if (*secs[i] < soonest_secs) {
+                soonest_secs = *secs[i];
+                soonest_idx = i;
+              }
+            }
+          }
+          id(tmr_active_count) = active_count;
+
+          if (active_count == 0 || id(tmr_dismissed)) {
+            lv_obj_add_flag(id(timer_bar), LV_OBJ_FLAG_HIDDEN);
+            return;
+          }
+
+          lv_obj_clear_flag(id(timer_bar), LV_OBJ_FLAG_HIDDEN);
+
+          // Name label — show soonest timer's friendly name
+          std::string *names[3] = {&id(tmr_name_0), &id(tmr_name_1), &id(tmr_name_2)};
+          lv_label_set_text(id(tmr_bar_name_lbl), names[soonest_idx]->c_str());
+
+          // "+N more" badge — visible only when multiple timers are active
+          if (active_count > 1) {
+            char badge[16];
+            snprintf(badge, sizeof(badge), "+%d more", active_count - 1);
+            lv_label_set_text(id(tmr_bar_more_lbl), badge);
+            lv_obj_clear_flag(id(tmr_bar_more_lbl), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(tmr_bar_more_lbl), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          // Time label — MM:SS or H:MM:SS
+          int s = soonest_secs < 0 ? 0 : soonest_secs;
+          char time_buf[16];
+          if (s >= 3600)
+            snprintf(time_buf, sizeof(time_buf), "%d:%02d:%02d", s / 3600, (s % 3600) / 60, s % 60);
+          else
+            snprintf(time_buf, sizeof(time_buf), "%d:%02d", s / 60, s % 60);
+          lv_label_set_text(id(tmr_bar_time_lbl), time_buf);
+
+          // Red when < 60 seconds remaining
+          lv_obj_set_style_text_color(id(tmr_bar_time_lbl),
+              s < 60 ? lv_color_hex(0xFF6B6B) : lv_color_hex(0xEEEEEE), 0);
+
+  # ---------------------------------------------------------------------------
+  # tick_timers: called every 1 s to decrement active timers locally between
+  # HA state updates (same pattern as playback position in sensors.yaml).
+  # ---------------------------------------------------------------------------
+  - id: tick_timers
+    mode: single
+    then:
+      - lambda: |-
+          bool any_active = false;
+          std::string *states[3] = {&id(tmr_state_0), &id(tmr_state_1), &id(tmr_state_2)};
+          int *secs[3] = {&id(tmr_remaining_secs_0), &id(tmr_remaining_secs_1), &id(tmr_remaining_secs_2)};
+          for (int i = 0; i < 3; i++) {
+            if (*states[i] == "active") {
+              any_active = true;
+              if (*secs[i] > 0) (*secs[i])--;
+            }
+          }
+          if (any_active) id(update_timer_bar).execute();
+
+  # ---------------------------------------------------------------------------
+  # subscribe_timer: subscribes to HA state + remaining + friendly_name
+  # attributes for timer slot N. Uses generation counter to invalidate stale
+  # callbacks when the entity changes (same pattern as subscribe_calendar).
+  # ---------------------------------------------------------------------------
+  - id: subscribe_timer
+    parameters:
+      slot: int
+    mode: restart
+    then:
+      - lambda: |-
+          std::string entity;
+          switch (slot) {
+            case 0: entity = id(timer_entity_select_0).state; break;
+            case 1: entity = id(timer_entity_select_1).state; break;
+            case 2: entity = id(timer_entity_select_2).state; break;
+            default: return;
+          }
+
+          // Reset slot if entity is not configured or has wrong prefix
+          if (entity.empty() || entity.substr(0, 6) != "timer.") {
+            switch (slot) {
+              case 0: id(tmr_state_0) = ""; id(tmr_remaining_secs_0) = 0; id(tmr_name_0) = ""; break;
+              case 1: id(tmr_state_1) = ""; id(tmr_remaining_secs_1) = 0; id(tmr_name_1) = ""; break;
+              default: id(tmr_state_2) = ""; id(tmr_remaining_secs_2) = 0; id(tmr_name_2) = ""; break;
+            }
+            id(update_timer_bar).execute();
+            if (!entity.empty())
+              ESP_LOGW("timer", "Slot %d: '%s' must start with 'timer.'", slot, entity.c_str());
+            return;
+          }
+
+          if (esphome::api::global_api_server == nullptr) return;
+
+          int *gen_ctr;
+          std::string *state_ptr, *name_ptr;
+          int *secs_ptr;
+          switch (slot) {
+            case 0:
+              gen_ctr = &id(tmr_sub_gen_0);
+              state_ptr = &id(tmr_state_0); secs_ptr = &id(tmr_remaining_secs_0);
+              name_ptr = &id(tmr_name_0); break;
+            case 1:
+              gen_ctr = &id(tmr_sub_gen_1);
+              state_ptr = &id(tmr_state_1); secs_ptr = &id(tmr_remaining_secs_1);
+              name_ptr = &id(tmr_name_1); break;
+            default:
+              gen_ctr = &id(tmr_sub_gen_2);
+              state_ptr = &id(tmr_state_2); secs_ptr = &id(tmr_remaining_secs_2);
+              name_ptr = &id(tmr_name_2); break;
+          }
+
+          (*gen_ctr)++;
+          int gen = *gen_ctr;
+          int *gen_ptr = gen_ctr;
+
+          auto *api = esphome::api::global_api_server;
+          using str_cb = std::function<void(const std::string &)>;
+
+          // state → "active" / "idle" / "paused"
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(),
+              str_cb([gen, gen_ptr, state_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                *state_ptr = state;
+                id(update_timer_bar).execute();
+              }));
+
+          // remaining attribute → "H:MM:SS"; parse to seconds.
+          // Also clears tmr_dismissed so bar reappears after tap-dismiss.
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("remaining"),
+              str_cb([gen, gen_ptr, secs_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                int h = 0, m = 0, s = 0;
+                sscanf(state.c_str(), "%d:%d:%d", &h, &m, &s);
+                *secs_ptr = h * 3600 + m * 60 + s;
+                id(tmr_dismissed) = false;
+                id(update_timer_bar).execute();
+              }));
+
+          // friendly_name attribute → display name in the bar
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
+              str_cb([gen, gen_ptr, name_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                *name_ptr = state;
+                id(update_timer_bar).execute();
+              }));
+
+
+# 1-second local countdown between HA remaining-attribute updates
+interval:
+  - interval: 1s
+    then:
+      - script.execute: tick_timers
+
+
+# Re-subscribe to all timer slots after HA reconnect
+api:
+  on_client_connected:
+    - script.execute: {id: subscribe_timer, slot: 0}
+    - script.execute: {id: subscribe_timer, slot: 1}
+    - script.execute: {id: subscribe_timer, slot: 2}
+
+
+lvgl:
+  on_boot:
+    # Reparent timer_bar to lv_layer_top() so it floats above all pages,
+    # including the music page (same approach as nav_bar in navbar.yaml).
+    - lambda: |-
+        lv_obj_set_parent(id(timer_bar), lv_layer_top());
+
+  pages:
+    # -------------------------------------------------------------------------
+    # TIMER LAYER PAGE — placeholder page; timer_bar is reparented on boot.
+    # -------------------------------------------------------------------------
+    - id: timer_layer_page
+      scrollable: false
+      scrollbar_mode: "off"
+      width: 100%
+      height: 100%
+      bg_opa: 0%
+      widgets:
+        - button:
+            id: timer_bar
+            x: 0
+            y: 698
+            width: 1280
+            height: 42
+            bg_color: 0x1A1A1A
+            bg_opa: 90%
+            border_width: 0
+            radius: 0
+            pad_all: 0
+            shadow_width: 0
+            hidden: true
+            on_click:
+              - lambda: |-
+                  id(tmr_dismissed) = true;
+                  lv_obj_add_flag(id(timer_bar), LV_OBJ_FLAG_HIDDEN);
+            widgets:
+              # Timer icon (mdi:timer-outline)
+              - label:
+                  id: tmr_bar_icon_lbl
+                  x: 10
+                  y: 1
+                  width: 40
+                  height: 40
+                  text: $icon_timer
+                  text_font: icon_font
+                  text_color: 0xCCCCCC
+                  text_align: center
+
+              # Timer name (soonest-expiring active timer)
+              - label:
+                  id: tmr_bar_name_lbl
+                  x: 58
+                  y: 6
+                  width: 680
+                  text: ""
+                  text_font: roboto_light30_font
+                  text_color: 0xEEEEEE
+                  text_align: left
+                  long_mode: clip
+
+              # "+N more" badge — shown only when multiple timers are active
+              - label:
+                  id: tmr_bar_more_lbl
+                  x: 750
+                  y: 6
+                  width: 200
+                  text: ""
+                  text_font: roboto_light30_font
+                  text_color: 0x6CB4F0
+                  text_align: left
+                  hidden: true
+
+              # Time remaining (right edge; turns red when < 60 s)
+              - label:
+                  id: tmr_bar_time_lbl
+                  x: 960
+                  y: 6
+                  width: 308
+                  text: ""
+                  text_font: roboto30_font
+                  text_color: 0xEEEEEE
+                  text_align: right

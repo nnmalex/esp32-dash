@@ -108,6 +108,8 @@ Four LVGL pages defined across two files (`device/lvgl.yaml` + `device/navbar.ya
 
 Navigation bar (`nav_bar`) defined in `device/navbar.yaml`, reparented to `lv_layer_top()` on boot so it floats above all pages. 60px bar at y=740, hidden on music page, four icon buttons: Home, Music, Calendar, Forecast.
 
+Timer overlay (`timer_bar`) defined in `device/timer_overlay.yaml`, also reparented to `lv_layer_top()` on boot. 42px bar at y=698 (immediately above nav bar), hidden when no timers active. Shows soonest-expiring active timer name + MM:SS countdown + "+N more" badge. Tapping dismisses until next HA `remaining` update. Subscribes to up to 3 `timer.*` entities (compile-time substitutions `timer_entity_1..3` or runtime via HA device settings). Local 1s countdown between HA updates (same pattern as playback interpolation). Time label turns red when < 60 s remaining.
+
 Global state flags in `device/device.yaml`:
 - `is_screen_dimmed`, `is_clock_screensaver_showing` — backlight stages
 - `is_tv_mode` — switches to linked media player
@@ -140,6 +142,7 @@ Phase 4b (complete): Idle view redesign — two-pane layout (800px left + 480px 
 |---|---|---|
 | 5 | `device/forecast_view.yaml` | LVGL `forecast_page`: 7-day chart + precipitation + condition icons |
 | 5 | `device/forecast_sensors.yaml` | `wf_data_buf` global, `fetch_forecast` (HTTP POST), 30-min interval |
+| 6 | `device/timer_overlay.yaml` | floating `timer_bar` above nav bar; subscribes to up to 3 `timer.*` entities |
 
 ## Idle page: weather background images
 
