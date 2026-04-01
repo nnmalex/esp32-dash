@@ -123,9 +123,14 @@ script:
             id(cal_ad_0), id(cal_ad_1), id(cal_ad_2), id(cal_ad_3), id(cal_ad_4)
           };
 
-          // Hide everything
+          // Hide everything; show token hint when no token is configured
           for (int i = 0; i < 30; i++) lv_obj_add_flag(ev[i], LV_OBJ_FLAG_HIDDEN);
           for (int i = 0; i < 5;  i++) lv_obj_add_flag(ad[i], LV_OBJ_FLAG_HIDDEN);
+          if (id(ha_token_global).empty()) {
+            lv_obj_clear_flag(id(cal_no_token_hint), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(cal_no_token_hint), LV_OBJ_FLAG_HIDDEN);
+          }
 
           const uint32_t CAL_COLORS[3] = {0x4A90E2U, 0x5BA55AU, 0xE2914AU};
           const int HOUR_H = 44;
@@ -1863,6 +1868,21 @@ lvgl:
                         text_color: 0xFFFFFF
                         long_mode: WRAP
                         text_align: left
+
+        # ---------------------------------------------------------------
+        # No-token hint — shown when ha_token_global is empty
+        # ---------------------------------------------------------------
+        - label:
+            id: cal_no_token_hint
+            x: 190
+            y: 352
+            width: 900
+            height: 80
+            text: "No HA token configured\nAdd  ha_token: \"your-token\"  to packages.yaml"
+            text_font: roboto_light26_font
+            text_color: 0x555555
+            text_align: center
+            hidden: true
 
         # ---------------------------------------------------------------
         # Legacy labels (hidden) — referenced by unchanged subscription
