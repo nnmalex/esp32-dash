@@ -31,22 +31,6 @@ esphome:
       - "-DCONFIG_LV_DISP_DEF_REFR_PERIOD=10"
       - "-DCONFIG_COMPILER_OPTIMIZATION_PERF=y"
       - "-Wno-deprecated-declarations"
-  on_boot:
-    # Priority 600 runs before component setup() (~300), ensuring GSL3680 is
-    # cleanly reset before I2C communication begins.  After a software reset
-    # (OTA) the GSL3680 may be mid-transaction, leaving SDA stuck low.  Pulsing
-    # the hardware reset pin clears that state so the touchscreen component can
-    # initialise reliably.
-    priority: 600
-    then:
-      - lambda: |-
-          gpio_reset_pin(GPIO_NUM_22);
-          gpio_set_direction(GPIO_NUM_22, GPIO_MODE_OUTPUT);
-          gpio_set_level(GPIO_NUM_22, 0);        // assert reset (active-low)
-          vTaskDelay(pdMS_TO_TICKS(50));
-          gpio_set_level(GPIO_NUM_22, 1);        // release reset
-          vTaskDelay(pdMS_TO_TICKS(100));        // wait for GSL3680 internal boot
-          gpio_reset_pin(GPIO_NUM_22);           // hand pin back to touchscreen component
 
 
 # ESP32-C6 coprocessor for WiFi and Bluetooth via SDIO
