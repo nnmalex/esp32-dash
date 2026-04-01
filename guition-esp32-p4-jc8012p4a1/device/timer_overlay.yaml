@@ -12,6 +12,9 @@
 # Substitutions (set in packages.yaml or user config):
 #   timer_entity_1..3  — HA timer.* entity IDs (default "")
 #
+# Timer names are read from input_text.timer_name_<suffix> where the suffix
+# is the part of the timer entity ID after "timer." (e.g. timer.slot_1 → input_text.timer_name_slot_1).
+#
 # Entity selectors are also exposed as NVS-persisted text entities in HA device
 # settings, following the same pattern as calendar_entity_1..3.
 # =============================================================================
@@ -281,8 +284,10 @@ script:
                 id(update_timer_bar).execute();
               }));
 
-          // friendly_name attribute → display name in the bar
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
+          // input_text.timer_name_<slot> state → user-assigned timer name
+          // Derive entity ID: "timer.slot_1" → "input_text.timer_name_slot_1"
+          std::string name_entity = "input_text.timer_name_" + entity.substr(6);
+          api->subscribe_home_assistant_state(name_entity, esphome::optional<std::string>(),
               str_cb([gen, gen_ptr, name_ptr](const std::string &state) {
                 if (gen != *gen_ptr) return;
                 *name_ptr = state;
