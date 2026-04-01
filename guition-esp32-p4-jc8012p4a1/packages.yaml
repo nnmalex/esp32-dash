@@ -36,4 +36,5 @@ packages:
   calendar_sensors: !include device/calendar_sensors.yaml
   forecast_view: !include device/forecast_view.yaml
   forecast_sensors: !include device/forecast_sensors.yaml
+  timer_overlay: !include device/timer_overlay.yaml
   button: !include theme/button.yaml
