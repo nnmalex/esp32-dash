@@ -36,7 +36,6 @@ guition-esp32-p4-jc8012p4a1/
     lvgl.yaml           # all LVGL widget definitions (music_page + overlays)
     sensors.yaml        # template sensors, 1s playback interpolation
     media_player_select.yaml  # dynamic HA entity subscription
-    linked_sensors.yaml # TV/linked player sensors
   theme/
     button.yaml         # LVGL style definitions
 components/
@@ -112,7 +111,6 @@ Timer overlay (`timer_bar`) defined in `device/timer_overlay.yaml`, also reparen
 
 Global state flags in `device/device.yaml`:
 - `is_screen_dimmed`, `is_clock_screensaver_showing` — backlight stages
-- `is_tv_mode` — switches to linked media player
 - `setup_done`, `is_wifi_setup_done` — boot flow
 
 Global state in `device/navbar.yaml`:
