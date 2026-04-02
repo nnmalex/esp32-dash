@@ -5,6 +5,7 @@ substitutions:
   ha_protocol: "http"
   ha_verify_ssl: "true"
   ha_token: ""   # Long-lived access token for calendar/forecast REST API
+  ntp_server: "time.cloudflare.com"
   # Display rotation: 90 (default landscape) or 270 (flipped landscape)
   # Flip to 270 if mounting with the power cable on the opposite side
   display_rotation: "90"

@@ -54,6 +54,9 @@ substitutions:
   # calendar_entity_2: "calendar.family"
   # calendar_entity_3: "calendar.work"
 
+  # ── NTP time server ────────────────────────────────────────────────────────
+  # ntp_server: "time.cloudflare.com"   # default; change to your preferred NTP server
+
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
