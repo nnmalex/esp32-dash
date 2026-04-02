@@ -1,5 +1,10 @@
 # Home Assistant Time (used for play progress elapsed-time estimation in sensors.yaml)
 time:
+  - platform: sntp
+    id: sntp_time
+    servers:
+      - ${ntp_server}
+
   - platform: homeassistant
     id: ha_time
     timezone: UTC
