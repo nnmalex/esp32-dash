@@ -283,6 +283,7 @@ text_sensor:
                   - lvgl.widget.hide:
                       id: media_pause_icon
                   - script.execute: backlight_wake_timeout
+                  - script.execute: start_view_return_timeout
                   - if:
                       condition:
                         lambda: |-
