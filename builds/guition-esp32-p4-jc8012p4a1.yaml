@@ -12,6 +12,12 @@ esphome:
 packages:
   music_dashboard: !include ../guition-esp32-p4-jc8012p4a1/packages.yaml
 
+external_components:
+  - source:
+      type: local
+      path: ../components
+    components: [online_image]
+
 wifi:
   ap:
 
