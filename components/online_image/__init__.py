@@ -8,6 +8,7 @@ from esphome.components.http_request import CONF_HTTP_REQUEST_ID, HttpRequestCom
 from esphome.components.image import (
     IMAGE_TYPE,
     Image_,
+    add_metadata,
     get_image_type_enum,
     get_transparency_enum,
     validate_settings,
@@ -247,6 +248,13 @@ async def to_code(config):
         transparent,
         config[CONF_BUFFER_SIZE],
         config.get(CONF_BYTE_ORDER) != "LITTLE_ENDIAN",
+    )
+    add_metadata(
+        config[CONF_ID],
+        width,
+        height,
+        config[CONF_TYPE],
+        config[CONF_TRANSPARENCY],
     )
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_HTTP_REQUEST_ID])
