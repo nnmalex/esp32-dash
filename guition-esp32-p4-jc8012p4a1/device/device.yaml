@@ -25,6 +25,7 @@ esp32:
 esphome:
   name: ${name}
   friendly_name: ${friendly_name}
+  min_version: 2026.4.0
   includes:
     - ../guition-esp32-p4-jc8012p4a1/device/calendar_json.h
   platformio_options:
@@ -181,11 +182,9 @@ touchscreen:
     display: tft_display
     reset_pin: GPIO22
     interrupt_pin: GPIO21
-    # Touch mirror must match display_rotation (90 or 270); see packages.yaml
+    # LVGL rotation handles display/touch orientation; only keep the raw axis swap.
     transform:
       swap_xy: true
-      mirror_x: ${touch_mirror_x}
-      mirror_y: ${touch_mirror_y}
     on_touch:
       - lambda: |-
           id(was_panel_open) = id(is_panel_open);
@@ -355,7 +354,6 @@ display:
     model: JC8012P4A1
     id: tft_display
     reset_pin: GPIO27
-    rotation: ${display_rotation}  # 90 (default) or 270 (flipped landscape)
     auto_clear_enabled: false
     color_order: RGB
     dimensions:
