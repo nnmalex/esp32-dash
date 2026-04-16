@@ -6,12 +6,10 @@ substitutions:
   ha_verify_ssl: "true"
   ha_token: ""   # Long-lived access token for calendar/forecast REST API
   ntp_server: "time.cloudflare.com"
-  # Display rotation: 90 (default landscape) or 270 (flipped landscape)
+  # LVGL display rotation: 90 (default landscape) or 270 (flipped landscape)
   # Flip to 270 if mounting with the power cable on the opposite side
   display_rotation: "90"
-  # Touch transform (must match display_rotation):
-  #   90:  touch_mirror_x "false", touch_mirror_y "false"
-  #   270: touch_mirror_x "true",  touch_mirror_y "true"
+  # Touch mirroring is no longer needed for normal rotation handling.
   touch_mirror_x: "false"
   touch_mirror_y: "false"
 
