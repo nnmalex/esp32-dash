@@ -21,7 +21,7 @@ jobs:
           restore-keys: pio-${{ runner.os }}-
 
       - name: Install ESPHome
-        run: pip install esphome
+        run: pip install "esphome>=2026.4.0,<2026.5"
 
       - name: Compile firmware
         run: esphome compile builds/guition-esp32-p4-jc8012p4a1.yaml
