@@ -435,67 +435,9 @@ script:
                   body.append(reinterpret_cast<char*>(buf), n);
                 container->end();
 
-                {
-                  const int cal_idx = 0;
-                  const char *p = body.c_str();
-                  int depth = 0;
-                  const char *ev_start = nullptr;
-                  while (*p) {
-                    if (*p == '{') { if (++depth == 1) ev_start = p; }
-                    else if (*p == '}' && depth-- == 1 && ev_start) {
-                      std::string ev(ev_start, p + 1);
-                      ev_start = nullptr;
-
-                      const char *sk = strstr(ev.c_str(), "\"summary\":");
-                      if (!sk) { p++; continue; }
-                      const char *q1 = strchr(sk + 10, '"');
-                      if (!q1) { p++; continue; }
-                      q1++;
-                      const char *q2 = q1;
-                      while (*q2 && *q2 != '"') { if (*q2 == '\\') q2++; q2++; }
-                      std::string title(q1, q2);
-                      for (auto &c : title) if (c == '|') c = ' ';
-                      if (title.empty()) { p++; continue; }
-
-                      bool allday = false;
-                      char start_val[25] = "", end_val[25] = "";
-                      const char *stk = strstr(ev.c_str(), "\"start\":");
-                      if (stk) {
-                        const char *dt = strstr(stk, "\"dateTime\":");
-                        const char *d  = strstr(stk, "\"date\":");
-                        if (dt && (!d || dt < d)) {
-                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 19)); }
-                        } else if (d) {
-                          allday = true;
-                          const char *v1 = strchr(d + 7, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 10)); }
-                        }
-                      }
-                      if (start_val[0] == '\0') { p++; continue; }
-
-                      const char *enk = strstr(ev.c_str(), "\"end\":");
-                      if (enk && !allday) {
-                        const char *dt = strstr(enk, "\"dateTime\":");
-                        if (dt) {
-                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(end_val, v1, std::min((int)(v2-v1), 19)); }
-                        }
-                      }
-
-                      char line[300];
-                      snprintf(line, sizeof(line), "%d|%s|%s|%s|%d\n",
-                               cal_idx, title.c_str(), start_val, end_val, allday ? 1 : 0);
-                      id(idle_events_buf) += line;
-                    }
-                    p++;
-                  }
-                  ESP_LOGI("idle_fetch", "cal0 parsed OK, buf len=%d",
-                           (int)id(idle_events_buf).length());
-                }
+                int parsed = esp32_dash::calendar_json::append_calendar_events(body, 0, id(idle_events_buf));
+                ESP_LOGI("idle_fetch", "cal0 parsed %d events, buf len=%d",
+                         parsed, (int)id(idle_events_buf).length());
       - script.execute: fetch_idle_http_1
 
   - id: fetch_idle_http_1
@@ -536,67 +478,9 @@ script:
                   body.append(reinterpret_cast<char*>(buf), n);
                 container->end();
 
-                {
-                  const int cal_idx = 1;
-                  const char *p = body.c_str();
-                  int depth = 0;
-                  const char *ev_start = nullptr;
-                  while (*p) {
-                    if (*p == '{') { if (++depth == 1) ev_start = p; }
-                    else if (*p == '}' && depth-- == 1 && ev_start) {
-                      std::string ev(ev_start, p + 1);
-                      ev_start = nullptr;
-
-                      const char *sk = strstr(ev.c_str(), "\"summary\":");
-                      if (!sk) { p++; continue; }
-                      const char *q1 = strchr(sk + 10, '"');
-                      if (!q1) { p++; continue; }
-                      q1++;
-                      const char *q2 = q1;
-                      while (*q2 && *q2 != '"') { if (*q2 == '\\') q2++; q2++; }
-                      std::string title(q1, q2);
-                      for (auto &c : title) if (c == '|') c = ' ';
-                      if (title.empty()) { p++; continue; }
-
-                      bool allday = false;
-                      char start_val[25] = "", end_val[25] = "";
-                      const char *stk = strstr(ev.c_str(), "\"start\":");
-                      if (stk) {
-                        const char *dt = strstr(stk, "\"dateTime\":");
-                        const char *d  = strstr(stk, "\"date\":");
-                        if (dt && (!d || dt < d)) {
-                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 19)); }
-                        } else if (d) {
-                          allday = true;
-                          const char *v1 = strchr(d + 7, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 10)); }
-                        }
-                      }
-                      if (start_val[0] == '\0') { p++; continue; }
-
-                      const char *enk = strstr(ev.c_str(), "\"end\":");
-                      if (enk && !allday) {
-                        const char *dt = strstr(enk, "\"dateTime\":");
-                        if (dt) {
-                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(end_val, v1, std::min((int)(v2-v1), 19)); }
-                        }
-                      }
-
-                      char line[300];
-                      snprintf(line, sizeof(line), "%d|%s|%s|%s|%d\n",
-                               cal_idx, title.c_str(), start_val, end_val, allday ? 1 : 0);
-                      id(idle_events_buf) += line;
-                    }
-                    p++;
-                  }
-                  ESP_LOGI("idle_fetch", "cal1 parsed OK, buf len=%d",
-                           (int)id(idle_events_buf).length());
-                }
+                int parsed = esp32_dash::calendar_json::append_calendar_events(body, 1, id(idle_events_buf));
+                ESP_LOGI("idle_fetch", "cal1 parsed %d events, buf len=%d",
+                         parsed, (int)id(idle_events_buf).length());
       - script.execute: fetch_idle_http_2
 
   - id: fetch_idle_http_2
@@ -637,67 +521,9 @@ script:
                   body.append(reinterpret_cast<char*>(buf), n);
                 container->end();
 
-                {
-                  const int cal_idx = 2;
-                  const char *p = body.c_str();
-                  int depth = 0;
-                  const char *ev_start = nullptr;
-                  while (*p) {
-                    if (*p == '{') { if (++depth == 1) ev_start = p; }
-                    else if (*p == '}' && depth-- == 1 && ev_start) {
-                      std::string ev(ev_start, p + 1);
-                      ev_start = nullptr;
-
-                      const char *sk = strstr(ev.c_str(), "\"summary\":");
-                      if (!sk) { p++; continue; }
-                      const char *q1 = strchr(sk + 10, '"');
-                      if (!q1) { p++; continue; }
-                      q1++;
-                      const char *q2 = q1;
-                      while (*q2 && *q2 != '"') { if (*q2 == '\\') q2++; q2++; }
-                      std::string title(q1, q2);
-                      for (auto &c : title) if (c == '|') c = ' ';
-                      if (title.empty()) { p++; continue; }
-
-                      bool allday = false;
-                      char start_val[25] = "", end_val[25] = "";
-                      const char *stk = strstr(ev.c_str(), "\"start\":");
-                      if (stk) {
-                        const char *dt = strstr(stk, "\"dateTime\":");
-                        const char *d  = strstr(stk, "\"date\":");
-                        if (dt && (!d || dt < d)) {
-                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 19)); }
-                        } else if (d) {
-                          allday = true;
-                          const char *v1 = strchr(d + 7, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 10)); }
-                        }
-                      }
-                      if (start_val[0] == '\0') { p++; continue; }
-
-                      const char *enk = strstr(ev.c_str(), "\"end\":");
-                      if (enk && !allday) {
-                        const char *dt = strstr(enk, "\"dateTime\":");
-                        if (dt) {
-                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(end_val, v1, std::min((int)(v2-v1), 19)); }
-                        }
-                      }
-
-                      char line[300];
-                      snprintf(line, sizeof(line), "%d|%s|%s|%s|%d\n",
-                               cal_idx, title.c_str(), start_val, end_val, allday ? 1 : 0);
-                      id(idle_events_buf) += line;
-                    }
-                    p++;
-                  }
-                  ESP_LOGI("idle_fetch", "cal2 parsed OK, buf len=%d",
-                           (int)id(idle_events_buf).length());
-                }
+                int parsed = esp32_dash::calendar_json::append_calendar_events(body, 2, id(idle_events_buf));
+                ESP_LOGI("idle_fetch", "cal2 parsed %d events, buf len=%d",
+                         parsed, (int)id(idle_events_buf).length());
       - script.execute: render_idle_agenda
 
   # ---------------------------------------------------------------------------
@@ -929,67 +755,9 @@ script:
                   body.append(reinterpret_cast<char*>(buf), n);
                 container->end();
 
-                {
-                  const int cal_idx = 0;
-                  const char *p = body.c_str();
-                  int depth = 0;
-                  const char *ev_start = nullptr;
-                  while (*p) {
-                    if (*p == '{') { if (++depth == 1) ev_start = p; }
-                    else if (*p == '}' && depth-- == 1 && ev_start) {
-                      std::string ev(ev_start, p + 1);
-                      ev_start = nullptr;
-
-                      const char *sk = strstr(ev.c_str(), "\"summary\":");
-                      if (!sk) { p++; continue; }
-                      const char *q1 = strchr(sk + 10, '"');
-                      if (!q1) { p++; continue; }
-                      q1++;
-                      const char *q2 = q1;
-                      while (*q2 && *q2 != '"') { if (*q2 == '\\') q2++; q2++; }
-                      std::string title(q1, q2);
-                      for (auto &c : title) if (c == '|') c = ' ';
-                      if (title.empty()) { p++; continue; }
-
-                      bool allday = false;
-                      char start_val[25] = "", end_val[25] = "";
-                      const char *stk = strstr(ev.c_str(), "\"start\":");
-                      if (stk) {
-                        const char *dt = strstr(stk, "\"dateTime\":");
-                        const char *d  = strstr(stk, "\"date\":");
-                        if (dt && (!d || dt < d)) {
-                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 19)); }
-                        } else if (d) {
-                          allday = true;
-                          const char *v1 = strchr(d + 7, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 10)); }
-                        }
-                      }
-                      if (start_val[0] == '\0') { p++; continue; }
-
-                      const char *enk = strstr(ev.c_str(), "\"end\":");
-                      if (enk && !allday) {
-                        const char *dt = strstr(enk, "\"dateTime\":");
-                        if (dt) {
-                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(end_val, v1, std::min((int)(v2-v1), 19)); }
-                        }
-                      }
-
-                      char line[300];
-                      snprintf(line, sizeof(line), "%d|%s|%s|%s|%d\n",
-                               cal_idx, title.c_str(), start_val, end_val, allday ? 1 : 0);
-                      id(cal_events_buf) += line;
-                    }
-                    p++;
-                  }
-                  ESP_LOGI("cal_fetch", "cal0 parsed OK, buf len=%d",
-                           (int)id(cal_events_buf).length());
-                }
+                int parsed = esp32_dash::calendar_json::append_calendar_events(body, 0, id(cal_events_buf));
+                ESP_LOGI("cal_fetch", "cal0 parsed %d events, buf len=%d",
+                         parsed, (int)id(cal_events_buf).length());
       - script.execute: fetch_cal_http_1
 
   - id: fetch_cal_http_1
@@ -1030,67 +798,9 @@ script:
                   body.append(reinterpret_cast<char*>(buf), n);
                 container->end();
 
-                {
-                  const int cal_idx = 1;
-                  const char *p = body.c_str();
-                  int depth = 0;
-                  const char *ev_start = nullptr;
-                  while (*p) {
-                    if (*p == '{') { if (++depth == 1) ev_start = p; }
-                    else if (*p == '}' && depth-- == 1 && ev_start) {
-                      std::string ev(ev_start, p + 1);
-                      ev_start = nullptr;
-
-                      const char *sk = strstr(ev.c_str(), "\"summary\":");
-                      if (!sk) { p++; continue; }
-                      const char *q1 = strchr(sk + 10, '"');
-                      if (!q1) { p++; continue; }
-                      q1++;
-                      const char *q2 = q1;
-                      while (*q2 && *q2 != '"') { if (*q2 == '\\') q2++; q2++; }
-                      std::string title(q1, q2);
-                      for (auto &c : title) if (c == '|') c = ' ';
-                      if (title.empty()) { p++; continue; }
-
-                      bool allday = false;
-                      char start_val[25] = "", end_val[25] = "";
-                      const char *stk = strstr(ev.c_str(), "\"start\":");
-                      if (stk) {
-                        const char *dt = strstr(stk, "\"dateTime\":");
-                        const char *d  = strstr(stk, "\"date\":");
-                        if (dt && (!d || dt < d)) {
-                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 19)); }
-                        } else if (d) {
-                          allday = true;
-                          const char *v1 = strchr(d + 7, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 10)); }
-                        }
-                      }
-                      if (start_val[0] == '\0') { p++; continue; }
-
-                      const char *enk = strstr(ev.c_str(), "\"end\":");
-                      if (enk && !allday) {
-                        const char *dt = strstr(enk, "\"dateTime\":");
-                        if (dt) {
-                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(end_val, v1, std::min((int)(v2-v1), 19)); }
-                        }
-                      }
-
-                      char line[300];
-                      snprintf(line, sizeof(line), "%d|%s|%s|%s|%d\n",
-                               cal_idx, title.c_str(), start_val, end_val, allday ? 1 : 0);
-                      id(cal_events_buf) += line;
-                    }
-                    p++;
-                  }
-                  ESP_LOGI("cal_fetch", "cal1 parsed OK, buf len=%d",
-                           (int)id(cal_events_buf).length());
-                }
+                int parsed = esp32_dash::calendar_json::append_calendar_events(body, 1, id(cal_events_buf));
+                ESP_LOGI("cal_fetch", "cal1 parsed %d events, buf len=%d",
+                         parsed, (int)id(cal_events_buf).length());
       - script.execute: fetch_cal_http_2
 
   - id: fetch_cal_http_2
@@ -1131,67 +841,9 @@ script:
                   body.append(reinterpret_cast<char*>(buf), n);
                 container->end();
 
-                {
-                  const int cal_idx = 2;
-                  const char *p = body.c_str();
-                  int depth = 0;
-                  const char *ev_start = nullptr;
-                  while (*p) {
-                    if (*p == '{') { if (++depth == 1) ev_start = p; }
-                    else if (*p == '}' && depth-- == 1 && ev_start) {
-                      std::string ev(ev_start, p + 1);
-                      ev_start = nullptr;
-
-                      const char *sk = strstr(ev.c_str(), "\"summary\":");
-                      if (!sk) { p++; continue; }
-                      const char *q1 = strchr(sk + 10, '"');
-                      if (!q1) { p++; continue; }
-                      q1++;
-                      const char *q2 = q1;
-                      while (*q2 && *q2 != '"') { if (*q2 == '\\') q2++; q2++; }
-                      std::string title(q1, q2);
-                      for (auto &c : title) if (c == '|') c = ' ';
-                      if (title.empty()) { p++; continue; }
-
-                      bool allday = false;
-                      char start_val[25] = "", end_val[25] = "";
-                      const char *stk = strstr(ev.c_str(), "\"start\":");
-                      if (stk) {
-                        const char *dt = strstr(stk, "\"dateTime\":");
-                        const char *d  = strstr(stk, "\"date\":");
-                        if (dt && (!d || dt < d)) {
-                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 19)); }
-                        } else if (d) {
-                          allday = true;
-                          const char *v1 = strchr(d + 7, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(start_val, v1, std::min((int)(v2-v1), 10)); }
-                        }
-                      }
-                      if (start_val[0] == '\0') { p++; continue; }
-
-                      const char *enk = strstr(ev.c_str(), "\"end\":");
-                      if (enk && !allday) {
-                        const char *dt = strstr(enk, "\"dateTime\":");
-                        if (dt) {
-                          const char *v1 = strchr(dt + 11, '"'); if (v1) v1++;
-                          if (v1) { const char *v2 = strchr(v1, '"');
-                                    if (v2) strncpy(end_val, v1, std::min((int)(v2-v1), 19)); }
-                        }
-                      }
-
-                      char line[300];
-                      snprintf(line, sizeof(line), "%d|%s|%s|%s|%d\n",
-                               cal_idx, title.c_str(), start_val, end_val, allday ? 1 : 0);
-                      id(cal_events_buf) += line;
-                    }
-                    p++;
-                  }
-                  ESP_LOGI("cal_fetch", "cal2 parsed OK, buf len=%d",
-                           (int)id(cal_events_buf).length());
-                }
+                int parsed = esp32_dash::calendar_json::append_calendar_events(body, 2, id(cal_events_buf));
+                ESP_LOGI("cal_fetch", "cal2 parsed %d events, buf len=%d",
+                         parsed, (int)id(cal_events_buf).length());
       - script.execute: render_calendar_grid
 
 

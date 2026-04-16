@@ -552,8 +552,11 @@ text_sensor:
           // Load weather background image if path is configured
           std::string path = id(weather_bg_path_global);
           if (!path.empty() && !x.empty()) {
-            id(weather_bg_url_str) = id(ha_base_url) + path + "/" + x + ".jpg";
-            id(load_weather_bg).execute();
+            std::string new_url = id(ha_base_url) + path + "/" + x + ".jpg";
+            if (new_url != id(weather_bg_url_str)) {
+              id(weather_bg_url_str) = new_url;
+              id(load_weather_bg).execute();
+            }
           }
 
   # Weather temperature  e.g. "21.7" → "22°"

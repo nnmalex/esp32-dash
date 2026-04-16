@@ -25,6 +25,8 @@ esp32:
 esphome:
   name: ${name}
   friendly_name: ${friendly_name}
+  includes:
+    - device/calendar_json.h
   platformio_options:
     board_build.flash_mode: dio
     build_flags:

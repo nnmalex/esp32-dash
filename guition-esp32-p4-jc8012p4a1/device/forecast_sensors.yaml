@@ -81,64 +81,31 @@ script:
 
           if (id(wf_fetch_gen) != my_gen) return;  // superseded
 
-          // Locate "forecast":[ in the response (with optional space before [)
-          const char *fc = strstr(resp.c_str(), "\"forecast\":[");
-          if (!fc) fc = strstr(resp.c_str(), "\"forecast\": [");
-          if (!fc) {
+          std::string forecast_arr;
+          if (!esp32_dash::calendar_json::extract_array_field(resp, "forecast", forecast_arr)) {
             ESP_LOGW("forecast", "No 'forecast' key in response — clearing display");
             id(wf_data_buf) = "";
             id(render_forecast).execute();
             return;
           }
-          // Advance past the opening [
-          while (*fc && *fc != '[') fc++;
-          if (*fc == '[') fc++;
 
           // Parse each day object from the array
           std::string new_buf;
           new_buf.reserve(1024);
           int day_count = 0;
-          const char *p = fc;
+          for (size_t pos = 0; pos < forecast_arr.size() && day_count < 7; pos++) {
+            if (forecast_arr[pos] != '{') continue;
 
-          while (*p && day_count < 7) {
-            // Skip to next { (or ] to end array)
-            while (*p && *p != '{' && *p != ']') p++;
-            if (!*p || *p == ']') break;
-
-            // Capture balanced {...}
-            const char *obj_start = p;
-            int depth = 0;
-            while (*p) {
-              if (*p == '{') depth++;
-              else if (*p == '}') { if (--depth == 0) { p++; break; } }
-              p++;
+            size_t end = 0;
+            if (!esp32_dash::calendar_json::extract_object_span(forecast_arr, pos, end)) {
+              break;
             }
-            std::string obj(obj_start, p);
 
-            // --- Field extractors ---
-            auto get_str = [&](const char *key) -> std::string {
-              std::string k = std::string("\"") + key + "\":\"";
-              const char *kp = strstr(obj.c_str(), k.c_str());
-              if (!kp) return "";
-              kp += k.size();
-              const char *ep = strchr(kp, '"');
-              return ep ? std::string(kp, ep) : "";
-            };
-            auto get_num = [&](const char *key) -> float {
-              std::string k = std::string("\"") + key + "\":";
-              const char *kp = strstr(obj.c_str(), k.c_str());
-              if (!kp) {
-                k = std::string("\"") + key + "\": ";
-                kp = strstr(obj.c_str(), k.c_str());
-                if (!kp) return 0.0f;
-              }
-              kp += k.size();
-              while (*kp == ' ') kp++;
-              if (strncmp(kp, "null", 4) == 0) return 0.0f;
-              return atof(kp);
-            };
+            std::string obj(forecast_arr, pos, end - pos + 1);
+            pos = end;
 
-            std::string dt = get_str("datetime");
+            std::string dt;
+            if (!esp32_dash::calendar_json::extract_string_field(obj, "datetime", dt)) continue;
             if (dt.size() < 10) continue;
 
             // Parse YYYY-MM-DD → day-of-week via mktime
@@ -155,13 +122,22 @@ script:
             const char *day_names[] = {"SUN","MON","TUE","WED","THU","FRI","SAT"};
             const char *day_name = day_names[tm_d.tm_wday & 7];
 
-            float high   = get_num("temperature");
-            float low    = get_num("templow");
-            float precip = get_num("precipitation");
-            int   prob   = (int)get_num("precipitation_probability");
+            float high = 0.0f;
+            float low = 0.0f;
+            float precip = 0.0f;
+            float prob_f = 0.0f;
+            esp32_dash::calendar_json::extract_number_field(obj, "temperature", high);
+            esp32_dash::calendar_json::extract_number_field(obj, "templow", low);
+            esp32_dash::calendar_json::extract_number_field(obj, "precipitation", precip);
+            esp32_dash::calendar_json::extract_number_field(obj, "precipitation_probability", prob_f);
+            int prob = (int)prob_f;
 
-            std::string cond = get_str("condition");
+            std::string cond;
+            esp32_dash::calendar_json::extract_string_field(obj, "condition", cond);
             if (cond.empty()) cond = "cloudy";
+            for (char &c : cond) {
+              if (c == '|' || c == '\n' || c == '\r') c = ' ';
+            }
 
             // "DAYNAME|DAYNUM|HIGH|LOW|PRECIP|PROB|COND\n"
             char line[128];

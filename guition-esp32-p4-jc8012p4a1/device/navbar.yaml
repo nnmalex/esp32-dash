@@ -43,6 +43,7 @@ script:
       - script.execute: render_calendar_grid  # render on hidden page before showing
       - lvgl.page.show: calendar_page
       - lvgl.widget.show: nav_bar
+      - script.execute: fetch_calendar_week
 
   - id: show_forecast_view
     mode: single
