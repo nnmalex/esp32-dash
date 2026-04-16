@@ -26,7 +26,7 @@ esphome:
   name: ${name}
   friendly_name: ${friendly_name}
   includes:
-    - device/calendar_json.h
+    - ../guition-esp32-p4-jc8012p4a1/device/calendar_json.h
   platformio_options:
     board_build.flash_mode: dio
     build_flags:
