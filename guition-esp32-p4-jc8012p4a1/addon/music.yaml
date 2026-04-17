@@ -29,7 +29,7 @@ external_components:
       url: https://github.com/nnmalex/esp32-dash
       ref: main
       path: components
-    components: [online_image]
+    components: [online_image, calendar_json]
     refresh: 1s
 
 http_request:
