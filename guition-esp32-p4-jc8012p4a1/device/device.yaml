@@ -359,7 +359,6 @@ display:
     model: JC8012P4A1
     id: tft_display
     reset_pin: GPIO27
-    rotation: ${display_rotation}  # 90 (default) or 270 (flipped landscape)
     auto_clear_enabled: false
     color_order: RGB
     dimensions:
