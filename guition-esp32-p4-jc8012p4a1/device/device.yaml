@@ -26,8 +26,6 @@ esphome:
   name: ${name}
   friendly_name: ${friendly_name}
   min_version: 2026.4.0
-  includes:
-    - ../guition-esp32-p4-jc8012p4a1/device/calendar_json.h
   platformio_options:
     board_build.flash_mode: dio
     build_flags:
@@ -108,6 +106,11 @@ logger:
 external_components:
   - source: github://kvj/esphome@jd9365_gsl3680
     components: [gsl3680]
+
+# Shared header-only JSON parser for calendar + forecast HTTP responses.
+# External component is declared in addon/music.yaml (git) and dev.yaml (local);
+# the component's __init__.py emits the corresponding #include into main.cpp.
+calendar_json:
 
 
 # DSI PHY power rail
