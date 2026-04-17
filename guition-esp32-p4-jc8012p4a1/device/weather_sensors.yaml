@@ -611,10 +611,11 @@ text_sensor:
           text: !lambda 'return x.empty() ? std::string("\xe2\x80\x94") : x;'
       - lambda: |-
           lv_point_t _sz;
-          lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_0)),
+          lv_text_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_0)),
             lv_obj_get_style_text_font(id(idle_sensor_value_0), LV_PART_MAIN),
             lv_obj_get_style_text_letter_space(id(idle_sensor_value_0), LV_PART_MAIN),
-            0, LV_COORD_MAX, 0);
+            lv_obj_get_style_text_line_space(id(idle_sensor_value_0), LV_PART_MAIN),
+            LV_COORD_MAX, LV_TEXT_FLAG_NONE);
           lv_obj_set_x(id(idle_sensor_unit_0), 70 + _sz.x + 6);
 
   - platform: template
@@ -625,10 +626,11 @@ text_sensor:
           text: !lambda 'return x.empty() ? std::string("\xe2\x80\x94") : x;'
       - lambda: |-
           lv_point_t _sz;
-          lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_1)),
+          lv_text_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_1)),
             lv_obj_get_style_text_font(id(idle_sensor_value_1), LV_PART_MAIN),
             lv_obj_get_style_text_letter_space(id(idle_sensor_value_1), LV_PART_MAIN),
-            0, LV_COORD_MAX, 0);
+            lv_obj_get_style_text_line_space(id(idle_sensor_value_1), LV_PART_MAIN),
+            LV_COORD_MAX, LV_TEXT_FLAG_NONE);
           lv_obj_set_x(id(idle_sensor_unit_1), 70 + _sz.x + 6);
 
   - platform: template
@@ -639,10 +641,11 @@ text_sensor:
           text: !lambda 'return x.empty() ? std::string("\xe2\x80\x94") : x;'
       - lambda: |-
           lv_point_t _sz;
-          lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_2)),
+          lv_text_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_2)),
             lv_obj_get_style_text_font(id(idle_sensor_value_2), LV_PART_MAIN),
             lv_obj_get_style_text_letter_space(id(idle_sensor_value_2), LV_PART_MAIN),
-            0, LV_COORD_MAX, 0);
+            lv_obj_get_style_text_line_space(id(idle_sensor_value_2), LV_PART_MAIN),
+            LV_COORD_MAX, LV_TEXT_FLAG_NONE);
           lv_obj_set_x(id(idle_sensor_unit_2), 70 + _sz.x + 6);
 
   - platform: template
@@ -653,10 +656,11 @@ text_sensor:
           text: !lambda 'return x.empty() ? std::string("\xe2\x80\x94") : x;'
       - lambda: |-
           lv_point_t _sz;
-          lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_3)),
+          lv_text_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_3)),
             lv_obj_get_style_text_font(id(idle_sensor_value_3), LV_PART_MAIN),
             lv_obj_get_style_text_letter_space(id(idle_sensor_value_3), LV_PART_MAIN),
-            0, LV_COORD_MAX, 0);
+            lv_obj_get_style_text_line_space(id(idle_sensor_value_3), LV_PART_MAIN),
+            LV_COORD_MAX, LV_TEXT_FLAG_NONE);
           lv_obj_set_x(id(idle_sensor_unit_3), 70 + _sz.x + 6);
 
   - platform: template
@@ -667,10 +671,11 @@ text_sensor:
           text: !lambda 'return x.empty() ? std::string("\xe2\x80\x94") : x;'
       - lambda: |-
           lv_point_t _sz;
-          lv_txt_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_4)),
+          lv_text_get_size(&_sz, lv_label_get_text(id(idle_sensor_value_4)),
             lv_obj_get_style_text_font(id(idle_sensor_value_4), LV_PART_MAIN),
             lv_obj_get_style_text_letter_space(id(idle_sensor_value_4), LV_PART_MAIN),
-            0, LV_COORD_MAX, 0);
+            lv_obj_get_style_text_line_space(id(idle_sensor_value_4), LV_PART_MAIN),
+            LV_COORD_MAX, LV_TEXT_FLAG_NONE);
           lv_obj_set_x(id(idle_sensor_unit_4), 70 + _sz.x + 6);
 
   # Right-column tiles (5-9): unit is at a fixed x=290 (right-aligned layout),
@@ -996,10 +1001,11 @@ script:
                 lv_label_set_text(unit_lbl, unit.c_str());
                 if (slot < 5) {
                   lv_point_t _sz;
-                  lv_txt_get_size(&_sz, lv_label_get_text(value_lbl),
+                  lv_text_get_size(&_sz, lv_label_get_text(value_lbl),
                     lv_obj_get_style_text_font(value_lbl, LV_PART_MAIN),
                     lv_obj_get_style_text_letter_space(value_lbl, LV_PART_MAIN),
-                    0, LV_COORD_MAX, 0);
+                    lv_obj_get_style_text_line_space(value_lbl, LV_PART_MAIN),
+                    LV_COORD_MAX, LV_TEXT_FLAG_NONE);
                   lv_obj_set_x(unit_lbl, 70 + _sz.x + 6);
                 }
               }));
