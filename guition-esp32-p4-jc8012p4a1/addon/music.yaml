@@ -12,7 +12,7 @@
 # access the raw buffer directly and reconstruct the uint16 in little-endian
 # order:
 #
-#   lv_img_dsc_t *dsc = img->get_lv_img_dsc();
+#   lv_image_dsc_t *dsc = img->get_lv_image_dsc();
 #   const uint8_t *data = dsc->data;
 #   int pos = (x + y * width) * 2;
 #   uint16_t rgb565 = data[pos] | (data[pos + 1] << 8);  // LE read
