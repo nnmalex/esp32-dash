@@ -1,7 +1,7 @@
 substitutions:
   name: "esp32-dash-dev"
   friendly_name: "ESP32 Dash Dev"
-  # 270° landscape (flipped)
+  # 270° landscape (flipped) — touch mirrors must match; see packages.yaml
   display_rotation: "270"
   touch_mirror_x: "true"
   touch_mirror_y: "true"
