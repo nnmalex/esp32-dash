@@ -185,11 +185,17 @@ touchscreen:
     display: tft_display
     reset_pin: GPIO22
     interrupt_pin: GPIO21
-    # Touch mirror must match display_rotation (90 or 270); see packages.yaml
+    # mipi_dsi has no hardware rotation, so LVGL rotates in software. LVGL's
+    # rotate_coordinates expects touch in panel-native portrait (800x1280) and
+    # maps it to landscape. With swap_xy=true plus LVGL's built-in rotation we
+    # would swap twice; so swap is false and mirror_x compensates for the 90°
+    # map. Same transform works for both display_rotation: 90 and 270 because
+    # LVGL rotation handles the visual flip; the physical touch panel rotates
+    # with the display.
     transform:
-      swap_xy: true
-      mirror_x: ${touch_mirror_x}
-      mirror_y: ${touch_mirror_y}
+      swap_xy: false
+      mirror_x: true
+      mirror_y: false
     on_touch:
       - lambda: |-
           id(was_panel_open) = id(is_panel_open);
