@@ -249,12 +249,25 @@ async def to_code(config):
         config[CONF_BUFFER_SIZE],
         config.get(CONF_BYTE_ORDER) != "LITTLE_ENDIAN",
     )
+    # LVGL 9.5 bug workaround: lv_draw_sw_transform.c gates the RGB565 transform
+    # case on `#if LV_DRAW_SW_SUPPORT_RGB565 && LV_DRAW_SW_SUPPORT_RGB565A8`
+    # (see https://github.com/lvgl/lvgl/blob/v9.5.0/src/draw/sw/lv_draw_sw_transform.c
+    # line 276). Without RGB565A8 enabled, scaling/rotating an opaque RGB565
+    # image falls through to the warning path and renders garbage. ESPHome only
+    # registers RGB565A8 support when at least one image is non-opaque, so we
+    # lie to the metadata registry — the runtime C++ Image object still uses the
+    # real (usually OPAQUE) transparency for dsc.header.cf, so rendering is
+    # unaffected.  Drop this override once LVGL fixes the `&&` → `||` typo.
+    reported_transparency = config[CONF_TRANSPARENCY]
+    if config[CONF_TYPE] == "RGB565" and reported_transparency == "opaque":
+        reported_transparency = "alpha_channel"
+
     add_metadata(
         config[CONF_ID],
         width,
         height,
         config[CONF_TYPE],
-        config[CONF_TRANSPARENCY],
+        reported_transparency,
     )
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_HTTP_REQUEST_ID])
