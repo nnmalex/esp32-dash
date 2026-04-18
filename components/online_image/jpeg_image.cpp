@@ -25,7 +25,7 @@ static void jpeg_error_exit(j_common_ptr cinfo) {
   longjmp(err->setjmp_buffer, 1);
 }
 
-static constexpr size_t MAX_JPEG_DOWNLOAD_SIZE = 2 * 1024 * 1024;  // 2 MB
+static constexpr size_t MAX_JPEG_DOWNLOAD_SIZE = 4 * 1024 * 1024;  // 4 MB
 
 int JpegDecoder::prepare(size_t download_size) {
   if (download_size > MAX_JPEG_DOWNLOAD_SIZE) {
