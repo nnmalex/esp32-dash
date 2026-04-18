@@ -81,8 +81,28 @@ script:
 
           if (id(wf_fetch_gen) != my_gen) return;  // superseded
 
+          // HA wraps the forecast under service_response.<entity_id>.forecast
+          // when return_response=true. Unwrap two levels before looking for
+          // the "forecast" key, since extract_array_field only matches depth 1.
           std::string forecast_arr;
-          if (!esp32_dash::calendar_json::extract_array_field(resp, "forecast", forecast_arr)) {
+          std::string svc_resp;
+          bool found = false;
+          if (esp32_dash::calendar_json::extract_object_field(resp, "service_response", svc_resp)) {
+            size_t inner = 1;
+            while (inner < svc_resp.size() && svc_resp[inner] != '{') inner++;
+            if (inner < svc_resp.size()) {
+              size_t inner_end = 0;
+              if (esp32_dash::calendar_json::extract_object_span(svc_resp, inner, inner_end)) {
+                std::string entity_obj(svc_resp, inner, inner_end - inner + 1);
+                found = esp32_dash::calendar_json::extract_array_field(entity_obj, "forecast", forecast_arr);
+              }
+            }
+          }
+          if (!found) {
+            // Fallback: response already at depth 1 (older HA or different wrapper).
+            found = esp32_dash::calendar_json::extract_array_field(resp, "forecast", forecast_arr);
+          }
+          if (!found) {
             ESP_LOGW("forecast", "No 'forecast' key in response — clearing display");
             id(wf_data_buf) = "";
             id(render_forecast).execute();
