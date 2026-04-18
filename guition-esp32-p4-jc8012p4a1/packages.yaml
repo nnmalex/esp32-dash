@@ -7,13 +7,9 @@ substitutions:
   ha_token: ""   # Long-lived access token for calendar/forecast REST API
   ntp_server: "time.cloudflare.com"
   # Display rotation: 90 (default landscape) or 270 (flipped landscape)
-  # Flip to 270 if mounting with the power cable on the opposite side
+  # Flip to 270 if mounting with the power cable on the opposite side.
+  # Touch transform is the same for both (LVGL rotates; panel rotates with it).
   display_rotation: "90"
-  # Touch transform (must match display_rotation):
-  #   90:  touch_mirror_x "false", touch_mirror_y "false"
-  #   270: touch_mirror_x "true",  touch_mirror_y "true"
-  touch_mirror_x: "false"
-  touch_mirror_y: "false"
 
 packages:
   music: !include addon/music.yaml

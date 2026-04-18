@@ -8,13 +8,9 @@ substitutions:
   # ha_port: "8123"
   # ha_protocol: "http"
   # ha_token: !secret ha_token
-  # Display rotation: 90 (default landscape) or 270 (flipped landscape)
+  # Display rotation: 90 (default landscape) or 270 (flipped landscape).
+  # Flip to 270 if mounting with the power cable on the opposite side.
   # display_rotation: "270"
-  # Touch transform (must match display_rotation):
-  #   90:  touch_mirror_x "false", touch_mirror_y "false"
-  #   270: touch_mirror_x "true",  touch_mirror_y "true"
-  # touch_mirror_x: "true"
-  # touch_mirror_y: "true"
 
 # Wifi Setup
 wifi:
