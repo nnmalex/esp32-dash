@@ -126,12 +126,12 @@ lvgl:
             hidden: true   # hidden on music page; shown by show_*_view scripts
 
             widgets:
-              # Nav buttons are visual-only; taps are dispatched from the
-              # touchscreen on_release handler in device.yaml to avoid the
-              # unreliable LVGL lv_layer_top() hit-testing that could misroute
-              # a press to an adjacent button (e.g. tapping Forecast but LVGL
-              # firing on_press for Home), which caused the view to flicker to
-              # idle right after loading forecast.
+              # Nav buttons dispatch via LVGL on_press (LV_EVENT_PRESSED) on
+              # each button. The ESPHome touchscreen on_release callback in
+              # device.yaml operates in panel-native portrait coordinates and
+              # cannot reliably identify landscape navbar regions, so LVGL
+              # hit-testing (which runs after rotate_coordinates) is the sole
+              # dispatch path.
 
               # ---- Home ----
               - button:
@@ -145,6 +145,8 @@ lvgl:
                   border_width: 0
                   radius: 0
                   shadow_width: 0
+                  on_press:
+                    - script.execute: show_idle_view
                   widgets:
                     - label:
                         text: $icon_home
@@ -164,6 +166,8 @@ lvgl:
                   border_width: 0
                   radius: 0
                   shadow_width: 0
+                  on_press:
+                    - script.execute: show_music_view
                   widgets:
                     - label:
                         text: $icon_music
@@ -183,6 +187,8 @@ lvgl:
                   border_width: 0
                   radius: 0
                   shadow_width: 0
+                  on_press:
+                    - script.execute: show_calendar_view
                   widgets:
                     - label:
                         text: $icon_calendar
@@ -202,6 +208,8 @@ lvgl:
                   border_width: 0
                   radius: 0
                   shadow_width: 0
+                  on_press:
+                    - script.execute: show_forecast_view
                   widgets:
                     - label:
                         text: $icon_forecast
