@@ -80,6 +80,11 @@ globals:
     type: std::array<std::string, 10>
     initial_value: '{"","","","","","","","","",""}'
 
+  # Base (unscaled) unit from HA per tile; k-prefix applied at display time
+  - id: idle_sensor_unit_base
+    type: std::array<std::string, 10>
+    initial_value: '{"","","","","","","","","",""}'
+
   - id: local_temp_sub_gen
     type: int
     initial_value: '0'
@@ -338,13 +343,10 @@ number:
     restore_value: true
     initial_value: -1
     set_action:
-      - lambda: |-
-          const std::string &raw = id(idle_sensor_raw)[0];
-          if (raw.empty() || (int)x < 0) return;
-          char *ep; float val = strtof(raw.c_str(), &ep);
-          if (ep == raw.c_str()) return;
-          char buf[32]; snprintf(buf, sizeof(buf), "%.*f", (int)x, val);
-          id(idle_sensor_state_0).publish_state(std::string(buf));
+      - script.execute:
+          id: idle_sensor_reformat
+          slot: 0
+          prec: !lambda 'return (int)x;'
 
   - platform: template
     name: "Sensor Tile 2: Precision"
@@ -358,13 +360,10 @@ number:
     restore_value: true
     initial_value: -1
     set_action:
-      - lambda: |-
-          const std::string &raw = id(idle_sensor_raw)[1];
-          if (raw.empty() || (int)x < 0) return;
-          char *ep; float val = strtof(raw.c_str(), &ep);
-          if (ep == raw.c_str()) return;
-          char buf[32]; snprintf(buf, sizeof(buf), "%.*f", (int)x, val);
-          id(idle_sensor_state_1).publish_state(std::string(buf));
+      - script.execute:
+          id: idle_sensor_reformat
+          slot: 1
+          prec: !lambda 'return (int)x;'
 
   - platform: template
     name: "Sensor Tile 3: Precision"
@@ -378,13 +377,10 @@ number:
     restore_value: true
     initial_value: -1
     set_action:
-      - lambda: |-
-          const std::string &raw = id(idle_sensor_raw)[2];
-          if (raw.empty() || (int)x < 0) return;
-          char *ep; float val = strtof(raw.c_str(), &ep);
-          if (ep == raw.c_str()) return;
-          char buf[32]; snprintf(buf, sizeof(buf), "%.*f", (int)x, val);
-          id(idle_sensor_state_2).publish_state(std::string(buf));
+      - script.execute:
+          id: idle_sensor_reformat
+          slot: 2
+          prec: !lambda 'return (int)x;'
 
   - platform: template
     name: "Sensor Tile 4: Precision"
@@ -398,13 +394,10 @@ number:
     restore_value: true
     initial_value: -1
     set_action:
-      - lambda: |-
-          const std::string &raw = id(idle_sensor_raw)[3];
-          if (raw.empty() || (int)x < 0) return;
-          char *ep; float val = strtof(raw.c_str(), &ep);
-          if (ep == raw.c_str()) return;
-          char buf[32]; snprintf(buf, sizeof(buf), "%.*f", (int)x, val);
-          id(idle_sensor_state_3).publish_state(std::string(buf));
+      - script.execute:
+          id: idle_sensor_reformat
+          slot: 3
+          prec: !lambda 'return (int)x;'
 
   - platform: template
     name: "Sensor Tile 5: Precision"
@@ -418,13 +411,10 @@ number:
     restore_value: true
     initial_value: -1
     set_action:
-      - lambda: |-
-          const std::string &raw = id(idle_sensor_raw)[4];
-          if (raw.empty() || (int)x < 0) return;
-          char *ep; float val = strtof(raw.c_str(), &ep);
-          if (ep == raw.c_str()) return;
-          char buf[32]; snprintf(buf, sizeof(buf), "%.*f", (int)x, val);
-          id(idle_sensor_state_4).publish_state(std::string(buf));
+      - script.execute:
+          id: idle_sensor_reformat
+          slot: 4
+          prec: !lambda 'return (int)x;'
 
   - platform: template
     name: "Sensor Tile 6: Precision"
@@ -438,13 +428,10 @@ number:
     restore_value: true
     initial_value: -1
     set_action:
-      - lambda: |-
-          const std::string &raw = id(idle_sensor_raw)[5];
-          if (raw.empty() || (int)x < 0) return;
-          char *ep; float val = strtof(raw.c_str(), &ep);
-          if (ep == raw.c_str()) return;
-          char buf[32]; snprintf(buf, sizeof(buf), "%.*f", (int)x, val);
-          id(idle_sensor_state_5).publish_state(std::string(buf));
+      - script.execute:
+          id: idle_sensor_reformat
+          slot: 5
+          prec: !lambda 'return (int)x;'
 
   - platform: template
     name: "Sensor Tile 7: Precision"
@@ -458,13 +445,10 @@ number:
     restore_value: true
     initial_value: -1
     set_action:
-      - lambda: |-
-          const std::string &raw = id(idle_sensor_raw)[6];
-          if (raw.empty() || (int)x < 0) return;
-          char *ep; float val = strtof(raw.c_str(), &ep);
-          if (ep == raw.c_str()) return;
-          char buf[32]; snprintf(buf, sizeof(buf), "%.*f", (int)x, val);
-          id(idle_sensor_state_6).publish_state(std::string(buf));
+      - script.execute:
+          id: idle_sensor_reformat
+          slot: 6
+          prec: !lambda 'return (int)x;'
 
   - platform: template
     name: "Sensor Tile 8: Precision"
@@ -478,13 +462,10 @@ number:
     restore_value: true
     initial_value: -1
     set_action:
-      - lambda: |-
-          const std::string &raw = id(idle_sensor_raw)[7];
-          if (raw.empty() || (int)x < 0) return;
-          char *ep; float val = strtof(raw.c_str(), &ep);
-          if (ep == raw.c_str()) return;
-          char buf[32]; snprintf(buf, sizeof(buf), "%.*f", (int)x, val);
-          id(idle_sensor_state_7).publish_state(std::string(buf));
+      - script.execute:
+          id: idle_sensor_reformat
+          slot: 7
+          prec: !lambda 'return (int)x;'
 
   - platform: template
     name: "Sensor Tile 9: Precision"
@@ -498,13 +479,10 @@ number:
     restore_value: true
     initial_value: -1
     set_action:
-      - lambda: |-
-          const std::string &raw = id(idle_sensor_raw)[8];
-          if (raw.empty() || (int)x < 0) return;
-          char *ep; float val = strtof(raw.c_str(), &ep);
-          if (ep == raw.c_str()) return;
-          char buf[32]; snprintf(buf, sizeof(buf), "%.*f", (int)x, val);
-          id(idle_sensor_state_8).publish_state(std::string(buf));
+      - script.execute:
+          id: idle_sensor_reformat
+          slot: 8
+          prec: !lambda 'return (int)x;'
 
   - platform: template
     name: "Sensor Tile 10: Precision"
@@ -518,13 +496,10 @@ number:
     restore_value: true
     initial_value: -1
     set_action:
-      - lambda: |-
-          const std::string &raw = id(idle_sensor_raw)[9];
-          if (raw.empty() || (int)x < 0) return;
-          char *ep; float val = strtof(raw.c_str(), &ep);
-          if (ep == raw.c_str()) return;
-          char buf[32]; snprintf(buf, sizeof(buf), "%.*f", (int)x, val);
-          id(idle_sensor_state_9).publish_state(std::string(buf));
+      - script.execute:
+          id: idle_sensor_reformat
+          slot: 9
+          prec: !lambda 'return (int)x;'
 
 
 # -----------------------------------------------------------------------------
@@ -859,6 +834,70 @@ script:
           ESP_LOGI("weather", "Feels-like sensor: subscribed to '%s'", entity.c_str());
 
   # ---------------------------------------------------------------------------
+  # idle_sensor_reformat: re-applies precision/k-scaling to the stored raw value
+  # for one tile. Called from each precision number's set_action so the display
+  # refreshes instantly when the user changes precision in HA.
+  # ---------------------------------------------------------------------------
+  - id: idle_sensor_reformat
+    parameters:
+      slot: int
+      prec: int
+    mode: restart
+    then:
+      - lambda: |-
+          lv_obj_t *t_values[] = { id(idle_sensor_value_0), id(idle_sensor_value_1), id(idle_sensor_value_2),
+                                    id(idle_sensor_value_3), id(idle_sensor_value_4), id(idle_sensor_value_5),
+                                    id(idle_sensor_value_6), id(idle_sensor_value_7), id(idle_sensor_value_8),
+                                    id(idle_sensor_value_9) };
+          lv_obj_t *t_units[]  = { id(idle_sensor_unit_0),  id(idle_sensor_unit_1),  id(idle_sensor_unit_2),
+                                    id(idle_sensor_unit_3),  id(idle_sensor_unit_4),  id(idle_sensor_unit_5),
+                                    id(idle_sensor_unit_6),  id(idle_sensor_unit_7),  id(idle_sensor_unit_8),
+                                    id(idle_sensor_unit_9) };
+          if (slot < 0 || slot > 9) return;
+          lv_obj_t *value_lbl = t_values[slot];
+          lv_obj_t *unit_lbl  = t_units[slot];
+          const std::string &raw = id(idle_sensor_raw)[slot];
+          if (raw.empty()) return;
+          std::string out = raw;
+          const std::string &unit_base = id(idle_sensor_unit_base)[slot];
+          std::string unit_display = unit_base;
+          if (prec >= 0) {
+            char *ep; float val = strtof(raw.c_str(), &ep);
+            if (ep != raw.c_str()) {
+              char buf[32];
+              if (val >= 1000.0f || val <= -1000.0f) {
+                snprintf(buf, sizeof(buf), "%.*f", prec, val / 1000.0f);
+                unit_display = "k" + unit_base;
+              } else {
+                snprintf(buf, sizeof(buf), "%.0f", val);
+              }
+              out = buf;
+            }
+          }
+          lv_label_set_text(unit_lbl, unit_display.c_str());
+          if (slot < 5) {
+            lv_point_t _sz;
+            lv_text_get_size(&_sz, out.c_str(),
+              lv_obj_get_style_text_font(value_lbl, LV_PART_MAIN),
+              lv_obj_get_style_text_letter_space(value_lbl, LV_PART_MAIN),
+              lv_obj_get_style_text_line_space(value_lbl, LV_PART_MAIN),
+              LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+            lv_obj_set_x(unit_lbl, 70 + _sz.x + 6);
+          }
+          switch (slot) {
+            case 0: id(idle_sensor_state_0).publish_state(out); break;
+            case 1: id(idle_sensor_state_1).publish_state(out); break;
+            case 2: id(idle_sensor_state_2).publish_state(out); break;
+            case 3: id(idle_sensor_state_3).publish_state(out); break;
+            case 4: id(idle_sensor_state_4).publish_state(out); break;
+            case 5: id(idle_sensor_state_5).publish_state(out); break;
+            case 6: id(idle_sensor_state_6).publish_state(out); break;
+            case 7: id(idle_sensor_state_7).publish_state(out); break;
+            case 8: id(idle_sensor_state_8).publish_state(out); break;
+            default: id(idle_sensor_state_9).publish_state(out); break;
+          }
+
+  # ---------------------------------------------------------------------------
   # subscribe_idle_sensor: subscribes to state + attributes of sensor tile N.
   # Shows the tile container when an entity is configured; hides it when empty.
   # Slots 0-4 are left-column (dynamic unit positioning); 5-9 are right-column.
@@ -920,6 +959,7 @@ script:
             lv_label_set_text(icon_lbl,  "");
             lv_label_set_text(unit_lbl,  "");
             id(idle_sensor_raw)[slot] = "";
+            id(idle_sensor_unit_base)[slot] = "";
             return;
           }
 
@@ -947,12 +987,13 @@ script:
           auto *api = esphome::api::global_api_server;
           using str_cb = std::function<void(const std::string &)>;
 
-          // State subscription — format with per-slot precision, publish to text sensor
+          // State subscription — format with per-slot precision, publish to text sensor.
+          // When prec >= 0: |val| < 1000 → integer (no decimals); |val| >= 1000 →
+          // val/1000 with configured precision and unit prefixed with "k".
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
-              str_cb([gen, gen_ptr, slot](const std::string &state) {
+              str_cb([gen, gen_ptr, slot, unit_lbl, value_lbl](const std::string &state) {
                 if (gen != *gen_ptr) return;
                 id(idle_sensor_raw)[slot] = state;
-                std::string out = state;
                 int prec;
                 switch (slot) {
                   case 0: prec = (int)id(idle_sensor_prec_0).state; break;
@@ -966,12 +1007,31 @@ script:
                   case 8: prec = (int)id(idle_sensor_prec_8).state; break;
                   default: prec = (int)id(idle_sensor_prec_9).state; break;
                 }
+                std::string out = state;
+                const std::string &unit_base = id(idle_sensor_unit_base)[slot];
+                std::string unit_display = unit_base;
                 if (prec >= 0 && !state.empty()) {
                   char *end; float val = strtof(state.c_str(), &end);
                   if (end != state.c_str()) {
-                    char buf[32]; snprintf(buf, sizeof(buf), "%.*f", prec, val);
+                    char buf[32];
+                    if (val >= 1000.0f || val <= -1000.0f) {
+                      snprintf(buf, sizeof(buf), "%.*f", prec, val / 1000.0f);
+                      unit_display = "k" + unit_base;
+                    } else {
+                      snprintf(buf, sizeof(buf), "%.0f", val);
+                    }
                     out = buf;
                   }
+                }
+                lv_label_set_text(unit_lbl, unit_display.c_str());
+                if (slot < 5) {
+                  lv_point_t _sz;
+                  lv_text_get_size(&_sz, out.c_str(),
+                    lv_obj_get_style_text_font(value_lbl, LV_PART_MAIN),
+                    lv_obj_get_style_text_letter_space(value_lbl, LV_PART_MAIN),
+                    lv_obj_get_style_text_line_space(value_lbl, LV_PART_MAIN),
+                    LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+                  lv_obj_set_x(unit_lbl, 70 + _sz.x + 6);
                 }
                 switch (slot) {
                   case 0: id(idle_sensor_state_0).publish_state(out); break;
@@ -994,11 +1054,35 @@ script:
                 if (!state.empty()) lv_label_set_text(name_lbl, state.c_str());
               }));
 
-          // Unit subscription — left-column tiles (0-4) reposition unit after value label
+          // Unit subscription — stores base unit; next state update applies k-prefix
+          // (if value already ≥ 1000) and repositions for left-column tiles.
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("unit_of_measurement"),
               str_cb([gen, gen_ptr, slot, unit_lbl, value_lbl](const std::string &unit) {
                 if (gen != *gen_ptr) return;
-                lv_label_set_text(unit_lbl, unit.c_str());
+                id(idle_sensor_unit_base)[slot] = unit;
+                // Derive currently-displayed unit from last raw value + prec
+                const std::string &raw = id(idle_sensor_raw)[slot];
+                int prec;
+                switch (slot) {
+                  case 0: prec = (int)id(idle_sensor_prec_0).state; break;
+                  case 1: prec = (int)id(idle_sensor_prec_1).state; break;
+                  case 2: prec = (int)id(idle_sensor_prec_2).state; break;
+                  case 3: prec = (int)id(idle_sensor_prec_3).state; break;
+                  case 4: prec = (int)id(idle_sensor_prec_4).state; break;
+                  case 5: prec = (int)id(idle_sensor_prec_5).state; break;
+                  case 6: prec = (int)id(idle_sensor_prec_6).state; break;
+                  case 7: prec = (int)id(idle_sensor_prec_7).state; break;
+                  case 8: prec = (int)id(idle_sensor_prec_8).state; break;
+                  default: prec = (int)id(idle_sensor_prec_9).state; break;
+                }
+                std::string unit_display = unit;
+                if (prec >= 0 && !raw.empty()) {
+                  char *end; float val = strtof(raw.c_str(), &end);
+                  if (end != raw.c_str() && (val >= 1000.0f || val <= -1000.0f)) {
+                    unit_display = "k" + unit;
+                  }
+                }
+                lv_label_set_text(unit_lbl, unit_display.c_str());
                 if (slot < 5) {
                   lv_point_t _sz;
                   lv_text_get_size(&_sz, lv_label_get_text(value_lbl),
