@@ -98,8 +98,12 @@ api:
           - lvgl.widget.show: ha_setup_prompt
 
 
+# INFO keeps every ESP_LOGI this project emits (fetch results, subscriptions,
+# entity validation) while dropping the per-touch and per-frame DEBUG traffic,
+# which is formatted and pushed over the API on a device that is also driving
+# LVGL. Set to DEBUG temporarily when diagnosing touch or download issues.
 logger:
-  level: DEBUG
+  level: INFO
   baud_rate: 0
 
 
