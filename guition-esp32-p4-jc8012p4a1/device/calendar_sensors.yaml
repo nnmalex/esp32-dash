@@ -1,5 +1,5 @@
 # =============================================================================
-# CALENDAR SENSORS — HA subscription for up to three calendar entities
+# CALENDAR SENSORS — HA subscription + REST fetch for up to three calendars
 # =============================================================================
 # Each slot subscribes to a calendar.* entity's state + attributes:
 #   message    → event title
@@ -8,16 +8,22 @@
 #   all_day    → "True"/"False"
 #   location   → description line (calendar page only)
 #
-# Updates calendar page labels (cal_time_label_N, cal_title_label_N,
-# cal_desc_label_N) AND the idle page agenda via render_idle_agenda.
+# Those attributes only ever expose the *next* event per calendar, so they are
+# used purely as a fallback for when no HA access token is configured.
 #
-# fetch_idle_agenda fetches today+tomorrow events from all three calendar
-# entities via the HA REST API, stores them in idle_events_buf (pipe-delimited),
-# then calls render_idle_agenda to populate idle_agenda_slot_0..4 (up to 5
-# events sorted by start_time, past events greyed). Falls back to subscription
-# globals when ha_token is not configured.
+# The primary data path is fetch_calendar_data: one REST request per configured
+# calendar into the shared cal_events_buf, as pipe-delimited lines:
+#   CAL_IDX|TITLE|START_ISO|END_ISO|ALLDAY\n
+# Both consumers filter that single buffer by date:
+#   render_calendar_grid (calendar_view.yaml) — the 5-day week grid
+#   render_idle_agenda   (below)              — today + tomorrow on the idle page
 #
-# Follows the generation-counter pattern from media_player_select.yaml.
+# The window always spans the union of what both views need, so one fetch feeds
+# both. http_request is synchronous, so each request blocks the main loop (and
+# therefore LVGL); keeping this to three requests instead of six halves that.
+#
+# Subscriptions follow the generation-counter pattern from media_player_select
+# and are registered once per entity — see cal_subbed below.
 # =============================================================================
 
 substitutions:
@@ -79,7 +85,15 @@ globals:
     type: int
     initial_value: '0'
 
-  # HTTP fetch buffers (used by fetch_calendar_week)
+  # Entity currently registered with the API state-subscription list, per slot.
+  # ESPHome has no unsubscribe (see weather_sensors.yaml for the full rationale),
+  # so re-running subscribe_calendar on every reconnect would leak callbacks.
+  - id: cal_subbed
+    type: std::array<std::string, 3>
+    initial_value: '{"","",""}'
+
+  # Shared HTTP fetch buffer — consumed by both render_calendar_grid and
+  # render_idle_agenda.
   - id: cal_events_buf
     type: std::string
     initial_value: '""'
@@ -90,16 +104,12 @@ globals:
     type: std::string
     initial_value: '""'
 
-  # HTTP fetch buffers (used by fetch_idle_agenda — idle page agenda)
-  - id: idle_events_buf
-    type: std::string
-    initial_value: '""'
-  - id: idle_fetch_start
-    type: std::string
-    initial_value: '""'
-  - id: idle_fetch_end
-    type: std::string
-    initial_value: '""'
+  # millis() of the last successful fetch. Interactive callers (navbar) use this
+  # to skip a blocking refetch when the cache is still warm. Unsigned wraparound
+  # at ~49 days is handled correctly by the subtraction.
+  - id: cal_last_fetch_ms
+    type: uint32_t
+    initial_value: '0'
 
 
 # -----------------------------------------------------------------------------
@@ -150,19 +160,16 @@ text:
 
 
 # -----------------------------------------------------------------------------
-# Subscription scripts
+# Scripts
 # -----------------------------------------------------------------------------
 script:
 
   # ---------------------------------------------------------------------------
   # render_idle_agenda
   # ---------------------------------------------------------------------------
-  # Populates idle_agenda_slot_0..4 from idle_events_buf (fetched by
-  # fetch_idle_agenda via HTTP API). Falls back to subscription globals
-  # (cal_title/start/end_N) when the buffer is empty (no ha_token set).
-  # Past events are greyed out; up to 20 events collected before slot capping.
-  # Called by fetch_idle_agenda (after fetch), update_idle_clock (re-render),
-  # and calendar subscription callbacks (re-render from existing buffer).
+  # Populates idle_agenda_slot_0..4 from cal_events_buf, keeping only events that
+  # start today or tomorrow. Falls back to the per-calendar subscription globals
+  # when the buffer is empty (no ha_token configured). Past events are greyed.
   # ---------------------------------------------------------------------------
   - id: render_idle_agenda
     mode: single
@@ -191,17 +198,19 @@ script:
           // Calendar accent colors (matching calendar page slots)
           const uint32_t CAL_COLORS[3] = {0x4A90E2, 0x5BA55A, 0xE2914A};
 
-          // Agenda item struct — fixed char buffers to avoid heap allocation
+          // Only the 5 soonest events are ever shown, so cap collection at 12 to
+          // keep this lambda's stack frame small (it runs on the main loop task).
+          const int MAX_ITEMS = 12;
+
           struct AgendaItem {
             char start[20];       // "YYYY-MM-DD HH:MM:SS\0" (normalized, space sep)
             char title[64];
-            char time_label[48];  // "Tomorrow · 12:00 PM\0"
+            char time_label[48];  // "Tomorrow · 12:00\0"
             uint32_t accent_color;
             bool is_past;
           };
 
-          // Allow up to 20 items (all today+tomorrow events across 3 calendars)
-          AgendaItem items[20];
+          AgendaItem items[MAX_ITEMS];
           int item_count = 0;
           memset(items, 0, sizeof(items));
 
@@ -215,7 +224,7 @@ script:
 
             if (!title_c || title_c[0] == '\0') return;
             if (start.length() < 10) return;
-            if (item_count >= 20) return;
+            if (item_count >= MAX_ITEMS) return;
 
             bool is_today    = (strncmp(start.c_str(), today_str, 10) == 0);
             bool is_tomorrow = (strncmp(start.c_str(), tomorrow_str, 10) == 0);
@@ -226,13 +235,14 @@ script:
             std::string end_s = end_s_in;
             if (end_s.length() >= 11 && end_s[10] == 'T') end_s[10] = ' ';
 
-            // Is past?
+            // Is past? All-day events count as past only once the day is over,
+            // which the today/tomorrow filter already guarantees is not the case.
             bool is_past = false;
             if (!is_allday && end_s.length() >= 19) {
               is_past = (strncmp(end_s.c_str(), now_dt, 19) < 0);
             }
 
-            // Build human-readable time label  e.g. "Today · 9:00 AM"
+            // Build human-readable time label  e.g. "Today · 09:00–10:00"
             const char *day_prefix = is_today ? "Today" : "Tomorrow";
             char time_buf[48];
             if (is_allday) {
@@ -261,12 +271,12 @@ script:
             item.is_past = is_past;
           };
 
-          if (!id(idle_events_buf).empty()) {
-            // --- Primary path: parse HTTP-fetched buffer ---
+          if (!id(cal_events_buf).empty()) {
+            // --- Primary path: parse the shared HTTP-fetched buffer ---
             // Format: "CAL_IDX|TITLE|START|END|ALLDAY\n" (repeated)
-            const std::string &buf = id(idle_events_buf);
+            const std::string &buf = id(cal_events_buf);
             size_t pos = 0;
-            while (pos < buf.size() && item_count < 20) {
+            while (pos < buf.size() && item_count < MAX_ITEMS) {
               size_t nl = buf.find('\n', pos);
               if (nl == std::string::npos) nl = buf.size();
               if (nl > pos) {
@@ -304,14 +314,18 @@ script:
             add_sub(id(cal_title_2), id(cal_start_2), id(cal_end_2), id(cal_all_day_2), 2);
           }
 
-          // Sort by start time (ISO string comparison: "YYYY-MM-DD HH:MM:SS")
-          for (int i = 0; i < item_count - 1; i++) {
+          // Partial selection sort — only the first 5 entries are displayed, so
+          // stop once those are in place instead of ordering the whole array.
+          int sort_n = item_count < 5 ? item_count : 5;
+          for (int i = 0; i < sort_n; i++) {
+            int best = i;
             for (int j = i + 1; j < item_count; j++) {
-              if (strcmp(items[j].start, items[i].start) < 0) {
-                AgendaItem tmp = items[i];
-                items[i] = items[j];
-                items[j] = tmp;
-              }
+              if (strcmp(items[j].start, items[best].start) < 0) best = j;
+            }
+            if (best != i) {
+              AgendaItem tmp = items[i];
+              items[i] = items[best];
+              items[best] = tmp;
             }
           }
 
@@ -353,28 +367,43 @@ script:
           }
 
   # ---------------------------------------------------------------------------
-  # fetch_idle_agenda
+  # fetch_calendar_data
   # ---------------------------------------------------------------------------
-  # Entry point for fetching all today+tomorrow events for the idle agenda.
-  # Computes a 2-day window (today T00:00:00 → day-after-tomorrow T00:00:00),
-  # clears idle_events_buf, then chains through fetch_idle_http(0→1→2) before
-  # calling render_idle_agenda.
-  # Called by show_idle_view (navbar.yaml) and hourly from idle_view.yaml.
+  # One REST request per configured calendar into cal_events_buf, then re-renders
+  # both consumers. The window spans the union of what the week grid (5 columns
+  # from cal_view_offset) and the idle agenda (today + tomorrow) need, so a
+  # single fetch serves both.
+  #
+  # http_request is synchronous: this blocks the main loop for the duration of
+  # all three requests. Callers should avoid triggering it on a UI interaction
+  # when cached data is still usable.
   # ---------------------------------------------------------------------------
-  - id: fetch_idle_agenda
+  - id: fetch_calendar_data
     mode: restart
     then:
       - lambda: |-
           auto t = id(ha_time).now();
           if (!t.is_valid()) {
-            ESP_LOGW("idle_fetch", "Time not valid, skipping fetch");
-            id(render_idle_agenda).execute();
+            ESP_LOGW("cal_fetch", "Time not valid, skipping fetch");
+            return;
+          }
+          if (id(ha_token_global).empty()) {
+            ESP_LOGW("cal_fetch", "ha_token not set — skipping fetch");
             return;
           }
 
-          // Window: today 00:00 → day-after-tomorrow 00:00 (covers today + tomorrow)
-          time_t base_ts = t.timestamp - (t.hour * 3600 + t.minute * 60 + t.second);
-          time_t end_ts  = base_ts + 2L * 86400L;
+          // Fixed window covering every view this data can feed:
+          //   week grid   — 5 columns from cal_view_offset, which is clamped to
+          //                 -1..+2, so days -1 through +6 are reachable
+          //   idle agenda — today and tomorrow
+          // Fetching the full span once means changing cal_view_offset only needs
+          // a re-render, never another blocking round of HTTP requests.
+          const int DAY_FROM = -1;
+          const int DAY_TO   = 7;   // exclusive
+
+          time_t midnight = t.timestamp - (t.hour * 3600 + t.minute * 60 + t.second);
+          time_t base_ts  = midnight + (time_t) DAY_FROM * 86400;
+          time_t end_ts   = midnight + (time_t) DAY_TO   * 86400;
 
           struct tm start_tm, end_tm;
           localtime_r(&base_ts, &start_tm);
@@ -386,144 +415,62 @@ script:
           snprintf(e, sizeof(e), "%04d-%02d-%02dT00:00:00",
                    end_tm.tm_year + 1900,   end_tm.tm_mon + 1,   end_tm.tm_mday);
 
-          id(idle_fetch_start) = std::string(s);
-          id(idle_fetch_end)   = std::string(e);
-          id(idle_events_buf)  = "";
+          id(cal_fetch_start) = std::string(s);
+          id(cal_fetch_end)   = std::string(e);
+          ESP_LOGI("cal_fetch", "Window %s .. %s", s, e);
 
-          ESP_LOGI("idle_fetch", "Window %s .. %s", s, e);
-      - script.execute: fetch_idle_http_0
+          esphome::text::Text *sel[3] = {
+            id(calendar_entity_select_0),
+            id(calendar_entity_select_1),
+            id(calendar_entity_select_2)
+          };
 
-  # ---------------------------------------------------------------------------
-  # fetch_idle_http_0/1/2: one script per calendar slot, chained sequentially.
-  # Separate scripts avoid the mode:single self-call deadlock of parameterized scripts.
-  # ---------------------------------------------------------------------------
-  - id: fetch_idle_http_0
-    mode: single
-    then:
-      - if:
-          condition:
-            lambda: |-
-              std::string e = id(calendar_entity_select_0).state;
-              return !e.empty() && e.length() > 9 && e.substr(0,9) == "calendar."
-                     && !id(ha_token_global).empty();
-          then:
-            - lambda: |-
-                std::string entity = id(calendar_entity_select_0).state;
-                std::string token = id(ha_token_global);
-                std::string url =
-                    id(ha_base_url) + "/api/calendars/" + entity +
-                    "?start=" + id(idle_fetch_start) + "&end=" + id(idle_fetch_end);
+          std::string new_buf;
+          std::string auth = "Bearer " + id(ha_token_global);
+          int total = 0;
+          bool any_ok = false;
 
-                std::list<esphome::http_request::Header> hdrs;
-                std::string auth = "Bearer " + token;
-                hdrs.push_back({"Authorization", auth.c_str()});
+          for (int i = 0; i < 3; i++) {
+            std::string entity = sel[i]->state;
+            if (entity.rfind("calendar.", 0) != 0) continue;
 
-                ESP_LOGI("idle_fetch", "GET cal 0: %s", url.c_str());
-                auto container = id(http_req)->get(url, hdrs);
-                if (!container || container->status_code != 200) {
-                  ESP_LOGW("idle_fetch", "cal0 HTTP %d",
-                           container ? container->status_code : -1);
-                  if (container) container->end();
-                  return;
-                }
+            std::string url = id(ha_base_url) + "/api/calendars/" + entity +
+                              "?start=" + id(cal_fetch_start) + "&end=" + id(cal_fetch_end);
 
-                std::string body;
-                body.reserve(4096);
-                uint8_t buf[512];
-                int n;
-                while ((n = container->read(buf, sizeof(buf))) > 0)
-                  body.append(reinterpret_cast<char*>(buf), n);
-                container->end();
+            std::vector<esphome::http_request::Header> hdrs;
+            hdrs.push_back({"Authorization", auth});
 
-                int parsed = esp32_dash::calendar_json::append_calendar_events(body, 0, id(idle_events_buf));
-                ESP_LOGI("idle_fetch", "cal0 parsed %d events, buf len=%d",
-                         parsed, (int)id(idle_events_buf).length());
-      - script.execute: fetch_idle_http_1
+            auto container = id(http_req)->get(url, hdrs);
+            if (!container || container->status_code != 200) {
+              ESP_LOGW("cal_fetch", "cal%d HTTP %d", i,
+                       container ? container->status_code : -1);
+              if (container) container->end();
+              continue;
+            }
 
-  - id: fetch_idle_http_1
-    mode: single
-    then:
-      - if:
-          condition:
-            lambda: |-
-              std::string e = id(calendar_entity_select_1).state;
-              return !e.empty() && e.length() > 9 && e.substr(0,9) == "calendar."
-                     && !id(ha_token_global).empty();
-          then:
-            - lambda: |-
-                std::string entity = id(calendar_entity_select_1).state;
-                std::string token = id(ha_token_global);
-                std::string url =
-                    id(ha_base_url) + "/api/calendars/" + entity +
-                    "?start=" + id(idle_fetch_start) + "&end=" + id(idle_fetch_end);
+            std::string body;
+            body.reserve(4096);
+            uint8_t buf[512];
+            int n;
+            while ((n = container->read(buf, sizeof(buf))) > 0)
+              body.append(reinterpret_cast<char*>(buf), n);
+            container->end();
 
-                std::list<esphome::http_request::Header> hdrs;
-                std::string auth = "Bearer " + token;
-                hdrs.push_back({"Authorization", auth.c_str()});
+            any_ok = true;
+            total += esp32_dash::calendar_json::append_calendar_events(body, i, new_buf);
+          }
 
-                ESP_LOGI("idle_fetch", "GET cal 1: %s", url.c_str());
-                auto container = id(http_req)->get(url, hdrs);
-                if (!container || container->status_code != 200) {
-                  ESP_LOGW("idle_fetch", "cal1 HTTP %d",
-                           container ? container->status_code : -1);
-                  if (container) container->end();
-                  return;
-                }
-
-                std::string body;
-                body.reserve(4096);
-                uint8_t buf[512];
-                int n;
-                while ((n = container->read(buf, sizeof(buf))) > 0)
-                  body.append(reinterpret_cast<char*>(buf), n);
-                container->end();
-
-                int parsed = esp32_dash::calendar_json::append_calendar_events(body, 1, id(idle_events_buf));
-                ESP_LOGI("idle_fetch", "cal1 parsed %d events, buf len=%d",
-                         parsed, (int)id(idle_events_buf).length());
-      - script.execute: fetch_idle_http_2
-
-  - id: fetch_idle_http_2
-    mode: single
-    then:
-      - if:
-          condition:
-            lambda: |-
-              std::string e = id(calendar_entity_select_2).state;
-              return !e.empty() && e.length() > 9 && e.substr(0,9) == "calendar."
-                     && !id(ha_token_global).empty();
-          then:
-            - lambda: |-
-                std::string entity = id(calendar_entity_select_2).state;
-                std::string token = id(ha_token_global);
-                std::string url =
-                    id(ha_base_url) + "/api/calendars/" + entity +
-                    "?start=" + id(idle_fetch_start) + "&end=" + id(idle_fetch_end);
-
-                std::list<esphome::http_request::Header> hdrs;
-                std::string auth = "Bearer " + token;
-                hdrs.push_back({"Authorization", auth.c_str()});
-
-                ESP_LOGI("idle_fetch", "GET cal 2: %s", url.c_str());
-                auto container = id(http_req)->get(url, hdrs);
-                if (!container || container->status_code != 200) {
-                  ESP_LOGW("idle_fetch", "cal2 HTTP %d",
-                           container ? container->status_code : -1);
-                  if (container) container->end();
-                  return;
-                }
-
-                std::string body;
-                body.reserve(4096);
-                uint8_t buf[512];
-                int n;
-                while ((n = container->read(buf, sizeof(buf))) > 0)
-                  body.append(reinterpret_cast<char*>(buf), n);
-                container->end();
-
-                int parsed = esp32_dash::calendar_json::append_calendar_events(body, 2, id(idle_events_buf));
-                ESP_LOGI("idle_fetch", "cal2 parsed %d events, buf len=%d",
-                         parsed, (int)id(idle_events_buf).length());
+          // Only replace the cache when at least one request succeeded, so a
+          // transient network failure does not blank both views.
+          if (any_ok) {
+            id(cal_events_buf) = new_buf;
+            id(cal_last_fetch_ms) = millis();
+            ESP_LOGI("cal_fetch", "Parsed %d events, buf len=%d",
+                     total, (int) id(cal_events_buf).length());
+          } else {
+            ESP_LOGW("cal_fetch", "All calendar requests failed — keeping cached data");
+          }
+      - script.execute: render_calendar_grid
       - script.execute: render_idle_agenda
 
   # ---------------------------------------------------------------------------
@@ -535,33 +482,32 @@ script:
     mode: restart
     then:
       - lambda: |-
-          std::string entity;
-          switch (slot) {
-            case 0: entity = id(calendar_entity_select_0).state; break;
-            case 1: entity = id(calendar_entity_select_1).state; break;
-            case 2: entity = id(calendar_entity_select_2).state; break;
-            default: return;
-          }
+          if (slot < 0 || slot > 2) return;
+
+          esphome::text::Text *sel[3] = {
+            id(calendar_entity_select_0),
+            id(calendar_entity_select_1),
+            id(calendar_entity_select_2)
+          };
+          int *gens[3] = { &id(cal_sub_gen_0), &id(cal_sub_gen_1), &id(cal_sub_gen_2) };
+          std::string *titles[3] = { &id(cal_title_0), &id(cal_title_1), &id(cal_title_2) };
+          std::string *starts[3] = { &id(cal_start_0), &id(cal_start_1), &id(cal_start_2) };
+          std::string *ends[3]   = { &id(cal_end_0),   &id(cal_end_1),   &id(cal_end_2) };
+          std::string *alldays[3] = { &id(cal_all_day_0), &id(cal_all_day_1), &id(cal_all_day_2) };
+          lv_obj_t *time_lbls[3]  = { id(cal_time_label_0),  id(cal_time_label_1),  id(cal_time_label_2) };
+          lv_obj_t *title_lbls[3] = { id(cal_title_label_0), id(cal_title_label_1), id(cal_title_label_2) };
+          lv_obj_t *desc_lbls[3]  = { id(cal_desc_label_0),  id(cal_desc_label_1),  id(cal_desc_label_2) };
+
+          std::string entity = sel[slot]->state;
 
           // Reset slot to unconfigured state
-          if (entity.empty() || entity.substr(0, 9) != "calendar.") {
-            switch (slot) {
-              case 0:
-                id(cal_title_0) = ""; id(cal_start_0) = ""; id(cal_end_0) = ""; id(cal_all_day_0) = "";
-                lv_label_set_text(id(cal_time_label_0), "\xe2\x80\x94");
-                lv_label_set_text(id(cal_title_label_0), "No calendar set");
-                lv_label_set_text(id(cal_desc_label_0), ""); break;
-              case 1:
-                id(cal_title_1) = ""; id(cal_start_1) = ""; id(cal_end_1) = ""; id(cal_all_day_1) = "";
-                lv_label_set_text(id(cal_time_label_1), "\xe2\x80\x94");
-                lv_label_set_text(id(cal_title_label_1), "No calendar set");
-                lv_label_set_text(id(cal_desc_label_1), ""); break;
-              default:
-                id(cal_title_2) = ""; id(cal_start_2) = ""; id(cal_end_2) = ""; id(cal_all_day_2) = "";
-                lv_label_set_text(id(cal_time_label_2), "\xe2\x80\x94");
-                lv_label_set_text(id(cal_title_label_2), "No calendar set");
-                lv_label_set_text(id(cal_desc_label_2), ""); break;
-            }
+          if (entity.rfind("calendar.", 0) != 0) {
+            *titles[slot] = ""; *starts[slot] = ""; *ends[slot] = ""; *alldays[slot] = "";
+            id(cal_subbed)[slot] = "";
+            (*gens[slot])++;
+            lv_label_set_text(time_lbls[slot], "\xe2\x80\x94");
+            lv_label_set_text(title_lbls[slot], "No calendar set");
+            lv_label_set_text(desc_lbls[slot], "");
             id(render_idle_agenda).execute();
             if (!entity.empty()) {
               ESP_LOGW("calendar", "Slot %d: '%s' must start with 'calendar.'", slot, entity.c_str());
@@ -571,34 +517,22 @@ script:
 
           if (esphome::api::global_api_server == nullptr) return;
 
-          // Resolve pointers to per-slot globals and labels
-          int *gen_ctr;
-          std::string *title_ptr, *start_ptr, *end_ptr, *allday_ptr;
-          lv_obj_t *time_lbl, *title_lbl, *desc_lbl;
-          switch (slot) {
-            case 0:
-              gen_ctr = &id(cal_sub_gen_0);
-              title_ptr = &id(cal_title_0); start_ptr = &id(cal_start_0);
-              end_ptr = &id(cal_end_0); allday_ptr = &id(cal_all_day_0);
-              time_lbl = id(cal_time_label_0); title_lbl = id(cal_title_label_0);
-              desc_lbl = id(cal_desc_label_0); break;
-            case 1:
-              gen_ctr = &id(cal_sub_gen_1);
-              title_ptr = &id(cal_title_1); start_ptr = &id(cal_start_1);
-              end_ptr = &id(cal_end_1); allday_ptr = &id(cal_all_day_1);
-              time_lbl = id(cal_time_label_1); title_lbl = id(cal_title_label_1);
-              desc_lbl = id(cal_desc_label_1); break;
-            default:
-              gen_ctr = &id(cal_sub_gen_2);
-              title_ptr = &id(cal_title_2); start_ptr = &id(cal_start_2);
-              end_ptr = &id(cal_end_2); allday_ptr = &id(cal_all_day_2);
-              time_lbl = id(cal_time_label_2); title_lbl = id(cal_title_label_2);
-              desc_lbl = id(cal_desc_label_2); break;
-          }
+          // Already registered for this entity (e.g. HA reconnect) — the API
+          // re-sends the existing subscription list to the new client itself.
+          if (entity == id(cal_subbed)[slot]) return;
+          id(cal_subbed)[slot] = entity;
 
-          (*gen_ctr) += 1;
-          int gen = *gen_ctr;
-          int *gen_ptr = gen_ctr;
+          (*gens[slot])++;
+          int gen = *gens[slot];
+          int *gen_ptr = gens[slot];
+
+          std::string *title_ptr = titles[slot];
+          std::string *start_ptr = starts[slot];
+          std::string *end_ptr   = ends[slot];
+          std::string *allday_ptr = alldays[slot];
+          lv_obj_t *time_lbl  = time_lbls[slot];
+          lv_obj_t *title_lbl = title_lbls[slot];
+          lv_obj_t *desc_lbl  = desc_lbls[slot];
 
           auto *api = esphome::api::global_api_server;
           using str_cb = std::function<void(const std::string &)>;
@@ -615,31 +549,36 @@ script:
             return std::string(buf);
           };
 
+          // The agenda only consults these globals when cal_events_buf is empty,
+          // so a re-render is pointless (and costly) once a fetch has succeeded.
+          auto agenda_needs_refresh = []() { return id(cal_events_buf).empty(); };
+
           // message → title label + agenda re-render
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("message"),
-              str_cb([gen, gen_ptr, title_ptr, title_lbl](const std::string &state) {
+              str_cb([gen, gen_ptr, title_ptr, title_lbl, agenda_needs_refresh](const std::string &state) {
                 if (gen != *gen_ptr) return;
                 *title_ptr = state;
                 lv_label_set_text(title_lbl, state.empty() ? "No upcoming events" : state.c_str());
-                id(render_idle_agenda).execute();
+                if (agenda_needs_refresh()) id(render_idle_agenda).execute();
               }));
 
           // start_time → time label + agenda re-render
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("start_time"),
-              str_cb([gen, gen_ptr, start_ptr, allday_ptr, time_lbl, fmt_time](const std::string &state) {
+              str_cb([gen, gen_ptr, start_ptr, allday_ptr, time_lbl, fmt_time,
+                      agenda_needs_refresh](const std::string &state) {
                 if (gen != *gen_ptr) return;
                 *start_ptr = state;
                 std::string ts = fmt_time(state, *allday_ptr);
                 lv_label_set_text(time_lbl, ts.empty() ? "\xe2\x80\x94" : ts.c_str());
-                id(render_idle_agenda).execute();
+                if (agenda_needs_refresh()) id(render_idle_agenda).execute();
               }));
 
           // end_time → stored for past-event detection
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("end_time"),
-              str_cb([gen, gen_ptr, end_ptr](const std::string &state) {
+              str_cb([gen, gen_ptr, end_ptr, agenda_needs_refresh](const std::string &state) {
                 if (gen != *gen_ptr) return;
                 *end_ptr = state;
-                id(render_idle_agenda).execute();
+                if (agenda_needs_refresh()) id(render_idle_agenda).execute();
               }));
 
           // all_day → update time label
@@ -660,199 +599,12 @@ script:
 
           ESP_LOGI("calendar", "Slot %d: subscribed to '%s'", slot, entity.c_str());
 
-# WEEK GRID — HTTP fetch from HA calendar REST API
-# =============================================================================
-# fetch_calendar_week  fetches up to 6 days of events from all 3 calendar
-# entities via GET /api/calendars/<entity>?start=...&end=... and populates
-# cal_events_buf with pipe-delimited lines:
-#   CAL_IDX|TITLE|START_ISO|END_ISO|ALLDAY\n
-# render_calendar_grid (calendar_view.yaml) then reads that buffer.
-#
-# Requires the user to set "HA Access Token" in HA device settings to a
-# Home Assistant long-lived access token.
-#
-# ha_base_url is built from ha_protocol / ha_host / ha_port substitutions at boot.
-# ha_token is read from the ha_token_global string (set via ha_token substitution).
-# =============================================================================
 
-  # ---------------------------------------------------------------------------
-  # fetch_calendar_week
-  # Entry point called by show_calendar_view and the prev/next nav buttons.
-  # Computes the 6-day window, clears the buffer, then chains through the
-  # three per-calendar fetches sequentially before calling render_calendar_grid.
-  # ---------------------------------------------------------------------------
-  - id: fetch_calendar_week
-    mode: restart
-    then:
-      - lambda: |-
-          auto t = id(ha_time).now();
-          if (!t.is_valid()) {
-            ESP_LOGW("cal_fetch", "Time not valid, skipping fetch");
-            return;
-          }
-
-          // Compute 6-day window: [today+offset, today+offset+6)
-          int offset = id(cal_view_offset);
-          time_t base_ts = t.timestamp + (long)offset * 86400L;
-          time_t end_ts  = base_ts + 6L * 86400L;
-
-          struct tm start_tm, end_tm;
-          localtime_r(&base_ts, &start_tm);
-          localtime_r(&end_ts,  &end_tm);
-
-          char s[21], e[21];
-          snprintf(s, sizeof(s), "%04d-%02d-%02dT00:00:00",
-                   start_tm.tm_year + 1900, start_tm.tm_mon + 1, start_tm.tm_mday);
-          snprintf(e, sizeof(e), "%04d-%02d-%02dT00:00:00",
-                   end_tm.tm_year + 1900,   end_tm.tm_mon + 1,   end_tm.tm_mday);
-
-          id(cal_fetch_start) = std::string(s);
-          id(cal_fetch_end)   = std::string(e);
-          id(cal_events_buf)  = "";
-
-          ESP_LOGI("cal_fetch", "Window %s .. %s", s, e);
-      - script.execute: fetch_cal_http_0
-
-  # ---------------------------------------------------------------------------
-  # fetch_cal_http_0/1/2: one script per calendar slot, chained sequentially.
-  # Separate scripts avoid the mode:single self-call deadlock of parameterized scripts.
-  # ---------------------------------------------------------------------------
-  - id: fetch_cal_http_0
-    mode: single
-    then:
-      - if:
-          condition:
-            lambda: |-
-              std::string e = id(calendar_entity_select_0).state;
-              return !e.empty() && e.length() > 9 && e.substr(0,9) == "calendar."
-                     && !id(ha_token_global).empty();
-          then:
-            - lambda: |-
-                std::string entity = id(calendar_entity_select_0).state;
-                std::string token = id(ha_token_global);
-                std::string url =
-                    id(ha_base_url) + "/api/calendars/" + entity +
-                    "?start=" + id(cal_fetch_start) + "&end=" + id(cal_fetch_end);
-
-                std::list<esphome::http_request::Header> hdrs;
-                std::string auth = "Bearer " + token;
-                hdrs.push_back({"Authorization", auth.c_str()});
-
-                ESP_LOGI("cal_fetch", "GET cal 0: %s", url.c_str());
-                auto container = id(http_req)->get(url, hdrs);
-                if (!container || container->status_code != 200) {
-                  ESP_LOGW("cal_fetch", "cal0 HTTP %d",
-                           container ? container->status_code : -1);
-                  if (container) container->end();
-                  return;
-                }
-
-                std::string body;
-                body.reserve(8192);
-                uint8_t buf[512];
-                int n;
-                while ((n = container->read(buf, sizeof(buf))) > 0)
-                  body.append(reinterpret_cast<char*>(buf), n);
-                container->end();
-
-                int parsed = esp32_dash::calendar_json::append_calendar_events(body, 0, id(cal_events_buf));
-                ESP_LOGI("cal_fetch", "cal0 parsed %d events, buf len=%d",
-                         parsed, (int)id(cal_events_buf).length());
-      - script.execute: fetch_cal_http_1
-
-  - id: fetch_cal_http_1
-    mode: single
-    then:
-      - if:
-          condition:
-            lambda: |-
-              std::string e = id(calendar_entity_select_1).state;
-              return !e.empty() && e.length() > 9 && e.substr(0,9) == "calendar."
-                     && !id(ha_token_global).empty();
-          then:
-            - lambda: |-
-                std::string entity = id(calendar_entity_select_1).state;
-                std::string token = id(ha_token_global);
-                std::string url =
-                    id(ha_base_url) + "/api/calendars/" + entity +
-                    "?start=" + id(cal_fetch_start) + "&end=" + id(cal_fetch_end);
-
-                std::list<esphome::http_request::Header> hdrs;
-                std::string auth = "Bearer " + token;
-                hdrs.push_back({"Authorization", auth.c_str()});
-
-                ESP_LOGI("cal_fetch", "GET cal 1: %s", url.c_str());
-                auto container = id(http_req)->get(url, hdrs);
-                if (!container || container->status_code != 200) {
-                  ESP_LOGW("cal_fetch", "cal1 HTTP %d",
-                           container ? container->status_code : -1);
-                  if (container) container->end();
-                  return;
-                }
-
-                std::string body;
-                body.reserve(8192);
-                uint8_t buf[512];
-                int n;
-                while ((n = container->read(buf, sizeof(buf))) > 0)
-                  body.append(reinterpret_cast<char*>(buf), n);
-                container->end();
-
-                int parsed = esp32_dash::calendar_json::append_calendar_events(body, 1, id(cal_events_buf));
-                ESP_LOGI("cal_fetch", "cal1 parsed %d events, buf len=%d",
-                         parsed, (int)id(cal_events_buf).length());
-      - script.execute: fetch_cal_http_2
-
-  - id: fetch_cal_http_2
-    mode: single
-    then:
-      - if:
-          condition:
-            lambda: |-
-              std::string e = id(calendar_entity_select_2).state;
-              return !e.empty() && e.length() > 9 && e.substr(0,9) == "calendar."
-                     && !id(ha_token_global).empty();
-          then:
-            - lambda: |-
-                std::string entity = id(calendar_entity_select_2).state;
-                std::string token = id(ha_token_global);
-                std::string url =
-                    id(ha_base_url) + "/api/calendars/" + entity +
-                    "?start=" + id(cal_fetch_start) + "&end=" + id(cal_fetch_end);
-
-                std::list<esphome::http_request::Header> hdrs;
-                std::string auth = "Bearer " + token;
-                hdrs.push_back({"Authorization", auth.c_str()});
-
-                ESP_LOGI("cal_fetch", "GET cal 2: %s", url.c_str());
-                auto container = id(http_req)->get(url, hdrs);
-                if (!container || container->status_code != 200) {
-                  ESP_LOGW("cal_fetch", "cal2 HTTP %d",
-                           container ? container->status_code : -1);
-                  if (container) container->end();
-                  return;
-                }
-
-                std::string body;
-                body.reserve(8192);
-                uint8_t buf[512];
-                int n;
-                while ((n = container->read(buf, sizeof(buf))) > 0)
-                  body.append(reinterpret_cast<char*>(buf), n);
-                container->end();
-
-                int parsed = esp32_dash::calendar_json::append_calendar_events(body, 2, id(cal_events_buf));
-                ESP_LOGI("cal_fetch", "cal2 parsed %d events, buf len=%d",
-                         parsed, (int)id(cal_events_buf).length());
-      - script.execute: render_calendar_grid
-
-
-# Background refresh — runs every 15 min regardless of current view
+# Background refresh — one fetch feeds both the week grid and the idle agenda.
 interval:
   - interval: 15min
     then:
-      - script.execute: fetch_idle_agenda
-      - script.execute: fetch_calendar_week
+      - script.execute: fetch_calendar_data
 
 
 # Re-subscribe and seed data after HA reconnect (merged with api block in device.yaml)
@@ -861,4 +613,4 @@ api:
     - script.execute: {id: subscribe_calendar, slot: 0}
     - script.execute: {id: subscribe_calendar, slot: 1}
     - script.execute: {id: subscribe_calendar, slot: 2}
-    - script.execute: fetch_calendar_week
+    - script.execute: fetch_calendar_data
