@@ -336,10 +336,17 @@ inline void sanitize_field(std::string &s) {
 }
 
 /**
- * Parse a Home Assistant calendar API response and append one line per event to
+ * Parse a Home Assistant calendar event list and append one line per event to
  * out_buf in the form:
  *
  *   CAL_IDX|TITLE|START|END|ALLDAY\n
+ *
+ * Handles both shapes HA emits for start/end:
+ *   REST  /api/calendars/<entity>          — {"start": {"dateTime": "..."}}
+ *                                            {"start": {"date": "..."}} for all-day
+ *   service calendar.get_events            — {"start": "2026-08-14T09:00:00+01:00"}
+ *                                            {"start": "2026-08-14"} for all-day
+ * The flat form is detected by the absence of a 'T' separator in a 10-char value.
  *
  * Lines are assembled with std::string so a long title can never truncate away
  * the trailing newline and merge two events together.
@@ -379,15 +386,24 @@ inline int append_calendar_events(const std::string &body, int cal_idx, std::str
           allday = true;
         }
       }
+    } else if (extract_string_field(event, "start", start_val)) {
+      // Flat form: a date-only value ("YYYY-MM-DD") means an all-day event.
+      allday = (start_val.find('T') == std::string::npos);
     }
     if (start_val.empty()) {
       continue;
     }
 
+    // All-day events deliberately carry no end: both renderers key off the
+    // all-day flag and treat an empty end as "not a timed range".
     std::string end_obj;
     std::string end_val;
-    if (!allday && extract_object_field(event, "end", end_obj)) {
-      extract_string_field(end_obj, "dateTime", end_val);
+    if (!allday) {
+      if (extract_object_field(event, "end", end_obj)) {
+        extract_string_field(end_obj, "dateTime", end_val);
+      } else {
+        extract_string_field(event, "end", end_val);
+      }
     }
 
     if (start_val.size() > (allday ? 10U : 19U)) {

@@ -44,6 +44,15 @@ external_components:
 http_request:
   id: http_req
   verify_ssl: ${ha_verify_ssl}
+  # ESP32 default is 512 bytes. Every read() constructs a WatchdogManager (a task
+  # WDT reconfigure), so a 30 KB calendar response costs ~60 of them at 512 B and
+  # ~8 at 4 KB. Callers read in matching 4 KB chunks.
+  buffer_size_rx: 4096
+  # timeout is deliberately left at the 4.5 s default. It applies per socket
+  # operation, and the bulk of a calendar fetch is HA waiting on the upstream
+  # provider (Google/CalDAV) before it sends headers — lowering it would fail
+  # slow-but-valid fetches. fetch_calendar_data / fetch_forecast log
+  # container->duration_ms so this can be revisited with real numbers.
 
 # Images became platforms of the `image` component in ESPHome 2026.7; the old
 # bare-list form is deprecated and removed in 2027.1.0. `platform: file` does not

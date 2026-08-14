@@ -241,19 +241,64 @@ blob or drop the `update:` block.
 
 ESPHome's `http_request` is blocking — `->get()` / `->post()` and the response
 drain all run inline on the main loop, stalling LVGL for the duration. This
-affects `fetch_calendar_data` (up to 3 requests) and `fetch_forecast` (1). It
-cannot be made async without a custom component, so the code minimises how often
-it happens instead:
+affects `fetch_calendar_data` (1 request) and `fetch_forecast` (1). It cannot be
+made async without a custom component, so the code minimises how often it
+happens, and how long each one takes:
 
-- one fetch feeds both the week grid and the idle agenda (3 requests per cycle,
-  not 6), on a single 15-minute interval;
-- the fetch window is fixed at day −1..+7, so calendar prev/next navigation
-  re-renders from cache and never refetches;
-- navbar taps only refetch when the cache is stale (5 min for calendar, 15 min
-  for forecast), otherwise they render cached data immediately.
+- **One request per calendar cycle.** `fetch_calendar_data` POSTs to
+  `/api/services/calendar/get_events?return_response=true` with every configured
+  entity in one `entity_id` list, so HA resolves all three server-side. Requires
+  HA ≥ 2024.2. HA rejects the whole call if any one entity id is unknown, so a
+  failed batch falls back to the old per-entity `GET /api/calendars/<entity>`
+  loop, where a bad entity only costs its own slot.
+- One fetch feeds both the week grid and the idle agenda, on a single 15-minute
+  interval, **skipped while `current_view == 1`** (music) — neither consumer is
+  on screen there. `show_idle_view` calls `maybe_fetch_calendar`, which catches
+  up whatever went stale.
+- The fetch window is fixed at day −1..+7, so calendar prev/next navigation
+  re-renders from cache and never refetches.
+- **Interactive callers go through `maybe_fetch_calendar` /
+  `maybe_fetch_forecast`** (`calendar_sensors.yaml`, `forecast_sensors.yaml`),
+  never `fetch_*` directly. Those wrappers `delay: 300ms` so the stall lands
+  after the page transition has drawn, check staleness (5 min calendar, 15 min
+  forecast) before fetching at all, and are `mode: restart` so a flurry of
+  navbar taps coalesces into one fetch.
+- `buffer_size_rx: 4096` on `http_request` (default is 512), with matching 4 KB
+  read chunks off the heap. Every `read()` constructs a `WatchdogManager`, i.e. a
+  task-WDT reconfigure, so this cuts the per-response overhead ~8×. Response
+  strings are reserved from `content_length` where available.
+- `timeout` is deliberately left at the 4.5 s default: it applies per socket
+  operation, and most of a calendar fetch is HA waiting on the upstream provider
+  before sending headers, so lowering it would fail slow-but-valid fetches. Both
+  fetch scripts log `container->duration_ms` ("blocked the loop for N ms") so
+  this can be revisited with real numbers.
 
 Keep new callers on the same principle: render from cache first, fetch only when
-the data is actually stale.
+the data is actually stale, and never fetch synchronously from a touch handler.
+
+### Future enhancement: replace REST polling with HA push
+
+The blocking fetches disappear entirely if HA pushes the data instead of the
+device pulling it. Sketch, not implemented:
+
+- HA-side template sensor holds the payload in an **attribute** (not the state —
+  state values are capped at 255 chars, attributes are not), rendered in the same
+  pipe-delimited format `cal_events_buf` / `wf_data_buf` already use.
+- Device subscribes with `subscribe_home_assistant_state` over the already-open,
+  non-blocking native API socket — the same mechanism `calendar_sensors.yaml`
+  and `weather_sensors.yaml` use for entity attributes today.
+- That removes `http_request`, the `ha_token` substitution, the JSON parsing, and
+  every main-loop stall; the device only renders. `calendar_json.h` stays for
+  the fallback path.
+- Cost is a config burden: users must add the template sensors to their HA
+  config. So it belongs as a *preferred* path with the REST fetch kept as the
+  fallback when the template sensor is absent, not as a straight replacement.
+
+The other option considered was a custom component with a FreeRTOS worker task
+doing the HTTP off the loop task and handing results back via `defer()`. It keeps
+the zero-config story but costs ~250 lines of C++ and careful thread discipline
+(no LVGL or global access from the worker). Push is the cheaper win if the HA-side
+setup is acceptable.
 
 ## Idle page: key substitutions summary
 
