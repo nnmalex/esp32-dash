@@ -14,6 +14,13 @@ globals:
     type: int
     initial_value: '0'
 
+  # Entity currently registered with the API state-subscription list. ESPHome has
+  # no unsubscribe (see weather_sensors.yaml), so re-running this script on every
+  # reconnect would leak nine callbacks each time.
+  - id: media_player_subbed
+    type: std::string
+    initial_value: '""'
+
 text:
   - platform: template
     name: "Media Player"
@@ -56,69 +63,85 @@ script:
           std::string entity = id(media_player_entity).state;
 
           if (entity.empty()) {
+            id(media_player_subbed) = "";
             lv_obj_clear_flag(id(setup_prompt), LV_OBJ_FLAG_HIDDEN);
             return;
           }
 
-          if (entity.substr(0, 13) != "media_player.") {
+          if (entity.rfind("media_player.", 0) != 0) {
             ESP_LOGW("media_select", "Invalid entity '%s' — must start with 'media_player.'", entity.c_str());
             return;
           }
 
-          id(title_received_once) = false;
-          id(last_media_position) = 0.0f;
-          id(ha_position_epoch) = 0;
-          id(last_position_timestamp) = 0;
-
           lv_obj_add_flag(id(setup_prompt), LV_OBJ_FLAG_HIDDEN);
-          lv_label_set_text(id(media_title_label), "\xe2\x80\x94");
-          id(artist_has_content) = false;
-          lv_obj_add_flag(id(media_artist_label), LV_OBJ_FLAG_HIDDEN);
-          lv_label_set_text(id(media_time_label), "0:00 / -0:00");
-          lv_bar_set_value(id(media_progress_bar), 0, LV_ANIM_OFF);
-          lv_obj_set_style_opa(id(album_art_background_widget), LV_OPA_50, 0);
 
-          id(subscription_gen) += 1;
-          int gen = id(subscription_gen);
-          int *gen_ptr = &id(subscription_gen);
+          // Already registered for this entity (e.g. HA reconnect). Skip both the
+          // re-subscription and the UI reset — HA re-pushes every attribute on
+          // connect, so blanking the now-playing view here just makes it flicker.
+          bool already_subscribed = (entity == id(media_player_subbed));
 
-          auto *api = esphome::api::global_api_server;
-          using str_cb = std::function<void(const std::string &)>;
+          if (!already_subscribed) {
+            id(media_player_subbed) = entity;
 
-          auto sub_text = [&](const std::string &attr, esphome::text_sensor::TextSensor *sensor) {
-            api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(attr),
-                str_cb([gen, gen_ptr, sensor](const std::string &state) {
+            id(title_received_once) = false;
+            id(last_media_position) = 0.0f;
+            id(ha_position_epoch) = 0;
+            id(last_position_timestamp) = 0;
+
+            lv_label_set_text(id(media_title_label), "\xe2\x80\x94");
+            id(artist_has_content) = false;
+            lv_obj_add_flag(id(media_artist_label), LV_OBJ_FLAG_HIDDEN);
+            lv_label_set_text(id(media_time_label), "0:00 / -0:00");
+            lv_bar_set_value(id(media_progress_bar), 0, LV_ANIM_OFF);
+            lv_obj_set_style_opa(id(album_art_background_widget), LV_OPA_50, 0);
+          }
+
+          // Only bump the generation when actually re-registering: the counter
+          // neuters previous callbacks, so bumping it while reusing the existing
+          // subscriptions would silently kill the live ones.
+          if (!already_subscribed) {
+            id(subscription_gen) += 1;
+            int gen = id(subscription_gen);
+            int *gen_ptr = &id(subscription_gen);
+
+            auto *api = esphome::api::global_api_server;
+            using str_cb = std::function<void(const std::string &)>;
+
+            auto sub_text = [&](const std::string &attr, esphome::text_sensor::TextSensor *sensor) {
+              api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(attr),
+                  str_cb([gen, gen_ptr, sensor](const std::string &state) {
+                    if (gen != *gen_ptr) return;
+                    sensor->publish_state(state);
+                  }));
+            };
+
+            auto sub_num = [&](const std::string &attr, esphome::sensor::Sensor *sensor) {
+              api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(attr),
+                  str_cb([gen, gen_ptr, sensor](const std::string &state) {
+                    if (gen != *gen_ptr) return;
+                    auto v = esphome::parse_number<float>(state);
+                    if (v.has_value()) sensor->publish_state(v.value());
+                  }));
+            };
+
+            sub_text("media_title", id(media_title_sensor));
+            sub_text("media_artist", id(media_artist_sensor));
+            sub_text("entity_picture", id(media_entity_picture_sensor));
+
+            api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
+                str_cb([gen, gen_ptr](const std::string &state) {
                   if (gen != *gen_ptr) return;
-                  sensor->publish_state(state);
+                  id(media_player_state_sensor).publish_state(state);
                 }));
-          };
 
-          auto sub_num = [&](const std::string &attr, esphome::sensor::Sensor *sensor) {
-            api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(attr),
-                str_cb([gen, gen_ptr, sensor](const std::string &state) {
-                  if (gen != *gen_ptr) return;
-                  auto v = esphome::parse_number<float>(state);
-                  if (v.has_value()) sensor->publish_state(v.value());
-                }));
-          };
+            sub_text("media_position_updated_at", id(media_position_updated_at_sensor));
+            sub_num("media_duration", id(media_duration_sensor));
+            sub_num("media_position", id(media_position_sensor));
+            sub_num("volume_level", id(media_volume_sensor));
+            sub_text("group_members", id(group_members_sensor));
 
-          sub_text("media_title", id(media_title_sensor));
-          sub_text("media_artist", id(media_artist_sensor));
-          sub_text("entity_picture", id(media_entity_picture_sensor));
-
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
-              str_cb([gen, gen_ptr](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                id(media_player_state_sensor).publish_state(state);
-              }));
-
-          sub_text("media_position_updated_at", id(media_position_updated_at_sensor));
-          sub_num("media_duration", id(media_duration_sensor));
-          sub_num("media_position", id(media_position_sensor));
-          sub_num("volume_level", id(media_volume_sensor));
-          sub_text("group_members", id(group_members_sensor));
-
-          ESP_LOGI("media_select", "Subscribed to '%s'", entity.c_str());
+            ESP_LOGI("media_select", "Subscribed to '%s'", entity.c_str());
+          }
 
           // Only show "enable actions" prompt on first-time setup.
           // Gate on is_connected() so this only fires from on_client_connected

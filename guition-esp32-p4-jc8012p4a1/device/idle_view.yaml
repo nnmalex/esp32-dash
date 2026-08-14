@@ -60,6 +60,10 @@ script:
 
 
 interval:
+  # Calendar data is refreshed by the 15-minute interval in calendar_sensors.yaml;
+  # an extra hourly fetch keyed on `minute == 0` was both redundant and unreliable
+  # (a free-running 60 s interval drifts, so that tick can miss the minute or land
+  # on it twice).
   - interval: 60s
     then:
       - if:
@@ -67,11 +71,6 @@ interval:
             lambda: 'return id(current_view) == 0;'
           then:
             - script.execute: update_idle_clock
-      - if:
-          condition:
-            lambda: 'return id(ha_time).now().minute == 0;'
-          then:
-            - script.execute: fetch_idle_agenda
 
 
 lvgl:

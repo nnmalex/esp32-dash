@@ -18,14 +18,16 @@ globals:
   - id: last_media_position
     type: float
     initial_value: '0.0'
+  # Unix timestamps. int64_t rather than int: `long` is 32-bit on ESP32, so the
+  # epoch arithmetic below overflows a 32-bit signed type in 2038.
   - id: last_position_timestamp
-    type: int
+    type: int64_t
     initial_value: '0'
   - id: title_received_once
     type: bool
     initial_value: 'false'
   - id: ha_position_epoch
-    type: int
+    type: int64_t
     initial_value: '0'
   - id: artist_has_content
     type: bool
@@ -334,8 +336,8 @@ text_sensor:
           }
           int y = yr, m = mo;
           if (m <= 2) { y--; m += 12; }
-          long days = 365L*y + y/4 - y/100 + y/400 + (153*(m-3)+2)/5 + dy - 719469;
-          int epoch = (int)(days * 86400L + hr * 3600 + mn * 60 + sc);
+          int64_t days = 365LL*y + y/4 - y/100 + y/400 + (153*(m-3)+2)/5 + dy - 719469;
+          int64_t epoch = days * 86400LL + hr * 3600 + mn * 60 + sc;
           id(ha_position_epoch) = epoch;
           if (id(media_position_sensor).has_state()) {
             id(last_position_timestamp) = epoch;

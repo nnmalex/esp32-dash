@@ -20,8 +20,11 @@ globals:
     type: std::string
     restore_value: false
     initial_value: '""'
-  - id: wf_fetch_gen
-    type: int
+
+  # millis() of the last successful fetch; lets the navbar skip a blocking
+  # refetch while the cache is warm.
+  - id: wf_last_fetch_ms
+    type: uint32_t
     restore_value: false
     initial_value: '0'
 
@@ -48,16 +51,12 @@ script:
             return;
           }
 
-          id(wf_fetch_gen)++;
-          int my_gen = id(wf_fetch_gen);
-
           std::string url  = id(ha_base_url)
                            + "/api/services/weather/get_forecasts?return_response=true";
           std::string body = "{\"entity_id\": \"" + entity + "\", \"type\": \"daily\"}";
 
-          std::list<esphome::http_request::Header> hdrs;
-          std::string auth = "Bearer " + token;
-          hdrs.push_back({"Authorization", auth.c_str()});
+          std::vector<esphome::http_request::Header> hdrs;
+          hdrs.push_back({"Authorization", "Bearer " + token});
           hdrs.push_back({"Content-Type", "application/json"});
 
           ESP_LOGI("forecast", "Fetching forecast for %s", entity.c_str());
@@ -78,8 +77,6 @@ script:
           while ((n = container->read(chunk, sizeof(chunk))) > 0)
             resp.append(reinterpret_cast<char*>(chunk), n);
           container->end();
-
-          if (id(wf_fetch_gen) != my_gen) return;  // superseded
 
           // HA wraps the forecast under service_response.<entity_id>.forecast
           // when return_response=true. Unwrap two levels before looking for
@@ -137,20 +134,28 @@ script:
             tm_d.tm_year = year - 1900;
             tm_d.tm_mon  = month - 1;
             tm_d.tm_mday = day_num;
-            mktime(&tm_d);
-
+            tm_d.tm_hour = 12;   // midday avoids DST edges shifting the date
+            tm_d.tm_isdst = -1;  // let mktime resolve DST for this local date
             const char *day_names[] = {"SUN","MON","TUE","WED","THU","FRI","SAT"};
-            const char *day_name = day_names[tm_d.tm_wday & 7];
+            const char *day_name = "---";
+            if (mktime(&tm_d) != (time_t) -1 && tm_d.tm_wday >= 0 && tm_d.tm_wday < 7) {
+              day_name = day_names[tm_d.tm_wday];
+            }
 
+            // Missing values must stay missing: defaulting templow to 0 would
+            // drag the chart's y-range down to zero and print a bogus "0°".
             float high = 0.0f;
             float low = 0.0f;
             float precip = 0.0f;
             float prob_f = 0.0f;
-            esp32_dash::calendar_json::extract_number_field(obj, "temperature", high);
-            esp32_dash::calendar_json::extract_number_field(obj, "templow", low);
+            bool has_high = esp32_dash::calendar_json::extract_number_field(obj, "temperature", high);
+            bool has_low  = esp32_dash::calendar_json::extract_number_field(obj, "templow", low);
             esp32_dash::calendar_json::extract_number_field(obj, "precipitation", precip);
             esp32_dash::calendar_json::extract_number_field(obj, "precipitation_probability", prob_f);
             int prob = (int)prob_f;
+            if (prob < 0) prob = 0;
+            if (prob > 100) prob = 100;
+            if (precip < 0.0f) precip = 0.0f;
 
             std::string cond;
             esp32_dash::calendar_json::extract_string_field(obj, "condition", cond);
@@ -160,15 +165,30 @@ script:
             }
 
             // "DAYNAME|DAYNUM|HIGH|LOW|PRECIP|PROB|COND\n"
-            char line[128];
-            snprintf(line, sizeof(line), "%s|%d|%.1f|%.1f|%.2f|%d|%s\n",
-                     day_name, day_num, high, low, precip, prob, cond.c_str());
-            new_buf += line;
+            // HIGH/LOW are left empty when the integration did not supply them.
+            char nums[64];
+            snprintf(nums, sizeof(nums), "|%d|", day_num);
+            new_buf += day_name;
+            new_buf += nums;
+            if (has_high) {
+              snprintf(nums, sizeof(nums), "%.1f", high);
+              new_buf += nums;
+            }
+            new_buf += '|';
+            if (has_low) {
+              snprintf(nums, sizeof(nums), "%.1f", low);
+              new_buf += nums;
+            }
+            snprintf(nums, sizeof(nums), "|%.2f|%d|", precip, prob);
+            new_buf += nums;
+            new_buf += cond;
+            new_buf += '\n';
             day_count++;
           }
 
           ESP_LOGI("forecast", "Parsed %d days", day_count);
           id(wf_data_buf) = new_buf;
+          if (day_count > 0) id(wf_last_fetch_ms) = millis();
           id(render_forecast).execute();
 
 
