@@ -23,11 +23,19 @@
 # See addon/accent_color.yaml for a working example.
 # =============================================================================
 
+# !! REVERT BEFORE/ON MERGE: ref must go back to `main` !!
+# Temporarily pinned to the PR branch because components/gsl3680 does not exist
+# on main yet, and ESPHome resolves every declared external_components source
+# even when a local path override also supplies the component. Without this,
+# CI on the PR fails with:
+#   Could not find __init__.py file for component gsl3680
+# Once this branch is merged, components/gsl3680 is on main and `ref: main` is
+# correct again — end users importing this package always track main.
 external_components:
   - source:
       type: git
       url: https://github.com/nnmalex/esp32-dash
-      ref: main
+      ref: fix/subscription-leak-and-parser-bugs
       path: components
     components: [online_image, calendar_json, gsl3680]
     refresh: 1s
