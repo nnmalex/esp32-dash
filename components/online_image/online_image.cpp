@@ -285,21 +285,21 @@ void OnlineImage::loop() {
     this->data_start_ = buffer_;
     this->width_ = buffer_width_;
     this->height_ = buffer_height_;
-    ESP_LOGD(TAG, "Image fully downloaded, read %zu bytes, width/height = %d/%d", this->downloader_->get_bytes_read(),
-             this->width_, this->height_);
+    ESP_LOGD(TAG, "Image fully downloaded, read %zu bytes, width/height = %d/%d",
+             this->downloader_ ? this->downloader_->get_bytes_read() : 0, this->width_, this->height_);
     ESP_LOGD(TAG, "Total time: %" PRIu32 "s", (uint32_t) (::time(nullptr) - this->start_time_));
 #ifdef USE_LVGL
-    this->dsc_.data = this->buffer_ + 1;
+    // Rebuilds dsc_ from data_start_ (set above). Consumers such as the accent
+    // colour extractor index dsc_.data directly as a packed pixel buffer, so it
+    // must point at the first pixel.
     this->get_lv_image_dsc();
 #endif
-    this->etag_ = this->downloader_->get_response_header(ETAG_HEADER_NAME);
-    this->last_modified_ = this->downloader_->get_response_header(LAST_MODIFIED_HEADER_NAME);
+    if (this->downloader_ != nullptr) {
+      this->etag_ = this->downloader_->get_response_header(ETAG_HEADER_NAME);
+      this->last_modified_ = this->downloader_->get_response_header(LAST_MODIFIED_HEADER_NAME);
+    }
     this->download_finished_callback_.call(false);
     this->end_connection_();
-    return;
-  }
-  if (this->downloader_ == nullptr) {
-    ESP_LOGE(TAG, "Downloader not instantiated; cannot download");
     return;
   }
   size_t available = this->download_buffer_.free_capacity();
