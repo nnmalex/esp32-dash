@@ -29,15 +29,19 @@ external_components:
       url: https://github.com/nnmalex/esp32-dash
       ref: main
       path: components
-    components: [online_image, calendar_json]
+    components: [online_image, calendar_json, gsl3680]
     refresh: 1s
 
 http_request:
   id: http_req
   verify_ssl: ${ha_verify_ssl}
 
+# Images became platforms of the `image` component in ESPHome 2026.7; the old
+# bare-list form is deprecated and removed in 2027.1.0. `platform: file` does not
+# exist before 2026.7, hence the min_version bump in device.yaml.
 image:
-  - file: "https://github.com/nnmalex/esp32-dash/raw/main/guition-esp32-p4-jc8012p4a1/assets/placeholder.png"
+  - platform: file
+    file: "https://github.com/nnmalex/esp32-dash/raw/main/guition-esp32-p4-jc8012p4a1/assets/placeholder.png"
     id: album_art_placeholder
     type: RGB565
     byte_order: little_endian

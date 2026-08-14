@@ -25,7 +25,9 @@ esp32:
 esphome:
   name: ${name}
   friendly_name: ${friendly_name}
-  min_version: 2026.4.0
+  # 2026.7.0 is the floor: `image:` entries use `platform: file`, which does not
+  # exist in 2026.6 or earlier. Building on an older ESPHome fails validation.
+  min_version: 2026.7.0
   platformio_options:
     board_build.flash_mode: dio
     build_flags:
@@ -107,9 +109,14 @@ logger:
   baud_rate: 0
 
 
-external_components:
-  - source: github://kvj/esphome@jd9365_gsl3680
-    components: [gsl3680]
+# gsl3680 is vendored into components/gsl3680 rather than pulled from
+# github://kvj/esphome@jd9365_gsl3680. That branch still calls the
+# mark_failed(const char *) overload, which ESPHome removed in 2026.6.0, and it
+# has had no commits since 2025-10-16. Tracking a branch also meant the driver
+# could change under us unpinned. See components/gsl3680/README.md.
+#
+# It is declared alongside online_image and calendar_json in addon/music.yaml so
+# there is a single git external_components block for this repo.
 
 # Shared header-only JSON parser for calendar + forecast HTTP responses.
 # External component is declared in addon/music.yaml (git) and dev.yaml (local);
