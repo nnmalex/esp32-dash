@@ -27,6 +27,10 @@ script:
       - script.execute: update_idle_clock  # also calls render_idle_agenda internally
       - lvgl.page.show: idle_page
       - lvgl.widget.show: nav_bar
+      # The agenda lives here too, and the 15-minute background refresh is
+      # suppressed while the music view is up — so catch up on anything that
+      # went stale while the user was on that page.
+      - script.execute: maybe_fetch_calendar
 
   - id: show_music_view
     mode: single
@@ -36,8 +40,9 @@ script:
       - lvgl.widget.show: nav_bar
 
   # http_request is synchronous, so a fetch here stalls the main loop (and LVGL)
-  # until it completes. Show the cached render first, then only refetch when the
-  # cache is actually stale, so repeated navbar taps stay responsive.
+  # until it completes. Show the cached render first and hand the refresh to
+  # maybe_fetch_*, which defers it past the page transition and skips it
+  # entirely while the cache is warm — so these scripts never block.
   - id: show_calendar_view
     mode: single
     then:
@@ -46,13 +51,7 @@ script:
       - script.execute: render_calendar_grid  # render on hidden page before showing
       - lvgl.page.show: calendar_page
       - lvgl.widget.show: nav_bar
-      - if:
-          condition:
-            lambda: |-
-              return id(cal_events_buf).empty()
-                  || (millis() - id(cal_last_fetch_ms)) > 300000;
-          then:
-            - script.execute: fetch_calendar_data
+      - script.execute: maybe_fetch_calendar
 
   - id: show_forecast_view
     mode: single
@@ -61,13 +60,7 @@ script:
       - script.execute: render_forecast    # show cached data immediately before the page appears
       - lvgl.page.show: forecast_page
       - lvgl.widget.show: nav_bar
-      - if:
-          condition:
-            lambda: |-
-              return id(wf_data_buf).empty()
-                  || (millis() - id(wf_last_fetch_ms)) > 900000;
-          then:
-            - script.execute: fetch_forecast
+      - script.execute: maybe_fetch_forecast
 
   # Returns to music view (if playing) or idle view (if not) after a
   # configurable period of inactivity. Mode restart means any touch resets it.

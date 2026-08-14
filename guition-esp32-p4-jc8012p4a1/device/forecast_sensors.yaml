@@ -31,6 +31,25 @@ globals:
 
 script:
   # ---------------------------------------------------------------------------
+  # maybe_fetch_forecast
+  # The interactive entry point: the delay lets the page transition finish
+  # drawing before the blocking fetch stalls the loop, and mode: restart means
+  # repeated navbar taps coalesce into one fetch. Callers render cached data
+  # first and come here for the refresh.
+  # ---------------------------------------------------------------------------
+  - id: maybe_fetch_forecast
+    mode: restart
+    then:
+      - delay: 300ms
+      - if:
+          condition:
+            lambda: |-
+              return id(wf_data_buf).empty()
+                  || (millis() - id(wf_last_fetch_ms)) > 900000;
+          then:
+            - script.execute: fetch_forecast
+
+  # ---------------------------------------------------------------------------
   # fetch_forecast
   # POSTs to HA forecast service and parses the daily forecast array.
   # Populates wf_data_buf, then calls render_forecast.
@@ -69,14 +88,19 @@ script:
             return;
           }
 
-          // Read full response body
+          // Read full response body in 4 KB chunks (matching buffer_size_rx),
+          // off the heap rather than the loop task's stack.
           std::string resp;
-          resp.reserve(8192);
-          uint8_t chunk[512];
+          resp.reserve(container->content_length > 0
+                           ? (size_t) container->content_length + 1
+                           : 8192u);
+          std::vector<uint8_t> chunk(4096);
           int n;
-          while ((n = container->read(chunk, sizeof(chunk))) > 0)
-            resp.append(reinterpret_cast<char*>(chunk), n);
+          while ((n = container->read(chunk.data(), chunk.size())) > 0)
+            resp.append(reinterpret_cast<char*>(chunk.data()), n);
+          uint32_t http_ms = container->duration_ms;
           container->end();
+          ESP_LOGI("forecast", "Fetch blocked the loop for %u ms", (unsigned) http_ms);
 
           // HA wraps the forecast under service_response.<entity_id>.forecast
           // when return_response=true. Unwrap two levels before looking for
