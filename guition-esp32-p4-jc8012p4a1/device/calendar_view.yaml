@@ -9,7 +9,7 @@
 #     - 5 day columns: x=60..1280, each 244px
 #     - Default scroll offset: 6 × 44 = 264px  →  6 AM at top, 9 PM at bottom
 #
-# Data is fetched via HA REST API by fetch_calendar_week (calendar_sensors.yaml)
+# Data is fetched via HA REST API by fetch_calendar_data (calendar_sensors.yaml)
 # and stored in cal_events_buf as pipe-delimited lines:
 #   CAL_IDX|TITLE|START_ISO|END_ISO|ALLDAY\n
 #
@@ -81,7 +81,8 @@ script:
   # ---------------------------------------------------------------------------
   # render_calendar_grid
   # Parses cal_events_buf and positions the 30 pre-allocated event blocks.
-  # Called by fetch_calendar_week (calendar_sensors.yaml) after all fetches.
+  # Called by fetch_calendar_data (calendar_sensors.yaml) after all fetches,
+  # and by the prev/next buttons (the fetched window covers every offset).
   # ---------------------------------------------------------------------------
   - id: render_calendar_grid
     mode: single
@@ -149,7 +150,7 @@ script:
           bool col_ad_used[5]  = {false, false, false, false, false};
 
           // Parse cal_events_buf line by line: CAL_IDX|TITLE|START_ISO|END_ISO|ALLDAY
-          std::string buf = id(cal_events_buf);
+          const std::string &buf = id(cal_events_buf);
           size_t pos = 0;
 
           while (pos < buf.length()) {
@@ -275,18 +276,34 @@ script:
             }
           }
 
-          // Current time indicator
-          if (t.is_valid()) {
-            int today_col = -offset;
-            if (today_col >= 0 && today_col < 5) {
-              int now_y = t.hour * HOUR_H + t.minute * HOUR_H / 60;
-              int now_x = COL_X + today_col * COL_W;
-              lv_obj_set_pos(id(cal_now_line), now_x, now_y);
-              lv_obj_set_size(id(cal_now_line), COL_W, 2);
-              lv_obj_clear_flag(id(cal_now_line), LV_OBJ_FLAG_HIDDEN);
-            } else {
-              lv_obj_add_flag(id(cal_now_line), LV_OBJ_FLAG_HIDDEN);
-            }
+      - script.execute: position_cal_now_line
+
+  # ---------------------------------------------------------------------------
+  # position_cal_now_line
+  # Places the red "now" indicator in today's column, or hides it when today is
+  # not among the five visible days. Shared by render_calendar_grid and the
+  # per-minute interval so the grid geometry is defined in exactly one place.
+  # ---------------------------------------------------------------------------
+  - id: position_cal_now_line
+    mode: single
+    then:
+      - lambda: |-
+          auto t = id(ha_time).now();
+          if (!t.is_valid()) return;
+
+          const int HOUR_H = 44;
+          const int COL_X  = 60;
+          const int COL_W  = 244;
+
+          int today_col = -id(cal_view_offset);
+          if (today_col >= 0 && today_col < 5) {
+            int now_y = t.hour * HOUR_H + t.minute * HOUR_H / 60;
+            int now_x = COL_X + today_col * COL_W;
+            lv_obj_set_pos(id(cal_now_line), now_x, now_y);
+            lv_obj_set_size(id(cal_now_line), COL_W, 2);
+            lv_obj_clear_flag(id(cal_now_line), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(cal_now_line), LV_OBJ_FLAG_HIDDEN);
           }
 
 
@@ -298,16 +315,7 @@ interval:
           condition:
             lambda: 'return id(current_view) == 2;'
           then:
-            - lambda: |-
-                auto t = id(ha_time).now();
-                if (!t.is_valid()) return;
-                int today_col = -id(cal_view_offset);
-                if (today_col >= 0 && today_col < 5) {
-                  int now_y = t.hour * 44 + t.minute * 44 / 60;
-                  int now_x = 60 + today_col * 244;
-                  lv_obj_set_pos(id(cal_now_line), now_x, now_y);
-                  lv_obj_clear_flag(id(cal_now_line), LV_OBJ_FLAG_HIDDEN);
-                }
+            - script.execute: position_cal_now_line
 
 
 # -----------------------------------------------------------------------------
@@ -471,7 +479,7 @@ lvgl:
                         if (id(cal_view_offset) > -1) {
                           id(cal_view_offset)--;
                           id(update_calendar_date).execute();
-                          id(fetch_calendar_week).execute();
+                          id(render_calendar_grid).execute();
                         }
                   widgets:
                     - label:
@@ -498,7 +506,7 @@ lvgl:
                         if (id(cal_view_offset) < 2) {
                           id(cal_view_offset)++;
                           id(update_calendar_date).execute();
-                          id(fetch_calendar_week).execute();
+                          id(render_calendar_grid).execute();
                         }
                   widgets:
                     - label:

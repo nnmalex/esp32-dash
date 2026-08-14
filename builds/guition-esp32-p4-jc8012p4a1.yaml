@@ -16,7 +16,7 @@ external_components:
   - source:
       type: local
       path: ../components
-    components: [online_image]
+    components: [online_image, calendar_json, gsl3680]
 
 wifi:
   ap:

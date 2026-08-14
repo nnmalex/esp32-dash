@@ -74,6 +74,13 @@ globals:
     type: int
     initial_value: '0'
 
+  # Entity currently registered with the API state-subscription list, per slot.
+  # ESPHome has no unsubscribe (see weather_sensors.yaml), so re-running this on
+  # every reconnect would leak three callbacks per slot forever.
+  - id: tmr_subbed
+    type: std::array<std::string, 3>
+    initial_value: '{"","",""}'
+
 
 # -----------------------------------------------------------------------------
 # Entity selector text entities (NVS-persisted, visible in device settings)
@@ -159,9 +166,13 @@ script:
 
           lv_obj_clear_flag(id(timer_bar), LV_OBJ_FLAG_HIDDEN);
 
-          // Name label — show soonest timer's friendly name
+          // Name label — show soonest timer's friendly name. The name comes from
+          // an optional input_text helper, so fall back to a generic label rather
+          // than rendering an empty bar when that helper does not exist.
           std::string *names[3] = {&id(tmr_name_0), &id(tmr_name_1), &id(tmr_name_2)};
-          lv_label_set_text(id(tmr_bar_name_lbl), names[soonest_idx]->c_str());
+          const std::string &soonest_name = *names[soonest_idx];
+          lv_label_set_text(id(tmr_bar_name_lbl),
+                            soonest_name.empty() ? "Timer" : soonest_name.c_str());
 
           // "+N more" badge — visible only when multiple timers are active
           if (active_count > 1) {
@@ -203,7 +214,9 @@ script:
               if (*secs[i] > 0) (*secs[i])--;
             }
           }
-          if (any_active) id(update_timer_bar).execute();
+          // Keep counting down while dismissed so the value stays accurate, but
+          // skip the LVGL work — the bar is hidden until HA pushes "remaining".
+          if (any_active && !id(tmr_dismissed)) id(update_timer_bar).execute();
 
   # ---------------------------------------------------------------------------
   # subscribe_timer: subscribes to HA state + remaining + friendly_name
@@ -225,12 +238,13 @@ script:
           }
 
           // Reset slot if entity is not configured or has wrong prefix
-          if (entity.empty() || entity.substr(0, 6) != "timer.") {
+          if (entity.rfind("timer.", 0) != 0) {
             switch (slot) {
               case 0: id(tmr_state_0) = ""; id(tmr_remaining_secs_0) = 0; id(tmr_name_0) = ""; break;
               case 1: id(tmr_state_1) = ""; id(tmr_remaining_secs_1) = 0; id(tmr_name_1) = ""; break;
               default: id(tmr_state_2) = ""; id(tmr_remaining_secs_2) = 0; id(tmr_name_2) = ""; break;
             }
+            id(tmr_subbed)[slot] = "";
             id(update_timer_bar).execute();
             if (!entity.empty())
               ESP_LOGW("timer", "Slot %d: '%s' must start with 'timer.'", slot, entity.c_str());
@@ -238,6 +252,11 @@ script:
           }
 
           if (esphome::api::global_api_server == nullptr) return;
+
+          // Already registered for this entity (e.g. HA reconnect) — the API
+          // re-sends the existing subscription list to the new client itself.
+          if (entity == id(tmr_subbed)[slot]) return;
+          id(tmr_subbed)[slot] = entity;
 
           int *gen_ctr;
           std::string *state_ptr, *name_ptr;

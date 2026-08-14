@@ -21,7 +21,22 @@ jobs:
           restore-keys: pio-${{ runner.os }}-
 
       - name: Install ESPHome
-        run: pip install "esphome>=2026.4.0,<2026.5"
+        run: pip install "esphome>=2026.7.0,<2026.8"
 
       - name: Compile firmware
         run: esphome compile builds/guition-esp32-p4-jc8012p4a1.yaml
+
+      # The factory build layers dashboard_import and the ESP32-C6 coprocessor
+      # update onto the base config, and was previously never checked by CI.
+      #
+      # It needs builds/network_adapter_esp32c6.bin, which is not in the repo and
+      # never has been — so the factory build cannot currently be validated from a
+      # clean checkout. Skip rather than fail while that is true; the check starts
+      # enforcing automatically once the blob is committed.
+      - name: Validate factory build
+        run: |
+          if [ -f builds/network_adapter_esp32c6.bin ]; then
+            esphome config builds/guition-esp32-p4-jc8012p4a1.factory.yaml
+          else
+            echo "::warning::Skipping factory build validation - builds/network_adapter_esp32c6.bin is missing from the repo, so builds/guition-esp32-p4-jc8012p4a1.factory.yaml cannot be validated or built."
+          fi

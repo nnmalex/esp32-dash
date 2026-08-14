@@ -75,6 +75,29 @@ globals:
     type: std::array<int, 10>
     initial_value: '{0,0,0,0,0,0,0,0,0,0}'
 
+  # ---------------------------------------------------------------------------
+  # Entity currently registered with the API's Home Assistant state subscription
+  # list, per slot. ESPHome has no unsubscribe: subscribe_home_assistant_state()
+  # only ever push_back()s onto APIServer::state_subs_, and that vector is walked
+  # for every inbound state message. Re-running these scripts on each reconnect
+  # would therefore leak a closure (plus two heap strings) per attribute forever.
+  # A newly connected client is re-sent the whole existing list by
+  # APIConnection::process_state_subscriptions_(), so skipping re-subscription
+  # when the entity is unchanged loses nothing.
+  # ---------------------------------------------------------------------------
+  - id: weather_subbed
+    type: std::string
+    initial_value: '""'
+  - id: local_temp_subbed
+    type: std::string
+    initial_value: '""'
+  - id: feels_like_subbed
+    type: std::string
+    initial_value: '""'
+  - id: idle_sensor_subbed
+    type: std::array<std::string, 10>
+    initial_value: '{"","","","","","","","","",""}'
+
   # Last raw state string per tile; needed to reformat when precision changes
   - id: idle_sensor_raw
     type: std::array<std::string, 10>
@@ -346,7 +369,6 @@ number:
       - script.execute:
           id: idle_sensor_reformat
           slot: 0
-          prec: !lambda 'return (int)x;'
 
   - platform: template
     name: "Sensor Tile 2: Precision"
@@ -363,7 +385,6 @@ number:
       - script.execute:
           id: idle_sensor_reformat
           slot: 1
-          prec: !lambda 'return (int)x;'
 
   - platform: template
     name: "Sensor Tile 3: Precision"
@@ -380,7 +401,6 @@ number:
       - script.execute:
           id: idle_sensor_reformat
           slot: 2
-          prec: !lambda 'return (int)x;'
 
   - platform: template
     name: "Sensor Tile 4: Precision"
@@ -397,7 +417,6 @@ number:
       - script.execute:
           id: idle_sensor_reformat
           slot: 3
-          prec: !lambda 'return (int)x;'
 
   - platform: template
     name: "Sensor Tile 5: Precision"
@@ -414,7 +433,6 @@ number:
       - script.execute:
           id: idle_sensor_reformat
           slot: 4
-          prec: !lambda 'return (int)x;'
 
   - platform: template
     name: "Sensor Tile 6: Precision"
@@ -431,7 +449,6 @@ number:
       - script.execute:
           id: idle_sensor_reformat
           slot: 5
-          prec: !lambda 'return (int)x;'
 
   - platform: template
     name: "Sensor Tile 7: Precision"
@@ -448,7 +465,6 @@ number:
       - script.execute:
           id: idle_sensor_reformat
           slot: 6
-          prec: !lambda 'return (int)x;'
 
   - platform: template
     name: "Sensor Tile 8: Precision"
@@ -465,7 +481,6 @@ number:
       - script.execute:
           id: idle_sensor_reformat
           slot: 7
-          prec: !lambda 'return (int)x;'
 
   - platform: template
     name: "Sensor Tile 9: Precision"
@@ -482,7 +497,6 @@ number:
       - script.execute:
           id: idle_sensor_reformat
           slot: 8
-          prec: !lambda 'return (int)x;'
 
   - platform: template
     name: "Sensor Tile 10: Precision"
@@ -499,7 +513,6 @@ number:
       - script.execute:
           id: idle_sensor_reformat
           slot: 9
-          prec: !lambda 'return (int)x;'
 
 
 # -----------------------------------------------------------------------------
@@ -718,6 +731,10 @@ script:
           std::string entity = id(weather_entity_select).state;
 
           if (entity.empty() || entity.substr(0, 8) != "weather.") {
+            // Existing callbacks are already neutered by the generation counter;
+            // clearing this lets the same entity re-subscribe if re-entered.
+            id(weather_subbed) = "";
+            id(weather_sub_gen) += 1;
             lv_label_set_text(id(idle_weather_condition_label), "\xe2\x80\x94");
             if (!id(use_local_temp))
               lv_label_set_text(id(idle_weather_temp_label), "\xe2\x80\x94");
@@ -728,6 +745,11 @@ script:
           }
 
           if (esphome::api::global_api_server == nullptr) return;
+
+          // Already registered for this entity (e.g. HA reconnect) — the API
+          // re-sends the existing subscription list to the new client itself.
+          if (entity == id(weather_subbed)) return;
+          id(weather_subbed) = entity;
 
           id(weather_sub_gen) += 1;
           int gen = id(weather_sub_gen);
@@ -765,6 +787,8 @@ script:
 
           if (entity.empty()) {
             id(use_local_temp) = false;
+            id(local_temp_subbed) = "";
+            id(local_temp_sub_gen) += 1;
             // Re-publish last weather temp (triggers on_value → label update)
             if (id(idle_weather_temp_sensor).has_state()) {
               id(idle_weather_temp_sensor).publish_state(id(idle_weather_temp_sensor).state);
@@ -773,6 +797,9 @@ script:
           }
 
           if (esphome::api::global_api_server == nullptr) return;
+
+          if (entity == id(local_temp_subbed)) return;
+          id(local_temp_subbed) = entity;
 
           id(local_temp_sub_gen) += 1;
           int gen = id(local_temp_sub_gen);
@@ -811,12 +838,17 @@ script:
           std::string entity = id(feels_like_entity_select).state;
 
           if (entity.empty()) {
+            id(feels_like_subbed) = "";
+            id(feels_like_sub_gen) += 1;
             lv_obj_add_flag(id(idle_weather_feels_label), LV_OBJ_FLAG_HIDDEN);
             lv_label_set_text(id(idle_weather_feels_label), "");
             return;
           }
 
           if (esphome::api::global_api_server == nullptr) return;
+
+          if (entity == id(feels_like_subbed)) return;
+          id(feels_like_subbed) = entity;
 
           id(feels_like_sub_gen) += 1;
           int gen = id(feels_like_sub_gen);
@@ -841,10 +873,11 @@ script:
   - id: idle_sensor_reformat
     parameters:
       slot: int
-      prec: int
     mode: restart
     then:
       - lambda: |-
+          if (slot < 0 || slot > 9) return;
+
           lv_obj_t *t_values[] = { id(idle_sensor_value_0), id(idle_sensor_value_1), id(idle_sensor_value_2),
                                     id(idle_sensor_value_3), id(idle_sensor_value_4), id(idle_sensor_value_5),
                                     id(idle_sensor_value_6), id(idle_sensor_value_7), id(idle_sensor_value_8),
@@ -853,49 +886,56 @@ script:
                                     id(idle_sensor_unit_3),  id(idle_sensor_unit_4),  id(idle_sensor_unit_5),
                                     id(idle_sensor_unit_6),  id(idle_sensor_unit_7),  id(idle_sensor_unit_8),
                                     id(idle_sensor_unit_9) };
-          if (slot < 0 || slot > 9) return;
+          esphome::number::Number *t_prec[] = {
+                                    id(idle_sensor_prec_0), id(idle_sensor_prec_1), id(idle_sensor_prec_2),
+                                    id(idle_sensor_prec_3), id(idle_sensor_prec_4), id(idle_sensor_prec_5),
+                                    id(idle_sensor_prec_6), id(idle_sensor_prec_7), id(idle_sensor_prec_8),
+                                    id(idle_sensor_prec_9) };
+          esphome::text_sensor::TextSensor *t_state[] = {
+                                    id(idle_sensor_state_0), id(idle_sensor_state_1), id(idle_sensor_state_2),
+                                    id(idle_sensor_state_3), id(idle_sensor_state_4), id(idle_sensor_state_5),
+                                    id(idle_sensor_state_6), id(idle_sensor_state_7), id(idle_sensor_state_8),
+                                    id(idle_sensor_state_9) };
+
           lv_obj_t *value_lbl = t_values[slot];
           lv_obj_t *unit_lbl  = t_units[slot];
-          const std::string &raw = id(idle_sensor_raw)[slot];
-          if (raw.empty()) return;
-          std::string out = raw;
+          int prec = (int) t_prec[slot]->state;
+
+          const std::string &raw       = id(idle_sensor_raw)[slot];
           const std::string &unit_base = id(idle_sensor_unit_base)[slot];
+
+          std::string out          = raw;
           std::string unit_display = unit_base;
-          if (prec >= 0) {
+
+          if (prec >= 0 && !raw.empty()) {
             char *ep; float val = strtof(raw.c_str(), &ep);
             if (ep != raw.c_str()) {
               char buf[32];
               if (val >= 1000.0f || val <= -1000.0f) {
+                // Scale to k-units; the configured precision applies to the
+                // scaled value.
                 snprintf(buf, sizeof(buf), "%.*f", prec, val / 1000.0f);
                 unit_display = "k" + unit_base;
               } else {
-                snprintf(buf, sizeof(buf), "%.0f", val);
+                snprintf(buf, sizeof(buf), "%.*f", prec, val);
               }
               out = buf;
             }
           }
+
           lv_label_set_text(unit_lbl, unit_display.c_str());
+          // Left-column tiles place the unit immediately after the value, so the
+          // unit's x depends on the rendered width of the value text.
           if (slot < 5) {
             lv_point_t _sz;
-            lv_text_get_size(&_sz, out.c_str(),
+            lv_text_get_size(&_sz, out.empty() ? "\xe2\x80\x94" : out.c_str(),
               lv_obj_get_style_text_font(value_lbl, LV_PART_MAIN),
               lv_obj_get_style_text_letter_space(value_lbl, LV_PART_MAIN),
               lv_obj_get_style_text_line_space(value_lbl, LV_PART_MAIN),
               LV_COORD_MAX, LV_TEXT_FLAG_NONE);
             lv_obj_set_x(unit_lbl, 70 + _sz.x + 6);
           }
-          switch (slot) {
-            case 0: id(idle_sensor_state_0).publish_state(out); break;
-            case 1: id(idle_sensor_state_1).publish_state(out); break;
-            case 2: id(idle_sensor_state_2).publish_state(out); break;
-            case 3: id(idle_sensor_state_3).publish_state(out); break;
-            case 4: id(idle_sensor_state_4).publish_state(out); break;
-            case 5: id(idle_sensor_state_5).publish_state(out); break;
-            case 6: id(idle_sensor_state_6).publish_state(out); break;
-            case 7: id(idle_sensor_state_7).publish_state(out); break;
-            case 8: id(idle_sensor_state_8).publish_state(out); break;
-            default: id(idle_sensor_state_9).publish_state(out); break;
-          }
+          t_state[slot]->publish_state(out);
 
   # ---------------------------------------------------------------------------
   # subscribe_idle_sensor: subscribes to state + attributes of sensor tile N.
@@ -953,6 +993,8 @@ script:
           }
 
           if (entity.empty()) {
+            id(idle_sensor_subbed)[slot] = "";
+            id(idle_sensor_gen)[slot] += 1;
             lv_obj_add_flag(tile, LV_OBJ_FLAG_HIDDEN);
             lv_label_set_text(name_lbl,  "");
             lv_label_set_text(value_lbl, "\xe2\x80\x94");
@@ -980,6 +1022,10 @@ script:
 
           if (esphome::api::global_api_server == nullptr) return;
 
+          // Already registered for this entity (e.g. HA reconnect).
+          if (entity == id(idle_sensor_subbed)[slot]) return;
+          id(idle_sensor_subbed)[slot] = entity;
+
           id(idle_sensor_gen)[slot] += 1;
           int gen = id(idle_sensor_gen)[slot];
           int *gen_ptr = &id(idle_sensor_gen)[slot];
@@ -987,64 +1033,15 @@ script:
           auto *api = esphome::api::global_api_server;
           using str_cb = std::function<void(const std::string &)>;
 
-          // State subscription — format with per-slot precision, publish to text sensor.
-          // When prec >= 0: |val| < 1000 → integer (no decimals); |val| >= 1000 →
-          // val/1000 with configured precision and unit prefixed with "k".
+          // State subscription — store the raw value, then let idle_sensor_reformat
+          // apply precision / k-scaling and update the widgets. Keeping the
+          // formatting in one script means the precision control, the unit
+          // callback and this callback can never drift apart.
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(""),
-              str_cb([gen, gen_ptr, slot, unit_lbl, value_lbl](const std::string &state) {
+              str_cb([gen, gen_ptr, slot](const std::string &state) {
                 if (gen != *gen_ptr) return;
                 id(idle_sensor_raw)[slot] = state;
-                int prec;
-                switch (slot) {
-                  case 0: prec = (int)id(idle_sensor_prec_0).state; break;
-                  case 1: prec = (int)id(idle_sensor_prec_1).state; break;
-                  case 2: prec = (int)id(idle_sensor_prec_2).state; break;
-                  case 3: prec = (int)id(idle_sensor_prec_3).state; break;
-                  case 4: prec = (int)id(idle_sensor_prec_4).state; break;
-                  case 5: prec = (int)id(idle_sensor_prec_5).state; break;
-                  case 6: prec = (int)id(idle_sensor_prec_6).state; break;
-                  case 7: prec = (int)id(idle_sensor_prec_7).state; break;
-                  case 8: prec = (int)id(idle_sensor_prec_8).state; break;
-                  default: prec = (int)id(idle_sensor_prec_9).state; break;
-                }
-                std::string out = state;
-                const std::string &unit_base = id(idle_sensor_unit_base)[slot];
-                std::string unit_display = unit_base;
-                if (prec >= 0 && !state.empty()) {
-                  char *end; float val = strtof(state.c_str(), &end);
-                  if (end != state.c_str()) {
-                    char buf[32];
-                    if (val >= 1000.0f || val <= -1000.0f) {
-                      snprintf(buf, sizeof(buf), "%.*f", prec, val / 1000.0f);
-                      unit_display = "k" + unit_base;
-                    } else {
-                      snprintf(buf, sizeof(buf), "%.0f", val);
-                    }
-                    out = buf;
-                  }
-                }
-                lv_label_set_text(unit_lbl, unit_display.c_str());
-                if (slot < 5) {
-                  lv_point_t _sz;
-                  lv_text_get_size(&_sz, out.c_str(),
-                    lv_obj_get_style_text_font(value_lbl, LV_PART_MAIN),
-                    lv_obj_get_style_text_letter_space(value_lbl, LV_PART_MAIN),
-                    lv_obj_get_style_text_line_space(value_lbl, LV_PART_MAIN),
-                    LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-                  lv_obj_set_x(unit_lbl, 70 + _sz.x + 6);
-                }
-                switch (slot) {
-                  case 0: id(idle_sensor_state_0).publish_state(out); break;
-                  case 1: id(idle_sensor_state_1).publish_state(out); break;
-                  case 2: id(idle_sensor_state_2).publish_state(out); break;
-                  case 3: id(idle_sensor_state_3).publish_state(out); break;
-                  case 4: id(idle_sensor_state_4).publish_state(out); break;
-                  case 5: id(idle_sensor_state_5).publish_state(out); break;
-                  case 6: id(idle_sensor_state_6).publish_state(out); break;
-                  case 7: id(idle_sensor_state_7).publish_state(out); break;
-                  case 8: id(idle_sensor_state_8).publish_state(out); break;
-                  default: id(idle_sensor_state_9).publish_state(out); break;
-                }
+                id(idle_sensor_reformat).execute(slot);
               }));
 
           // Friendly name subscription — update name label when HA provides it
@@ -1054,44 +1051,13 @@ script:
                 if (!state.empty()) lv_label_set_text(name_lbl, state.c_str());
               }));
 
-          // Unit subscription — stores base unit; next state update applies k-prefix
-          // (if value already ≥ 1000) and repositions for left-column tiles.
+          // Unit subscription — stores the base unit and re-renders, which applies
+          // the k-prefix when the current value warrants it.
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("unit_of_measurement"),
-              str_cb([gen, gen_ptr, slot, unit_lbl, value_lbl](const std::string &unit) {
+              str_cb([gen, gen_ptr, slot](const std::string &unit) {
                 if (gen != *gen_ptr) return;
                 id(idle_sensor_unit_base)[slot] = unit;
-                // Derive currently-displayed unit from last raw value + prec
-                const std::string &raw = id(idle_sensor_raw)[slot];
-                int prec;
-                switch (slot) {
-                  case 0: prec = (int)id(idle_sensor_prec_0).state; break;
-                  case 1: prec = (int)id(idle_sensor_prec_1).state; break;
-                  case 2: prec = (int)id(idle_sensor_prec_2).state; break;
-                  case 3: prec = (int)id(idle_sensor_prec_3).state; break;
-                  case 4: prec = (int)id(idle_sensor_prec_4).state; break;
-                  case 5: prec = (int)id(idle_sensor_prec_5).state; break;
-                  case 6: prec = (int)id(idle_sensor_prec_6).state; break;
-                  case 7: prec = (int)id(idle_sensor_prec_7).state; break;
-                  case 8: prec = (int)id(idle_sensor_prec_8).state; break;
-                  default: prec = (int)id(idle_sensor_prec_9).state; break;
-                }
-                std::string unit_display = unit;
-                if (prec >= 0 && !raw.empty()) {
-                  char *end; float val = strtof(raw.c_str(), &end);
-                  if (end != raw.c_str() && (val >= 1000.0f || val <= -1000.0f)) {
-                    unit_display = "k" + unit;
-                  }
-                }
-                lv_label_set_text(unit_lbl, unit_display.c_str());
-                if (slot < 5) {
-                  lv_point_t _sz;
-                  lv_text_get_size(&_sz, lv_label_get_text(value_lbl),
-                    lv_obj_get_style_text_font(value_lbl, LV_PART_MAIN),
-                    lv_obj_get_style_text_letter_space(value_lbl, LV_PART_MAIN),
-                    lv_obj_get_style_text_line_space(value_lbl, LV_PART_MAIN),
-                    LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-                  lv_obj_set_x(unit_lbl, 70 + _sz.x + 6);
-                }
+                id(idle_sensor_reformat).execute(slot);
               }));
 
           // Icon subscription — maps mdi:* attribute to compiled glyph codepoint
