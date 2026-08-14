@@ -35,6 +35,9 @@ script:
       - lvgl.page.show: music_page
       - lvgl.widget.show: nav_bar
 
+  # http_request is synchronous, so a fetch here stalls the main loop (and LVGL)
+  # until it completes. Show the cached render first, then only refetch when the
+  # cache is actually stale, so repeated navbar taps stay responsive.
   - id: show_calendar_view
     mode: single
     then:
@@ -43,7 +46,13 @@ script:
       - script.execute: render_calendar_grid  # render on hidden page before showing
       - lvgl.page.show: calendar_page
       - lvgl.widget.show: nav_bar
-      - script.execute: fetch_calendar_week
+      - if:
+          condition:
+            lambda: |-
+              return id(cal_events_buf).empty()
+                  || (millis() - id(cal_last_fetch_ms)) > 300000;
+          then:
+            - script.execute: fetch_calendar_data
 
   - id: show_forecast_view
     mode: single
@@ -52,7 +61,13 @@ script:
       - script.execute: render_forecast    # show cached data immediately before the page appears
       - lvgl.page.show: forecast_page
       - lvgl.widget.show: nav_bar
-      - script.execute: fetch_forecast    # refresh data in background
+      - if:
+          condition:
+            lambda: |-
+              return id(wf_data_buf).empty()
+                  || (millis() - id(wf_last_fetch_ms)) > 900000;
+          then:
+            - script.execute: fetch_forecast
 
   # Returns to music view (if playing) or idle view (if not) after a
   # configurable period of inactivity. Mode restart means any touch resets it.
@@ -123,7 +138,9 @@ lvgl:
             border_width: 0
             radius: 0
             pad_all: 0
-            hidden: true   # hidden on music page; shown by show_*_view scripts
+            # Starts hidden so it does not flash during boot/setup prompts; every
+            # show_*_view script (including show_music_view) then reveals it.
+            hidden: true
 
             widgets:
               # Nav buttons dispatch via LVGL on_press (LV_EVENT_PRESSED) on
