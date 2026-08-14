@@ -48,6 +48,7 @@ guition-esp32-p4-jc8012p4a1/
 components/
   online_image/         # custom C++ component: downloads & decodes album art
   calendar_json/        # header-only JSON parser shared by calendar + forecast
+  gsl3680/              # vendored touch driver (see its README.md)
   libjpeg-turbo-esp32/  # JPEG decode library (CMake IDF component)
 builds/
   guition-esp32-p4-jc8012p4a1.yaml          # base build config
@@ -80,7 +81,15 @@ packages:
     refresh: 1s
 ```
 
-`addon/music.yaml` pulls `online_image` as an `external_component` from this same repo (`components/online_image/`).
+`addon/music.yaml` pulls `online_image` and `calendar_json` as `external_components`
+from this same repo; `device/device.yaml` pulls `gsl3680` the same way. `dev.yaml` and
+`builds/guition-esp32-p4-jc8012p4a1.yaml` override all three with a local path so local
+builds use the working tree instead of GitHub.
+
+**Minimum ESPHome version is 2026.7.0.** `image:` entries use `platform: file`, which
+does not exist before 2026.7 — older versions fail validation. CI pins
+`>=2026.7.0,<2026.8` so it tests what devices actually build with; that pin was
+previously `<2026.5`, which is why a build break on 2026.6+ passed CI unnoticed.
 
 **There is currently no OTA update-check feature.** `.github/workflows/firmware.yml` only compiles `builds/guition-esp32-p4-jc8012p4a1.yaml` and validates the factory build — it does not publish a manifest, upload an OTA binary, or inject a version. `project.version` is hardcoded to `dev` in both build files. Devices therefore expose no `update` entity for dashboard firmware, and users update by re-flashing or via the ESPHome dashboard. See "Not implemented" below.
 
