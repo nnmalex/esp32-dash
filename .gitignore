@@ -1,0 +1,7 @@
+# ESPHome generates these next to component __init__.py files during a build
+__pycache__/
+*.py[cod]
+
+# ESPHome build output (builds/ has its own .gitignore too)
+.esphome/
+secrets.yaml

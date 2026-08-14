@@ -2,6 +2,38 @@
 
 ## [Unreleased]
 
+### Fix: builds failed on ESPHome 2026.6+ (vendored gsl3680)
+
+Compilation failed with:
+
+```
+error: no matching function for call to 'GSL3680::mark_failed(const char [15])'
+```
+
+`Component::mark_failed(const char *)` was deprecated in ESPHome 2025.12
+carrying an explicit "Remove before 2026.6.0" note, and was removed on
+schedule; only `mark_failed()` and `mark_failed(const LogString *)` remain. The
+GSL3680 touch driver, pulled from `github://kvj/esphome@jd9365_gsl3680`, still
+called the removed overload. That branch has had no commits since 2025-10-16.
+
+Reproduced on 2026.7.4: exactly one error across the entire 1863-object build,
+so this was the sole blocker.
+
+The driver is now vendored into `components/gsl3680/` with the one-line fix
+(`LOG_STR` form, valid on 2026.4+). This also removes a second hazard — the old
+reference tracked a *branch*, so the touch driver could change underneath the
+project with no pin. Provenance, upstream commit and the local delta are
+recorded in `components/gsl3680/README.md`.
+
+### ESPHome 2026.7.0 is now the minimum
+
+- `image:` moved from the deprecated bare-list form to `platform: file`.
+  That platform is new in 2026.7 (it does not exist in 2026.5 or 2026.6), so
+  `min_version` is raised to match. The old form is removed in 2027.1.0.
+- CI pinned `esphome ">=2026.4.0,<2026.5"` while devices build with 2026.7.
+  **That gap is the root cause of the break shipping unnoticed** — CI was
+  green against a version no user runs. Pin is now `">=2026.7.0,<2026.8"`.
+
 ### Fix: stop leaking Home Assistant state subscriptions on every reconnect
 
 `subscribe_weather`, `subscribe_local_temp`, `subscribe_feels_like`,
