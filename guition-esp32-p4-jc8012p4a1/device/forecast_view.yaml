@@ -101,6 +101,8 @@ script:
             int   prob;
             char  cond[32];
             bool  valid;
+            bool  has_high;   // integration may omit temperature / templow
+            bool  has_low;
           } days[7] = {};
 
           int n_days = 0;
@@ -127,13 +129,15 @@ script:
               if (fi >= 7) {
                 DayData &d = days[n_days];
                 strncpy(d.day_name, fld[0], 3); d.day_name[3] = '\0';
-                d.day_num = atoi(fld[1]);
-                d.high    = atof(fld[2]);
-                d.low     = atof(fld[3]);
-                d.precip  = atof(fld[4]);
-                d.prob    = atoi(fld[5]);
+                d.day_num  = atoi(fld[1]);
+                d.has_high = (fld[2][0] != '\0');
+                d.has_low  = (fld[3][0] != '\0');
+                d.high     = d.has_high ? atof(fld[2]) : 0.0f;
+                d.low      = d.has_low  ? atof(fld[3]) : 0.0f;
+                d.precip   = atof(fld[4]);
+                d.prob     = atoi(fld[5]);
                 strncpy(d.cond, fld[6], 31); d.cond[31] = '\0';
-                d.valid   = true;
+                d.valid    = true;
                 n_days++;
               }
             }
@@ -172,16 +176,27 @@ script:
           id(wf_today_col) = today_col;
 
           // ── Compute chart y-range ──────────────────────────────────────────
-          float min_t = 999.0f, max_t = -999.0f;
+          // Only days that actually reported a temperature contribute, so a
+          // missing templow cannot stretch the range down to zero.
+          float min_t = 0.0f, max_t = 0.0f;
+          bool any_temp = false;
           float max_precip = 0.0f;
           for (int i = 0; i < n_days; i++) {
             if (!days[i].valid) continue;
-            if (days[i].low  < min_t) min_t = days[i].low;
-            if (days[i].high > max_t) max_t = days[i].high;
+            if (days[i].has_low) {
+              if (!any_temp || days[i].low < min_t) min_t = days[i].low;
+              if (!any_temp || days[i].low > max_t) max_t = days[i].low;
+              any_temp = true;
+            }
+            if (days[i].has_high) {
+              if (!any_temp || days[i].high < min_t) min_t = days[i].high;
+              if (!any_temp || days[i].high > max_t) max_t = days[i].high;
+              any_temp = true;
+            }
             if (days[i].precip > max_precip) max_precip = days[i].precip;
           }
-          int chart_min = (int)floorf(min_t) - 2;
-          int chart_max = (int)ceilf(max_t)  + 3;
+          int chart_min = any_temp ? (int)floorf(min_t) - 2 : 0;
+          int chart_max = any_temp ? (int)ceilf(max_t)  + 3 : 1;
           if (max_precip < 2.0f) max_precip = 2.0f;
 
           // ── Build lv_line point arrays ─────────────────────────────────────
@@ -190,19 +205,35 @@ script:
           // Point y for value v:  130 + 300*(chart_max - v)/(chart_max - chart_min)
           int range = chart_max - chart_min;
           if (range <= 0) range = 1;
+          // lv_line needs contiguous points, so days missing a value are simply
+          // left out of the polyline rather than plotted at zero.
           static lv_point_precise_t high_pts[7];
           static lv_point_precise_t low_pts[7];
+          int n_high = 0, n_low = 0;
           for (int i = 0; i < n_days; i++) {
             int px = 91 + 1098 * i / 6;
-            high_pts[i] = {(lv_coord_t)px,
-                           (lv_coord_t)(130 + 300 * (chart_max - (int)roundf(days[i].high)) / range)};
-            low_pts[i]  = {(lv_coord_t)px,
-                           (lv_coord_t)(130 + 300 * (chart_max - (int)roundf(days[i].low))  / range)};
+            if (days[i].has_high) {
+              high_pts[n_high++] = {(lv_coord_t)px,
+                  (lv_coord_t)(130 + 300 * (chart_max - (int)roundf(days[i].high)) / range)};
+            }
+            if (days[i].has_low) {
+              low_pts[n_low++] = {(lv_coord_t)px,
+                  (lv_coord_t)(130 + 300 * (chart_max - (int)roundf(days[i].low)) / range)};
+            }
           }
-          lv_line_set_points(id(wf_line_high)->obj, high_pts, n_days);
-          lv_line_set_points(id(wf_line_low)->obj,  low_pts,  n_days);
-          lv_obj_clear_flag(id(wf_line_high)->obj, LV_OBJ_FLAG_HIDDEN);
-          lv_obj_clear_flag(id(wf_line_low)->obj,  LV_OBJ_FLAG_HIDDEN);
+          // A single point draws nothing and LVGL rejects a zero-length array.
+          if (n_high >= 2) {
+            lv_line_set_points(id(wf_line_high)->obj, high_pts, n_high);
+            lv_obj_clear_flag(id(wf_line_high)->obj, LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(wf_line_high)->obj, LV_OBJ_FLAG_HIDDEN);
+          }
+          if (n_low >= 2) {
+            lv_line_set_points(id(wf_line_low)->obj, low_pts, n_low);
+            lv_obj_clear_flag(id(wf_line_low)->obj, LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(wf_line_low)->obj, LV_OBJ_FLAG_HIDDEN);
+          }
 
           // ── Per-column updates ─────────────────────────────────────────────
           for (int i = 0; i < 7; i++) {
@@ -233,7 +264,7 @@ script:
             lv_obj_set_style_text_color(day_lbl[i],
                 lv_color_hex(is_today ? 0x6CB4F0U : 0x888888U), 0);
 
-            char num_buf[4];
+            char num_buf[8];
             snprintf(num_buf, sizeof(num_buf), "%d", d.day_num);
             lv_label_set_text(date_lbl[i], num_buf);
             lv_obj_set_style_text_color(date_lbl[i],
@@ -244,16 +275,24 @@ script:
             int py_high = 130 + 300 * (chart_max - (int)roundf(d.high)) / range;
             int py_low  = 130 + 300 * (chart_max - (int)roundf(d.low))  / range;
 
-            char t_buf[8];
+            char t_buf[16];
             // High label — centred above the dot
-            snprintf(t_buf, sizeof(t_buf), "%d\xc2\xb0", (int)roundf(d.high));
-            lv_label_set_text(high_lbl[i], t_buf);
-            lv_obj_set_pos(high_lbl[i], px - 22, py_high - 36);
+            if (d.has_high) {
+              snprintf(t_buf, sizeof(t_buf), "%d\xc2\xb0", (int)roundf(d.high));
+              lv_label_set_text(high_lbl[i], t_buf);
+              lv_obj_set_pos(high_lbl[i], px - 22, py_high - 36);
+            } else {
+              lv_label_set_text(high_lbl[i], "");
+            }
 
             // Low label — centred below the dot
-            snprintf(t_buf, sizeof(t_buf), "%d\xc2\xb0", (int)roundf(d.low));
-            lv_label_set_text(low_lbl[i], t_buf);
-            lv_obj_set_pos(low_lbl[i], px - 22, py_low + 8);
+            if (d.has_low) {
+              snprintf(t_buf, sizeof(t_buf), "%d\xc2\xb0", (int)roundf(d.low));
+              lv_label_set_text(low_lbl[i], t_buf);
+              lv_obj_set_pos(low_lbl[i], px - 22, py_low + 8);
+            } else {
+              lv_label_set_text(low_lbl[i], "");
+            }
 
             // ── Precipitation bar ──
             int bar_h = 0;
