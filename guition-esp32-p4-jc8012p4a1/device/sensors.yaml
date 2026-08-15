@@ -32,9 +32,6 @@ globals:
   - id: artist_has_content
     type: bool
     initial_value: 'false'
-  - id: volume_updating_from_ha
-    type: bool
-    initial_value: 'false'
   - id: last_artwork_url
     type: std::string
     initial_value: '""'
@@ -147,7 +144,6 @@ script:
           id: media_play_icon
       - lvgl.widget.hide:
           id: media_pause_icon
-      - script.execute: show_track_view
       - script.execute: backlight_wake_timeout
       - if:
           condition:
@@ -286,7 +282,6 @@ text_sensor:
                   - script.execute: delayed_idle_cleanup
                 else:
                   - script.stop: delayed_idle_cleanup
-                  - script.execute: show_track_view
                   - lvgl.widget.show:
                       id: media_play_icon
                   - lvgl.widget.hide:
@@ -359,22 +354,6 @@ sensor:
             if (t.is_valid()) id(last_position_timestamp) = t.timestamp;
           }
 
-  - platform: template
-    id: media_volume_sensor
-    on_value:
-      - lambda: |-
-          if (id(speaker_count) <= 1) {
-            id(volume_updating_from_ha) = true;
-            lv_arc_set_value(id(volume_arc), (int)(x * 100.0f));
-            id(volume_updating_from_ha) = false;
-            int pct = (int)(x * 100.0f);
-            char buf[8];
-            snprintf(buf, sizeof(buf), "%d%%", pct);
-            lv_label_set_text(id(volume_pct_label), buf);
-            id(speaker_volumes)[0] = x;
-            lv_label_set_text(id(speaker_vol_label_0), buf);
-          }
-
 number:
   - platform: template
     name: "Screen: Return Timeout"
@@ -388,20 +367,6 @@ number:
     unit_of_measurement: "s"
     icon: "mdi:timer-outline"
     entity_category: config
-
-  - platform: template
-    name: "Speakers: Auto-Close Timeout"
-    id: speaker_panel_timeout
-    min_value: 0
-    max_value: 60
-    step: 1
-    initial_value: 15
-    optimistic: true
-    restore_value: true
-    unit_of_measurement: "s"
-    icon: "mdi:timer-lock-outline"
-    entity_category: config
-    mode: box
 
 switch:
   - platform: template

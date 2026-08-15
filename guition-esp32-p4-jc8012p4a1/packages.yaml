@@ -18,7 +18,6 @@ packages:
   time_sync: !include addon/time.yaml
   timezone: !include addon/timezone.yaml
   network: !include addon/network.yaml
-  speaker_group: !include addon/speaker_group.yaml
   fonts: !include assets/fonts.yaml
   icons: !include assets/icons.yaml
   device: !include device/device.yaml

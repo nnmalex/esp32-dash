@@ -137,8 +137,6 @@ script:
             sub_text("media_position_updated_at", id(media_position_updated_at_sensor));
             sub_num("media_duration", id(media_duration_sensor));
             sub_num("media_position", id(media_position_sensor));
-            sub_num("volume_level", id(media_volume_sensor));
-            sub_text("group_members", id(group_members_sensor));
 
             ESP_LOGI("media_select", "Subscribed to '%s'", entity.c_str());
           }
