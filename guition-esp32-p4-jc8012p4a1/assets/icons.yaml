@@ -10,14 +10,10 @@ font:
     glyphs:
       - "\U000F040A"  # mdi-play
       - "\U000F03E4"  # mdi-pause
-      - "\U000F0415"  # mdi-plus
-      - "\U000F0374"  # mdi-minus
       - "\U000F05A9"  # mdi-wifi
       - "\U000F07D0"  # mdi-home-assistant
       - "\U000F0118"  # mdi-cast
       - "\U000F0565"  # mdi-shield-check
-      - "\U000F0D38"  # mdi-speaker-multiple
-      - "\U000F0156"  # mdi-close
       - "\U000F02DC"  # mdi-home
       - "\U000F075A"  # mdi-music-note
       - "\U000F00ED"  # mdi-calendar
@@ -65,13 +61,6 @@ font:
       - "\U000F067F"  # mdi-weather-snowy-rainy
       - "\U000F051B"  # mdi-timer-outline
   - file: 'https://github.com/Templarian/MaterialDesign-Webfont/raw/v7.4.47/fonts/materialdesignicons-webfont.ttf'
-    id: icon_font_small
-    size: 28
-    bpp: 4
-    glyphs:
-      - "\U000F0415"  # mdi-plus
-      - "\U000F0374"  # mdi-minus
-  - file: 'https://github.com/Templarian/MaterialDesign-Webfont/raw/v7.4.47/fonts/materialdesignicons-webfont.ttf'
     id: icon_font_large
     size: 50
     bpp: 4
@@ -95,14 +84,10 @@ font:
 substitutions:
   play:          "\U000F040A"
   pause:         "\U000F03E4"
-  icon_plus:     "\U000F0415"
-  icon_minus:    "\U000F0374"
   icon_wifi:     "\U000F05A9"
   icon_ha:       "\U000F07D0"
   icon_cast:     "\U000F0118"
   icon_shield:   "\U000F0565"
-  icon_speakers: "\U000F0D38"
-  icon_close:    "\U000F0156"
   icon_home:          "\U000F02DC"
   icon_music:         "\U000F075A"
   icon_calendar:      "\U000F00ED"
