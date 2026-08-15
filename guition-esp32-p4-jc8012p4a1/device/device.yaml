@@ -71,6 +71,14 @@ ota:
 
 
 api:
+  # Compiles in APIServer::subscribe_home_assistant_state. Defaults to false, and
+  # ESPHome only auto-enables it for `platform: homeassistant` entities — it cannot
+  # see the subscriptions this project makes from raw lambdas (media_player_select,
+  # weather_sensors, calendar_sensors, timer_overlay). Until the speaker-grouping
+  # addon was removed its `platform: homeassistant` text_sensor set the define as a
+  # side effect; every lambda subscription silently depended on that. Set it here so
+  # the dependency is explicit and does not hinge on an unrelated entity existing.
+  homeassistant_states: true
   on_client_connected:
     - lambda: |-
         if (client_info.find("Home Assistant") != std::string::npos) {
@@ -165,13 +173,6 @@ globals:
   - id: touch_y_end
     type: int
     initial_value: '0'
-  # -- Settings panel state --
-  - id: is_panel_open
-    type: bool
-    initial_value: 'false'
-  - id: was_panel_open
-    type: bool
-    initial_value: 'false'
 
   # -- Setup flow --
   - id: actions_prompt_acked
@@ -209,15 +210,12 @@ touchscreen:
       mirror_y: false
     on_touch:
       - lambda: |-
-          id(was_panel_open) = id(is_panel_open);
           id(touch_x_start) = touch.x;
           id(touch_y_start) = touch.y;
           id(touch_x_end) = touch.x;
           id(touch_y_end) = touch.y;
       - script.execute: backlight_wake_timeout
       - script.execute: start_view_return_timeout
-      - lambda: |-
-          if (id(is_panel_open)) id(start_speaker_panel_timeout).execute();
     on_update:
       - lambda: |-
           for (auto touch: touches) {
@@ -230,7 +228,6 @@ touchscreen:
       - lambda: |-
           int dx = id(touch_x_end) - id(touch_x_start);
           int dy = id(touch_y_end) - id(touch_y_start);
-          int sy = id(touch_y_start);
           ESP_LOGD("touch", "Swipe dx=%d dy=%d start=(%d,%d) end=(%d,%d)",
                    dx, dy, id(touch_x_start), id(touch_y_start),
                    id(touch_x_end), id(touch_y_end));
@@ -255,15 +252,6 @@ touchscreen:
           // attempt to dispatch navbar taps from this callback using
           // landscape-space checks (touch_y_start >= 740) matched the wrong
           // region and caused Forecast taps to flash to idle.
-
-          // --- Vertical swipe: settings panel open (only from top 200px, music page only) ---
-          if (dy > 30 && sy < 200 && abs(dy) > abs(dx) * 2 && !id(is_panel_open) && id(current_view) == 1) {
-            id(open_settings_panel).execute();
-            return;
-          }
-          if (id(is_panel_open) || id(was_panel_open)) {
-            return;
-          }
 
           // --- Horizontal swipe: track navigation (music page only) ---
           if (abs(dx) > 80 && abs(dx) > abs(dy) * 2 && id(current_view) == 1) {
@@ -318,49 +306,6 @@ script:
                   lv_obj_clear_flag(id(actions_prompt), LV_OBJ_FLAG_HIDDEN);
                 }
       - logger.log: "Media: previous_track"
-
-  - id: open_settings_panel
-    mode: single
-    then:
-      - lambda: 'id(is_panel_open) = true;'
-      - if:
-          condition:
-            lambda: 'return id(speaker_count) <= 1;'
-          then:
-            - script.execute: show_fallback_speaker
-      - lvgl.widget.show: settings_panel
-      - script.execute: start_speaker_panel_timeout
-  - id: close_settings_panel
-    mode: single
-    then:
-      - script.stop: start_speaker_panel_timeout
-      - lvgl.widget.hide: settings_panel
-      - lambda: 'id(is_panel_open) = false;'
-  - id: start_speaker_panel_timeout
-    mode: restart
-    then:
-      - if:
-          condition:
-            lambda: 'return id(speaker_panel_timeout).state > 0;'
-          then:
-            - delay: !lambda 'return (uint32_t)(id(speaker_panel_timeout).state * 1000);'
-            - if:
-                condition:
-                  lambda: 'return id(is_panel_open);'
-                then:
-                  - script.execute: close_settings_panel
-
-  - id: show_track_view
-    mode: single
-    then:
-      - if:
-          condition:
-            lambda: 'return id(is_panel_open);'
-          then:
-            - lvgl.widget.hide: settings_panel
-            - lambda: 'id(is_panel_open) = false;'
-
-
 
 
 # -----------------------------------------------------------------------------

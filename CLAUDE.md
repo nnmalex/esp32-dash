@@ -22,7 +22,6 @@ guition-esp32-p4-jc8012p4a1/
     accent_color.yaml   # extract dominant colour from album art
     backlight.yaml      # day/night brightness (no dimming/screensaver stage)
     network.yaml        # WiFi boot flow, diagnostics
-    speaker_group.yaml  # multi-room speaker grouping
     time.yaml           # HA time sync
     timezone.yaml       # clock timezone select
   assets/
@@ -91,6 +90,24 @@ does not exist before 2026.7 — older versions fail validation. CI pins
 `>=2026.7.0,<2026.8` so it tests what devices actually build with; that pin was
 previously `<2026.5`, which is why a build break on 2026.6+ passed CI unnoticed.
 
+**`api: homeassistant_states: true` is load-bearing** (set in `device/device.yaml`).
+It emits `USE_API_HOMEASSISTANT_STATES`, which is what compiles
+`APIServer::subscribe_home_assistant_state` into the binary. The option defaults to
+`false`; ESPHome only turns it on automatically for `platform: homeassistant`
+entities, and it cannot see the subscriptions this project makes from raw lambdas
+(`media_player_select.yaml`, `weather_sensors.yaml`, `calendar_sensors.yaml`,
+`timer_overlay.yaml`). Removing it breaks the compile with "class
+`esphome::api::APIServer` has no member named `subscribe_home_assistant_state`" in
+every one of those files. It was previously satisfied by accident: the
+speaker-grouping addon's `platform: homeassistant` text_sensor set the define, and
+deleting that addon surfaced the latent dependency.
+
+**Local build verification:** `esphome` is not on `PATH`, but the ESPHome Device
+Builder app bundles a matching 2026.7.3 CLI:
+`"/Applications/ESPHome Device Builder.app/Contents/Resources/python/bin/esphome" compile builds/guition-esp32-p4-jc8012p4a1.yaml`
+— same command CI runs, and it needs no `secrets.yaml` (unlike `dev.yaml`, which
+wants `wifi_ssid` / `wifi_password`).
+
 **There is currently no OTA update-check feature.** `.github/workflows/firmware.yml` only compiles `builds/guition-esp32-p4-jc8012p4a1.yaml` and validates the factory build — it does not publish a manifest, upload an OTA binary, or inject a version. `project.version` is hardcoded to `dev` in both build files. Devices therefore expose no `update` entity for dashboard firmware, and users update by re-flashing or via the ESPHome dashboard. See "Not implemented" below.
 
 ## Architecture: LVGL state machine
@@ -101,8 +118,10 @@ Four LVGL pages defined across two files (`device/lvgl.yaml` + `device/navbar.ya
   - Left 800px: album art panel (`album_art_background_widget`)
   - Right 480px: track info (title, artist, time, play/pause button)
   - Bottom: 6px progress bar
-  - Swipe-down (from top 200px): volume arc / speaker group overlay
   - Full-screen overlays: setup prompts, loading screen
+  - No volume or speaker-grouping UI: the swipe-down settings panel, the volume
+    arc, and `addon/speaker_group.yaml` were removed. Volume is controlled from
+    HA, not the panel.
 - **`idle_page`** (Phase 4b complete) — two-pane layout
   - Left 800px: weather background image + dark overlay; clock+date top-left; condition+temp top-right; two columns of 5 sensor tiles each (left col x=0..389 = tiles 0-4, right col x=400..789 = tiles 5-9; hidden when entity not configured)
   - Right 480px: merged calendar agenda (today+tomorrow from all 3 calendars, sorted, past events greyed out) — 5 agenda slots (`idle_agenda_slot_0..4`)
@@ -130,7 +149,6 @@ Timer overlay (`timer_bar`) defined in `device/timer_overlay.yaml`, also reparen
 Global state flags in `device/device.yaml`:
 - `actions_prompt_acked` — user dismissed the "enable actions" prompt (NVS-backed)
 - `device_has_been_setup` — first successful setup completed; suppresses setup prompts on restart (NVS-backed)
-- `is_panel_open`, `was_panel_open` — speaker/settings panel state
 - `touch_x_start/y_start/x_end/y_end` — swipe gesture tracking
 
 Global state in `device/navbar.yaml`:
@@ -148,7 +166,7 @@ Media state driven by `sensors.yaml`: subscribes to HA entity attributes, interp
 ## Roadmap: multi-view architecture
 
 Phase 1 (complete): scaffolding — 10" device, URLs updated, `main_page` → `music_page`.
-Phase 2 (complete): navbar, `current_view` global, auto-switching, swipe gestures scoped per view (swipe-down opens the settings panel, horizontal swipes skip tracks — both music-page only).
+Phase 2 (complete): navbar, `current_view` global, auto-switching, swipe gestures scoped per view (horizontal swipes skip tracks, music-page only). The swipe-down settings panel added in this phase has since been removed.
 Phase 3 (complete): `device/idle_view.yaml` + `device/weather_sensors.yaml` — real idle page with clock, weather card, calendar preview placeholders, 4-tile sensor row; weather entity + 4 sensor row entities (NVS-persisted, gen-counter subscriptions).
 Phase 4 (complete): `device/calendar_view.yaml` + `device/calendar_sensors.yaml` — real calendar page; 3 calendar entity slots.
 Phase 4c (complete): Calendar view redesigned as 5-day week grid. Key IDs: `cal_grid_scroll` (scrollable time grid), `cal_col_hdr_0..4`, `cal_ev_00..29` (event blocks), `cal_ad_0..4` (all-day chips), `cal_now_line` (current time). New globals: `cal_view_offset`, `cal_events_buf`, `cal_fetch_start/end`, `cal_last_fetch_ms`. New scripts: `fetch_calendar_data`, `render_calendar_grid`, `position_cal_now_line`. Token set via the `ha_token` substitution.
@@ -218,7 +236,12 @@ are not in the tree. Listed so they are not mistaken for regressions:
   indefinitely. There are no `is_screen_dimmed` / `is_clock_screensaver_showing`
   globals and no clock screensaver overlay.
 - **Swipe-up to idle.** The touch handler in `device/device.yaml` implements
-  swipe-down (settings panel) and horizontal swipes (track skip) only.
+  horizontal swipes (track skip) only.
+- **On-device volume control and speaker grouping.** The swipe-down settings
+  panel, the volume arc, and `addon/speaker_group.yaml` (which needed a
+  `sensor.speaker_group` template sensor in HA) were removed. Nothing subscribes
+  to `volume_level` or `group_members` any more, and the "Speakers: Auto-Close
+  Timeout" number entity is gone.
 
 ## Broken: factory build is missing its C6 blob
 
