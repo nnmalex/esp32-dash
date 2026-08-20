@@ -289,9 +289,16 @@ void OnlineImage::loop() {
              this->downloader_ ? this->downloader_->get_bytes_read() : 0, this->width_, this->height_);
     ESP_LOGD(TAG, "Total time: %" PRIu32 "s", (uint32_t) (::time(nullptr) - this->start_time_));
 #ifdef USE_LVGL
-    // Rebuilds dsc_ from data_start_ (set above). Consumers such as the accent
-    // colour extractor index dsc_.data directly as a packed pixel buffer, so it
-    // must point at the first pixel.
+    // get_lv_image_dsc() is lazy: it only rebuilds the descriptor when
+    // dsc_.data != data_start_. resize_() reuses the existing buffer whenever
+    // the new image fits inside it, so data_start_ is frequently unchanged
+    // between downloads and the guard would keep the *previous* image's w/h/
+    // stride/data_size -- LVGL then reads the new pixels with the old geometry
+    // and the artwork renders sheared. Invalidate first to force a full
+    // rebuild. Consumers such as the accent colour extractor index dsc_.data
+    // directly as a packed pixel buffer, so it must end up at the first pixel,
+    // which get_lv_image_dsc() guarantees.
+    this->dsc_.data = nullptr;
     this->get_lv_image_dsc();
 #endif
     if (this->downloader_ != nullptr) {
