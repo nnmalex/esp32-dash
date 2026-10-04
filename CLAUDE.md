@@ -41,7 +41,7 @@ guition-esp32-p4-jc8012p4a1/
     calendar_sensors.yaml     # calendar subscriptions, fetch_calendar_data, render_idle_agenda
     forecast_view.yaml  # forecast_page widgets, render_forecast
     forecast_sensors.yaml     # fetch_forecast, wf_data_buf
-    timer_overlay.yaml  # floating timer_bar above the nav bar
+    timer_overlay.yaml  # timer_bar, shown in the right 480px of the nav bar
   theme/
     button.yaml         # LVGL style definitions
 components/
@@ -115,7 +115,11 @@ wants `wifi_ssid` / `wifi_password`).
 Four LVGL pages defined across two files (`device/lvgl.yaml` + `device/navbar.yaml`):
 
 - **`music_page`** (1280×800) — existing media player UI
-  - Left 800px: album art panel (`album_art_background_widget`)
+  - Left 800px: album art panel (`album_art_background_widget`). `online_image`
+    decodes art straight to the 740×740 box (`resize: 740x740`, bilinear resample
+    in `jpeg_image.cpp`) and the widget draws it 1:1, centred. Do not reintroduce
+    an LVGL zoom/scale on it: a transformed image is re-rendered on every redraw,
+    and the progress bar over it redraws every second
   - Right 480px: track info (title, artist, time, play/pause button)
   - Bottom: 6px progress bar
   - Full-screen overlays: setup prompts, loading screen
@@ -142,9 +146,9 @@ Four LVGL pages defined across two files (`device/lvgl.yaml` + `device/navbar.ya
   - Key scripts: `fetch_forecast`, `render_forecast`
   - Globals: `wf_data_buf` (pipe-delimited lines), `wf_today_col`, `wf_last_fetch_ms`
 
-Navigation bar (`nav_bar`) defined in `device/navbar.yaml`, reparented to `lv_layer_top()` on boot so it floats above all pages. 60px bar at y=740, visible on all four views (every `show_*_view` script reveals it; it starts hidden only so it does not flash during boot/setup), four icon buttons: Home, Music, Calendar, Forecast.
+Navigation bar (`nav_bar`) defined in `device/navbar.yaml`, reparented to `lv_layer_top()` on boot so it floats above all pages. 60px bar at y=740, visible on all four views (every `show_*_view` script reveals it; it starts hidden only so it does not flash during boot/setup), four icon buttons: Home, Music, Calendar, Forecast. `update_nav_highlight` (run by every `show_*_view`) brightens the current view's icon and shows its accent mark (`nav_*_mark`); the others are dimmed. `layout_nav_bar` narrows the buttons to 4×200px in the left 800px while `timer_bar` is visible, and restores 4×320px otherwise.
 
-Timer overlay (`timer_bar`) defined in `device/timer_overlay.yaml`, also reparented to `lv_layer_top()` on boot. 42px bar at y=698 (immediately above nav bar), hidden when no timers active. Shows soonest-expiring active timer name + MM:SS countdown + "+N more" badge. Tapping dismisses until next HA `remaining` update. Subscribes to up to 3 `timer.*` entities (compile-time substitutions `timer_entity_1..3` or runtime via HA device settings). Local 1s countdown between HA updates (same pattern as playback interpolation). Time label turns red when < 60 s remaining.
+Timer overlay (`timer_bar`) defined in `device/timer_overlay.yaml`, reparented into `nav_bar` on boot and occupying its right 480px (x=800). It sits inside the nav bar rather than floating above it so it never covers page content; it is hidden when no timers are active. Shows soonest-expiring active timer name + MM:SS countdown + "+N" badge. Tapping dismisses until next HA `remaining` update. Subscribes to up to 3 `timer.*` entities (compile-time substitutions `timer_entity_1..3` or runtime via HA device settings). Remaining time is computed from the `finishes_at` attribute against the clock (`tmr_finishes_0..2`), so blocking HTTP fetches and reconnects do not make it drift; a local 1 s decrement is only the fallback before time sync. Time label turns red when < 60 s remaining.
 
 Global state flags in `device/device.yaml`:
 - `actions_prompt_acked` — user dismissed the "enable actions" prompt (NVS-backed)
@@ -178,7 +182,7 @@ Phase 4b (complete): Idle view redesign — two-pane layout (800px left + 480px 
 |---|---|---|
 | 5 | `device/forecast_view.yaml` | LVGL `forecast_page`: 7-day chart + precipitation + condition icons |
 | 5 | `device/forecast_sensors.yaml` | `wf_data_buf` global, `fetch_forecast` (HTTP POST), 30-min interval |
-| 6 | `device/timer_overlay.yaml` | floating `timer_bar` above nav bar; subscribes to up to 3 `timer.*` entities |
+| 6 | `device/timer_overlay.yaml` | `timer_bar` in the right of the nav bar; subscribes to up to 3 `timer.*` entities |
 
 ## Idle page: weather background images
 
