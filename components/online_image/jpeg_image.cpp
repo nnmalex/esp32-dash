@@ -9,6 +9,7 @@
 #include "online_image.h"
 
 #include <algorithm>
+#include <cmath>
 #include <utility>
 
 static const char *const TAG = "online_image.jpeg";
@@ -52,13 +53,14 @@ size_t JpegDecoder::resample_scratch_size(int src_w, int dst_w) {
   return static_cast<size_t>(dst_w) * 3 + static_cast<size_t>(src_w) * 6 + static_cast<size_t>(dst_w) * 2;
 }
 
-// Bilinear resample from the decoder's RGB888 scanlines straight into the
-// RGB565 image buffer. It is streamed: output rows walk the source top to
-// bottom, so only the two source rows bracketing the current output row are
-// held, never the whole frame. The IDCT step above keeps any downscale under
-// 2x, which is the range a 2x2 bilinear tap covers without dropping pixels.
+// Bilinear resample of `win` (the whole image, or the centred crop for
+// fit: cover) from the decoder's RGB888 scanlines straight into the RGB565
+// image buffer. It is streamed: output rows walk the source top to bottom, so
+// only the two source rows bracketing the current output row are held, never
+// the whole frame. The IDCT step keeps any downscale under 2x, which is the
+// range a 2x2 bilinear tap covers without dropping pixels.
 void HOT JpegDecoder::decode_resampled_(jpeg_decompress_struct *cinfo, uint8_t *scratch, int dst_w, int dst_h,
-                                        bool big_endian) {
+                                        Window win, bool big_endian) {
   const int src_w = static_cast<int>(cinfo->output_width);
   const int src_h = static_cast<int>(cinfo->output_height);
   uint16_t *x0s = reinterpret_cast<uint16_t *>(scratch);
@@ -68,20 +70,21 @@ void HOT JpegDecoder::decode_resampled_(jpeg_decompress_struct *cinfo, uint8_t *
   uint8_t *out = cur + static_cast<size_t>(src_w) * 3;
 
   // Source position of an output pixel centre, in 1/256 px, clamped to the image.
-  auto src_pos = [](int d, int src, int dst) -> int {
-    int p = static_cast<int>(static_cast<int64_t>(2 * d + 1) * src * 256 / (2 * dst)) - 128;
+  // `w0`/`w` is the window along this axis; `src` the full decoded extent.
+  auto src_pos = [](int d, int w0, int w, int dst, int src) -> int {
+    int p = w0 * 256 + static_cast<int>(static_cast<int64_t>(2 * d + 1) * w * 256 / (2 * dst)) - 128;
     int max = (src - 1) * 256;
     return p < 0 ? 0 : (p > max ? max : p);
   };
   for (int dx = 0; dx < dst_w; dx++) {
-    int p = src_pos(dx, src_w, dst_w);
+    int p = src_pos(dx, win.x, win.w, dst_w, src_w);
     x0s[dx] = static_cast<uint16_t>(p >> 8);
     fxs[dx] = static_cast<uint8_t>(p & 0xFF);
   }
 
   int have = -1;  // source row held in `cur`; `prev` holds row have - 1
   for (int dy = 0; dy < dst_h; dy++) {
-    int p = src_pos(dy, src_h, dst_h);
+    int p = src_pos(dy, win.y, win.h, dst_h, src_h);
     int y0 = p >> 8;
     int fy = p & 0xFF;
     int y1 = std::min(y0 + 1, src_h - 1);
@@ -174,9 +177,11 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
   // and avoids pulling in the float IDCT code path.
   cinfo.dct_method = JDCT_IFAST;
 
-  // The size the image is finally stored (and drawn 1:1) at.
-  int fit_w, fit_h;
-  this->image_->fit_to_box(src_w, src_h, fit_w, fit_h);
+  // The whole image scaled as it will be stored: inside the box (contain), or
+  // filling it before the crop (cover).
+  double scale = this->image_->fit_scale(src_w, src_h);
+  int fit_w = static_cast<int>(std::ceil(src_w * scale));
+  int fit_h = static_cast<int>(std::ceil(src_h * scale));
 
   // libjpeg can downscale for free inside the IDCT (1/1, 1/2, 1/4, 1/8). Take the
   // smallest step that still covers the fitted size, so the resample below only
@@ -208,7 +213,17 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
 
   jpeg_start_decompress(&cinfo);
 
-  if (use_rgb565 && (dst_w != out_w || dst_h != out_h)) {
+  // Cover crops the overflow evenly from both sides; contain keeps it all.
+  Window win{0, 0, out_w, out_h};
+  if (this->image_->is_fit_cover()) {
+    double s = this->image_->fit_scale(out_w, out_h);
+    win.w = std::min(out_w, static_cast<int>(std::lround(dst_w / s)));
+    win.h = std::min(out_h, static_cast<int>(std::lround(dst_h / s)));
+    win.x = (out_w - win.w) / 2;
+    win.y = (out_h - win.h) / 2;
+  }
+
+  if (use_rgb565 && (dst_w != out_w || dst_h != out_h || win.w != out_w || win.h != out_h)) {
     // Scratch for the resample, held in row_buffer so the setjmp handler above
     // frees it if libjpeg bails out part-way.
     row_buffer = static_cast<uint8_t *>(malloc(resample_scratch_size(out_w, dst_w)));
@@ -217,7 +232,7 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
       return DECODE_ERROR_OUT_OF_MEMORY;
     }
     ESP_LOGD(TAG, "Resampling %dx%d -> %dx%d", out_w, out_h, dst_w, dst_h);
-    this->decode_resampled_(&cinfo, row_buffer, dst_w, dst_h, big_endian);
+    this->decode_resampled_(&cinfo, row_buffer, dst_w, dst_h, win, big_endian);
     jpeg_finish_decompress(&cinfo);
     jpeg_destroy_decompress(&cinfo);
     free(row_buffer);

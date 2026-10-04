@@ -104,13 +104,24 @@ class OnlineImage : public PollingComponent,
   int get_buffer_height() const { return this->buffer_height_; }
   image::ImageType image_type() const { return this->type_; }
 
+  /** Fill the `resize:` box and crop the overflow, instead of fitting inside it. */
+  void set_fit_cover(bool cover) { this->fit_cover_ = cover; }
+  bool is_fit_cover() const { return this->fit_cover_ && !this->is_auto_resize_(); }
+
+  /**
+   * @brief Scale factor from an in_w x in_h source to the `resize:` box,
+   * preserving aspect ratio: the largest that fits inside it (contain) or the
+   * smallest that fills it (cover). 1.0 without a box.
+   */
+  double fit_scale(int in_w, int in_h) const;
+
   /**
    * @brief Dimensions a source image of in_w x in_h is stored at.
    *
-   * With a fixed `resize:` box the image is scaled - up or down - to the largest
-   * size that fits inside it, preserving aspect ratio. The image is then drawn
-   * 1:1, so LVGL never has to transform it at render time. Without a box the
-   * source size is kept.
+   * With a fixed `resize:` box the image is scaled - up or down - to fit it
+   * (contain) or to exactly the box (cover, overflow cropped). The image is then
+   * drawn 1:1, so LVGL never has to transform it at render time. Without a box
+   * the source size is kept.
    */
   void fit_to_box(int in_w, int in_h, int &out_w, int &out_h) const;
 
@@ -189,6 +200,8 @@ class OnlineImage : public PollingComponent,
    * This is used to determine how to store 16 bit colors in the buffer.
    */
   bool is_big_endian_;
+  /** Fill the resize box and crop (cover) rather than letterbox (contain). */
+  bool fit_cover_{false};
   /**
    * Actual width of the current image. If fixed_width_ is specified,
    * this will be equal to it; otherwise it will be set once the decoding

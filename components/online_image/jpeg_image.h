@@ -27,7 +27,12 @@ class JpegDecoder : public ImageDecoder {
 
  protected:
   static size_t resample_scratch_size(int src_w, int dst_w);
-  void decode_resampled_(jpeg_decompress_struct *cinfo, uint8_t *scratch, int dst_w, int dst_h, bool big_endian);
+  /// Window of the decoded image (in IDCT-output pixels) that gets resampled.
+  struct Window {
+    int x, y, w, h;
+  };
+  void decode_resampled_(jpeg_decompress_struct *cinfo, uint8_t *scratch, int dst_w, int dst_h, Window win,
+                         bool big_endian);
 };
 
 }  // namespace online_image
