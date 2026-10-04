@@ -89,18 +89,25 @@ interval:
                     }
                   }
                   return std::string(buf);
+            # LVGL invalidates an object on every hide/show call, even when the
+            # flag is unchanged, and the bar overlaps the album art — so only
+            # touch the flag when the setting actually differs.
             - if:
                 condition:
                   lambda: 'return !id(show_progress_bar).state;'
                 then:
-                  - lvgl.widget.hide: media_progress_bar
+                  - lambda: |-
+                      if (!lv_obj_has_flag(id(media_progress_bar), LV_OBJ_FLAG_HIDDEN))
+                        lv_obj_add_flag(id(media_progress_bar), LV_OBJ_FLAG_HIDDEN);
                 else:
-                  - lvgl.widget.show: media_progress_bar
+                  - lambda: |-
+                      if (lv_obj_has_flag(id(media_progress_bar), LV_OBJ_FLAG_HIDDEN))
+                        lv_obj_remove_flag(id(media_progress_bar), LV_OBJ_FLAG_HIDDEN);
                   - lvgl.bar.update:
                       id: media_progress_bar
                       value: !lambda |-
                         float dur = id(media_duration_sensor).has_state() ? id(media_duration_sensor).state : 0.0f;
-                        if (dur > 0) return (int)((id(last_media_position) / dur) * 100.0f);
+                        if (dur > 0) return (int)((id(last_media_position) / dur) * 1000.0f);
                         return 0;
 
 script:
@@ -119,7 +126,7 @@ script:
       - delay: 2s
       - lvgl.label.update:
           id: media_title_label
-          text: "—"
+          text: "Nothing playing"
       - lambda: 'id(artist_has_content) = false;'
       - lvgl.widget.hide: media_artist_label
       - lvgl.label.update:

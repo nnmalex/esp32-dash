@@ -10,9 +10,11 @@
 # Produces: wf_data_buf — pipe-delimited lines, one per forecast day:
 #           "DAYNAME|DAYNUM|HIGH|LOW|PRECIP|PROB|COND\n"
 #           e.g. "TUE|31|15.0|4.0|0.10|54|cloudy\n"
+#           HIGH, LOW and PROB are empty when the integration omits them.
 #
-# render_forecast (forecast_view.yaml) is called after a successful fetch.
-# Auto-refresh: every 30 minutes while forecast view is active.
+# render_forecast (forecast_view.yaml) and update_idle_hilo (weather_sensors.yaml)
+# run after each fetch. Auto-refresh: every 30 minutes except on the music view,
+# and on API connect.
 # =============================================================================
 
 globals:
@@ -20,6 +22,13 @@ globals:
     type: std::string
     restore_value: false
     initial_value: '""'
+
+  # The weather entity's precipitation unit ("mm" or "in"), from its
+  # precipitation_unit attribute (subscribed in weather_sensors.yaml).
+  - id: wf_precip_unit
+    type: std::string
+    restore_value: false
+    initial_value: '"mm"'
 
   # millis() of the last successful fetch; lets the navbar skip a blocking
   # refetch while the cache is warm.
@@ -175,7 +184,7 @@ script:
             bool has_high = esp32_dash::calendar_json::extract_number_field(obj, "temperature", high);
             bool has_low  = esp32_dash::calendar_json::extract_number_field(obj, "templow", low);
             esp32_dash::calendar_json::extract_number_field(obj, "precipitation", precip);
-            esp32_dash::calendar_json::extract_number_field(obj, "precipitation_probability", prob_f);
+            bool has_prob = esp32_dash::calendar_json::extract_number_field(obj, "precipitation_probability", prob_f);
             int prob = (int)prob_f;
             if (prob < 0) prob = 0;
             if (prob > 100) prob = 100;
@@ -203,8 +212,12 @@ script:
               snprintf(nums, sizeof(nums), "%.1f", low);
               new_buf += nums;
             }
-            snprintf(nums, sizeof(nums), "|%.2f|%d|", precip, prob);
+            // PROB is left empty when the integration does not report it, so the
+            // view can omit it rather than claim "0%".
+            snprintf(nums, sizeof(nums), "|%.2f|", precip);
             new_buf += nums;
+            if (has_prob) new_buf += std::to_string(prob);
+            new_buf += '|';
             new_buf += cond;
             new_buf += '\n';
             day_count++;
@@ -214,14 +227,25 @@ script:
           id(wf_data_buf) = new_buf;
           if (day_count > 0) id(wf_last_fetch_ms) = millis();
           id(render_forecast).execute();
+      # Today's high/low on the idle weather card comes from the same data.
+      - script.execute: update_idle_hilo
 
 
 interval:
-  # Auto-refresh while forecast view is active
+  # Background refresh. The idle page shows today's high/low from this data,
+  # so it runs on every view except music — same rule as the calendar fetch:
+  # nothing on the music page uses it, and the fetch blocks the loop.
   - interval: 30min
     then:
       - if:
           condition:
-            lambda: 'return id(current_view) == 3;'
+            lambda: 'return id(current_view) != 1;'
           then:
             - script.execute: fetch_forecast
+
+
+# Seed the cache on (re)connect so the idle high/low appears without first
+# visiting the forecast page. maybe_ skips it while the cache is still fresh.
+api:
+  on_client_connected:
+    - script.execute: maybe_fetch_forecast

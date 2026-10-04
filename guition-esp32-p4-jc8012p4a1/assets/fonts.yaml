@@ -3,13 +3,8 @@
 # symbols (©, ®, ™, €, •, etc.) and modifier apostrophe (ʼ) for song metadata.
 # Cyrillic glyphs (U+0400–U+045F + Ґ/ґ) cover Russian, Ukrainian, Bulgarian, Serbian, etc.
 # Two content lines in each >- block: the fold produces exactly one space glyph.
-# roboto_thin300_font uses Thin weight for the clock screensaver (digits + colon only).
+# roboto_thin100_font (idle clock) is digits + colon only.
 font:
-  - file: "gfonts://Roboto@Thin"
-    id: roboto_thin300_font
-    size: 300
-    bpp: 4
-    glyphs: " 0123456789:"
 
   - file: "gfonts://Roboto@Thin"
     id: roboto_thin100_font
@@ -21,9 +16,9 @@ font:
     id: roboto_light88_font
     size: 88
     bpp: 4
-    glyphs: >-
-      !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~
-      ¡¿ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿĀāĂăĄąĆćĈĉĊċČčĎďĐđĒēĔĕĖėĘęĚěĜĝĞğĠġĢģĤĥĦħĨĩĪīĬĭĮįİıĲĳĴĵĶķĸĹĺĻļĽľĿŀŁłŃńŅņŇňŉŊŋŌōŎŏŐőŒœŔŕŖŗŘřŚśŜŝŞşŠšŢţŤťŦŧŨũŪūŬŭŮůŰűŲųŴŵŶŷŸŹźŻżŽž—–‐…ʼ‘’·µ©®™«»°•€£¥¢ªº†ЀЁЂЃЄЅІЇЈЉЊЋЌЍЎЏАБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдежзийклмнопрстуфхцчшщъыьэюяѐёђѓєѕіїјљњћќѝўџҐґ
+    # Only the idle temperature uses it ("22°", "-5°", "—"): a full glyph set
+    # at 88 px is a large slice of flash for characters it never draws.
+    glyphs: " -0123456789°—"
 
   - file: "gfonts://Roboto@Light"
     id: roboto_light70_font
@@ -57,18 +52,6 @@ font:
       !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~
       ¡¿ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿĀāĂăĄąĆćĈĉĊċČčĎďĐđĒēĔĕĖėĘęĚěĜĝĞğĠġĢģĤĥĦħĨĩĪīĬĭĮįİıĲĳĴĵĶķĸĹĺĻļĽľĿŀŁłŃńŅņŇňŉŊŋŌōŎŏŐőŒœŔŕŖŗŘřŚśŜŝŞşŠšŢţŤťŦŧŨũŪūŬŭŮůŰűŲųŴŵŶŷŸŹźŻżŽž—–‐…ʼ‘’·µ©®™«»°•€£¥¢ªº†ЀЁЂЃЄЅІЇЈЉЊЋЌЍЎЏАБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдежзийклмнопрстуфхцчшщъыьэюяѐёђѓєѕіїјљњћќѝўџҐґ
 
-  - file: "gfonts://Roboto@Light"
-    id: roboto_light23_font
-    size: 23
-    bpp: 4
-    glyphs: " 0123456789%"
-
-  - file: "gfonts://Roboto@Light"
-    id: roboto_light20_font
-    size: 20
-    bpp: 4
-    glyphs: " 0123456789%"
-
   - file: "gfonts://Roboto"
     id: roboto30_font
     size: 30
@@ -84,13 +67,6 @@ font:
     glyphs: >-
       !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~
       ¡¿ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿĀāĂăĄąĆćĈĉĊċČčĎďĐđĒēĔĕĖėĘęĚěĜĝĞğĠġĢģĤĥĦħĨĩĪīĬĭĮįİıĲĳĴĵĶķĸĹĺĻļĽľĿŀŁłŃńŅņŇňŉŊŋŌōŎŏŐőŒœŔŕŖŗŘřŚśŜŝŞşŠšŢţŤťŦŧŨũŪūŬŭŮůŰűŲųŴŵŶŷŸŹźŻżŽž—–‐…ʼ‘’·µ©®™«»°•€£¥¢ªº†ЀЁЂЃЄЅІЇЈЉЊЋЌЍЎЏАБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдежзийклмнопрстуфхцчшщъыьэюяѐёђѓєѕіїјљњћќѝўџҐґ
-
-  - file: "gfonts://Roboto"
-    id: roboto24_font
-    size: 24
-    bpp: 4
-    glyphs: >-
-      !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~
 
   - file: "gfonts://Roboto"
     id: roboto20_font

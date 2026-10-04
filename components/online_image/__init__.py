@@ -34,6 +34,7 @@ CODEOWNERS = ["@guillempages", "@clydebarrow"]
 MULTI_CONF = True
 
 CONF_ON_DOWNLOAD_FINISHED = "on_download_finished"
+CONF_FIT = "fit"
 CONF_PLACEHOLDER = "placeholder"
 CONF_TRANSPARENCY = "transparency"
 CONF_UPDATE = "update"
@@ -148,6 +149,13 @@ ONLINE_IMAGE_SCHEMA = (
             cv.Required(CONF_ID): cv.declare_id(OnlineImage),
             cv.Required(CONF_TYPE): validate_type(IMAGE_TYPE),
             cv.Optional(CONF_RESIZE): cv.dimensions,
+            # How an image is fitted to the `resize` box. contain: whole image,
+            # letterboxed (the default). cover: fills the box, cropping the
+            # overflow evenly from both sides — JPEG only; other formats are
+            # stretched to the box instead.
+            cv.Optional(CONF_FIT, default="contain"): cv.one_of(
+                "contain", "cover", lower=True
+            ),
             cv.Optional(CONF_BYTE_ORDER): cv.one_of(
                 "BIG_ENDIAN", "LITTLE_ENDIAN", upper=True
             ),
@@ -278,6 +286,9 @@ async def to_code(config):
             cg.add(var.add_request_header(key, template_))
         else:
             cg.add(var.add_request_header(key, value))
+
+    if config[CONF_FIT] == "cover":
+        cg.add(var.set_fit_cover(True))
 
     if placeholder_id := config.get(CONF_PLACEHOLDER):
         placeholder = await cg.get_variable(placeholder_id)

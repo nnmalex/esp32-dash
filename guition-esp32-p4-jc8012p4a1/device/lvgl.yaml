@@ -6,6 +6,7 @@
 # =============================================================================
 
 lvgl:
+  id: lvgl_main
   buffer_size: 25%
   byte_order: little_endian
   rotation: ${display_rotation}
@@ -99,7 +100,7 @@ lvgl:
             widgets:
               - label:
                   id: media_title_label
-                  text: "—"
+                  text: "Nothing playing"
                   width: 100%
                   max_height: 420px
                   long_mode: wrap
@@ -120,7 +121,7 @@ lvgl:
                   hidden: true
               - label:
                   id: media_time_label
-                  text: "0:00  /  0:00"
+                  text: "0:00 / 0:00"
                   pad_top: 12
                   width: 100%
                   text_font: roboto20_font
@@ -267,7 +268,8 @@ lvgl:
             bg_opa: 100%
             radius: 0
             min_value: 0
-            max_value: 100
+            # 1280 px wide: per-mille so it advances ~1 px at a time, not 12.8.
+            max_value: 1000
             value: 0
             indicator:
               bg_color: 0xFFFFFF

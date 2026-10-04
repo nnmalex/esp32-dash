@@ -3,10 +3,48 @@
 #include <algorithm>
 #include <cstdlib>
 #include <cstdio>
+#include <cstring>
+#include <ctime>
 #include <string>
 
 namespace esp32_dash {
 namespace calendar_json {
+
+/** Local calendar day `day_offset` days from `now`, as a struct tm at noon.
+ *
+ * Steps the day through mktime() rather than adding 86400 s per day: across a
+ * DST change that addition lands an hour off, which near midnight is the wrong
+ * date (a repeated or skipped column in the week grid). */
+inline struct tm local_day(time_t now, int day_offset) {
+  struct tm tm_d;
+  localtime_r(&now, &tm_d);
+  tm_d.tm_mday += day_offset;
+  tm_d.tm_hour = 12;
+  tm_d.tm_min = 0;
+  tm_d.tm_sec = 0;
+  tm_d.tm_isdst = -1;
+  mktime(&tm_d);  // normalises the date and fills tm_wday
+  return tm_d;
+}
+
+/** "YYYY-MM-DD" (11 bytes incl. NUL) for local_day(now, day_offset). */
+inline void local_date(time_t now, int day_offset, char *out) {
+  struct tm tm_d = local_day(now, day_offset);
+  // Fields bounded with % so the compiler can prove the output fits.
+  snprintf(out, 11, "%04u-%02u-%02u", (unsigned) (tm_d.tm_year + 1900) % 10000u,
+           (unsigned) (tm_d.tm_mon + 1) % 100u, (unsigned) tm_d.tm_mday % 100u);
+}
+
+/** "YYYY-MM-DD HH:MM:SS" (20 bytes incl. NUL) local time for `t`. Comparable
+ * as a string with the event times in the calendar buffer once their 'T'
+ * separator is normalised to a space. */
+inline void local_datetime(time_t t, char *out) {
+  struct tm tm_d;
+  localtime_r(&t, &tm_d);
+  snprintf(out, 20, "%04u-%02u-%02u %02u:%02u:%02u", (unsigned) (tm_d.tm_year + 1900) % 10000u,
+           (unsigned) (tm_d.tm_mon + 1) % 100u, (unsigned) tm_d.tm_mday % 100u, (unsigned) tm_d.tm_hour % 100u,
+           (unsigned) tm_d.tm_min % 100u, (unsigned) tm_d.tm_sec % 100u);
+}
 
 /** Longest event title kept in the pipe-delimited buffer. Titles longer than
  * this are truncated explicitly so the line separator can never be lost. */
@@ -394,23 +432,25 @@ inline int append_calendar_events(const std::string &body, int cal_idx, std::str
       continue;
     }
 
-    // All-day events deliberately carry no end: both renderers key off the
-    // all-day flag and treat an empty end as "not a timed range".
+    // All-day events carry their end *date*, which is exclusive (a one-day
+    // event on the 4th ends on the 5th); renderers use it to span multi-day
+    // events across every day they cover.
     std::string end_obj;
     std::string end_val;
-    if (!allday) {
-      if (extract_object_field(event, "end", end_obj)) {
-        extract_string_field(end_obj, "dateTime", end_val);
-      } else {
-        extract_string_field(event, "end", end_val);
+    if (extract_object_field(event, "end", end_obj)) {
+      if (!extract_string_field(end_obj, allday ? "date" : "dateTime", end_val)) {
+        extract_string_field(end_obj, allday ? "dateTime" : "date", end_val);
       }
+    } else {
+      extract_string_field(event, "end", end_val);
     }
 
-    if (start_val.size() > (allday ? 10U : 19U)) {
-      start_val.resize(allday ? 10U : 19U);
+    const size_t keep = allday ? 10U : 19U;
+    if (start_val.size() > keep) {
+      start_val.resize(keep);
     }
-    if (end_val.size() > 19U) {
-      end_val.resize(19U);
+    if (end_val.size() > keep) {
+      end_val.resize(keep);
     }
     sanitize_field(start_val);
     sanitize_field(end_val);
