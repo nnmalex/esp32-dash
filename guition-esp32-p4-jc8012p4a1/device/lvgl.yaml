@@ -100,7 +100,7 @@ lvgl:
             widgets:
               - label:
                   id: media_title_label
-                  text: "—"
+                  text: "Nothing playing"
                   width: 100%
                   max_height: 420px
                   long_mode: wrap

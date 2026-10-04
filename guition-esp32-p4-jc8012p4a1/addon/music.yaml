@@ -78,12 +78,16 @@ online_image:
     resize: 740x740
     buffer_size: 262144
     on_download_finished:
-      - script.execute: apply_downloaded_artwork
+      - script.execute:
+          id: apply_downloaded_artwork
+          cached: !lambda 'return cached;'
     on_error:
       - script.execute: handle_artwork_error
 
 script:
   - id: apply_downloaded_artwork
+    parameters:
+      cached: bool   # HTTP 304: the same art is already in the buffer
     mode: restart
     then:
       - lvgl.widget.hide: artwork_error_label
@@ -107,6 +111,12 @@ script:
       - lvgl.widget.update:
           id: album_art_background_widget
           opa: 100%
+      # Fade new art in rather than snapping it in. Affordable because the art
+      # is drawn 1:1 (no transform); skipped for a 304 re-fetch of the same
+      # image and when the music page is not on screen.
+      - lambda: |-
+          if (!cached && id(current_view) == 1)
+            lv_obj_fade_in(id(album_art_background_widget), 250, 0);
       - script.execute: extract_accent_color
 
   - id: handle_artwork_error

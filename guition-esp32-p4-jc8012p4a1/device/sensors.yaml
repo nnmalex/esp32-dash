@@ -126,7 +126,7 @@ script:
       - delay: 2s
       - lvgl.label.update:
           id: media_title_label
-          text: "—"
+          text: "Nothing playing"
       - lambda: 'id(artist_has_content) = false;'
       - lvgl.widget.hide: media_artist_label
       - lvgl.label.update:
