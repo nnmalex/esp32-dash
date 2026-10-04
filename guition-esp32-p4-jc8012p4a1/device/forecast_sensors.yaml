@@ -10,6 +10,7 @@
 # Produces: wf_data_buf — pipe-delimited lines, one per forecast day:
 #           "DAYNAME|DAYNUM|HIGH|LOW|PRECIP|PROB|COND\n"
 #           e.g. "TUE|31|15.0|4.0|0.10|54|cloudy\n"
+#           HIGH, LOW and PROB are empty when the integration omits them.
 #
 # render_forecast (forecast_view.yaml) is called after a successful fetch.
 # Auto-refresh: every 30 minutes while forecast view is active.
@@ -20,6 +21,13 @@ globals:
     type: std::string
     restore_value: false
     initial_value: '""'
+
+  # The weather entity's precipitation unit ("mm" or "in"), from its
+  # precipitation_unit attribute (subscribed in weather_sensors.yaml).
+  - id: wf_precip_unit
+    type: std::string
+    restore_value: false
+    initial_value: '"mm"'
 
   # millis() of the last successful fetch; lets the navbar skip a blocking
   # refetch while the cache is warm.
@@ -175,7 +183,7 @@ script:
             bool has_high = esp32_dash::calendar_json::extract_number_field(obj, "temperature", high);
             bool has_low  = esp32_dash::calendar_json::extract_number_field(obj, "templow", low);
             esp32_dash::calendar_json::extract_number_field(obj, "precipitation", precip);
-            esp32_dash::calendar_json::extract_number_field(obj, "precipitation_probability", prob_f);
+            bool has_prob = esp32_dash::calendar_json::extract_number_field(obj, "precipitation_probability", prob_f);
             int prob = (int)prob_f;
             if (prob < 0) prob = 0;
             if (prob > 100) prob = 100;
@@ -203,8 +211,12 @@ script:
               snprintf(nums, sizeof(nums), "%.1f", low);
               new_buf += nums;
             }
-            snprintf(nums, sizeof(nums), "|%.2f|%d|", precip, prob);
+            // PROB is left empty when the integration does not report it, so the
+            // view can omit it rather than claim "0%".
+            snprintf(nums, sizeof(nums), "|%.2f|", precip);
             new_buf += nums;
+            if (has_prob) new_buf += std::to_string(prob);
+            new_buf += '|';
             new_buf += cond;
             new_buf += '\n';
             day_count++;

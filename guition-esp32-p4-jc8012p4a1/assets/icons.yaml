@@ -15,14 +15,14 @@ font:
       - "\U000F0118"  # mdi-cast
       - "\U000F0565"  # mdi-shield-check
       - "\U000F02DC"  # mdi-home
-      - "\U000F075A"  # mdi-music-note
+      - "\U000F075A"  # mdi-music
       - "\U000F00ED"  # mdi-calendar
       - "\U000F050F"  # mdi-thermometer
       - "\U000F0208"  # mdi-eye (generic sensor fallback)
       - "\U000F058E"  # mdi-water-percent (humidity)
-      - "\U000F028A"  # mdi-gauge (pressure)
+      - "\U000F029A"  # mdi-gauge (pressure)
       - "\U000F058C"  # mdi-water
-      - "\U000F059E"  # mdi-weather-windy (wind speed)
+      - "\U000F059D"  # mdi-weather-windy (wind speed)
       - "\U000F140B"  # mdi-lightning-bolt (power / energy)
       - "\U000F07E4"  # mdi-molecule-co2 (CO₂ / air quality)
       - "\U000F0F54"  # mdi-home-thermometer
@@ -56,10 +56,13 @@ font:
       - "\U000F0597"  # mdi-weather-rainy
       - "\U000F0598"  # mdi-weather-snowy
       - "\U000F0599"  # mdi-weather-sunny
-      - "\U000F059F"  # mdi-weather-windy-variant
+      - "\U000F059E"  # mdi-weather-windy-variant
       - "\U000F067E"  # mdi-weather-lightning-rainy
       - "\U000F067F"  # mdi-weather-snowy-rainy
       - "\U000F051B"  # mdi-timer-outline
+      - "\U000F0141"  # mdi-chevron-left (calendar prev)
+      - "\U000F0142"  # mdi-chevron-right (calendar next)
+      - "\U000F046D"  # mdi-ruler (distance device_class)
   - file: 'https://github.com/Templarian/MaterialDesign-Webfont/raw/v7.4.47/fonts/materialdesignicons-webfont.ttf'
     id: icon_font_large
     size: 50
@@ -80,6 +83,7 @@ font:
       - "\U000F07D0"  # mdi-home-assistant
       - "\U000F0118"  # mdi-cast
       - "\U000F0565"  # mdi-shield-check
+      - "\U000F051B"  # mdi-timer-outline (timer finished alert)
 
 substitutions:
   play:          "\U000F040A"

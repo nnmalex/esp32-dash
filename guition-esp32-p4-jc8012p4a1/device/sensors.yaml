@@ -107,7 +107,7 @@ interval:
                       id: media_progress_bar
                       value: !lambda |-
                         float dur = id(media_duration_sensor).has_state() ? id(media_duration_sensor).state : 0.0f;
-                        if (dur > 0) return (int)((id(last_media_position) / dur) * 100.0f);
+                        if (dur > 0) return (int)((id(last_media_position) / dur) * 1000.0f);
                         return 0;
 
 script:
