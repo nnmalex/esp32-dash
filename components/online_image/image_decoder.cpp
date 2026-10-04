@@ -68,6 +68,12 @@ void ImageDecoder::draw_rgb565_block(int x, int y, int w, int h, const uint8_t *
   }
 }
 
+void ImageDecoder::write_rgb565_row(int y, const uint8_t *data) {
+  if (y < 0 || y >= this->image_->buffer_height_ || this->image_->get_bpp() != 16)
+    return;
+  memcpy(this->image_->buffer_ + this->image_->get_position_(0, y), data, this->image_->buffer_width_ * 2);
+}
+
 DownloadBuffer::DownloadBuffer(size_t size) : size_(size) {
   this->buffer_ = this->allocator_.allocate(size);
   this->reset();

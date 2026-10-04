@@ -73,6 +73,20 @@ void OnlineImage::release() {
   }
 }
 
+void OnlineImage::fit_to_box(int in_w, int in_h, int &out_w, int &out_h) const {
+  if (this->is_auto_resize_() || in_w <= 0 || in_h <= 0) {
+    out_w = in_w;
+    out_h = in_h;
+    return;
+  }
+  // Small images are scaled *up* to the box too. Leaving them at native size
+  // would just move the upscale into LVGL, which redoes it on every redraw.
+  double scale = std::min(static_cast<double>(this->fixed_width_) / in_w,
+                          static_cast<double>(this->fixed_height_) / in_h);
+  out_w = std::min((static_cast<int>(in_w * scale) + 3) & ~3, this->fixed_width_);
+  out_h = std::min((static_cast<int>(in_h * scale) + 3) & ~3, this->fixed_height_);
+}
+
 size_t OnlineImage::resize_(int width_in, int height_in) {
   int width = this->fixed_width_;
   int height = this->fixed_height_;
@@ -83,21 +97,7 @@ size_t OnlineImage::resize_(int width_in, int height_in) {
       this->release();
     }
   } else if (width_in > 0 && height_in > 0) {
-    if (width_in == height_in) {
-      if (width_in < this->fixed_width_) {
-        width = width_in;
-        height = height_in;
-      }
-    } else {
-      double scale = std::min(
-        static_cast<double>(this->fixed_width_) / width_in,
-        static_cast<double>(this->fixed_height_) / height_in
-      );
-      width = (static_cast<int>(width_in * scale) + 3) & ~3;
-      height = (static_cast<int>(height_in * scale) + 3) & ~3;
-      if (width > this->fixed_width_) width = this->fixed_width_;
-      if (height > this->fixed_height_) height = this->fixed_height_;
-    }
+    this->fit_to_box(width_in, height_in, width, height);
   }
   size_t new_size = this->get_buffer_size_(width, height);
   if (this->buffer_) {

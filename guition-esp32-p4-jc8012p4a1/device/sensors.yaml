@@ -89,13 +89,20 @@ interval:
                     }
                   }
                   return std::string(buf);
+            # LVGL invalidates an object on every hide/show call, even when the
+            # flag is unchanged, and the bar overlaps the album art — so only
+            # touch the flag when the setting actually differs.
             - if:
                 condition:
                   lambda: 'return !id(show_progress_bar).state;'
                 then:
-                  - lvgl.widget.hide: media_progress_bar
+                  - lambda: |-
+                      if (!lv_obj_has_flag(id(media_progress_bar), LV_OBJ_FLAG_HIDDEN))
+                        lv_obj_add_flag(id(media_progress_bar), LV_OBJ_FLAG_HIDDEN);
                 else:
-                  - lvgl.widget.show: media_progress_bar
+                  - lambda: |-
+                      if (lv_obj_has_flag(id(media_progress_bar), LV_OBJ_FLAG_HIDDEN))
+                        lv_obj_remove_flag(id(media_progress_bar), LV_OBJ_FLAG_HIDDEN);
                   - lvgl.bar.update:
                       id: media_progress_bar
                       value: !lambda |-
