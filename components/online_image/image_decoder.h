@@ -86,6 +86,15 @@ class ImageDecoder {
    */
   void draw_rgb565_block(int x, int y, int w, int h, const uint8_t *data);
 
+  /**
+   * @brief Copy one full row of packed RGB565 pixels into the image buffer, in
+   * buffer coordinates (no scaling). For decoders that resample themselves.
+   *
+   * @param y Destination row in the image buffer.
+   * @param data buffer-width pixels of packed RGB565 data.
+   */
+  void write_rgb565_row(int y, const uint8_t *data);
+
   bool is_finished() const { return this->decoded_bytes_ == this->download_size_; }
 
  protected:

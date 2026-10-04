@@ -100,7 +100,19 @@ class OnlineImage : public PollingComponent,
   bool is_big_endian() const { return this->is_big_endian_; }
   int get_fixed_width() const { return this->fixed_width_; }
   int get_fixed_height() const { return this->fixed_height_; }
+  int get_buffer_width() const { return this->buffer_width_; }
+  int get_buffer_height() const { return this->buffer_height_; }
   image::ImageType image_type() const { return this->type_; }
+
+  /**
+   * @brief Dimensions a source image of in_w x in_h is stored at.
+   *
+   * With a fixed `resize:` box the image is scaled - up or down - to the largest
+   * size that fits inside it, preserving aspect ratio. The image is then drawn
+   * 1:1, so LVGL never has to transform it at render time. Without a box the
+   * source size is kept.
+   */
+  void fit_to_box(int in_w, int in_h, int &out_w, int &out_h) const;
 
  protected:
   bool validate_url_(const std::string &url);
@@ -211,6 +223,7 @@ class OnlineImage : public PollingComponent,
   friend bool ImageDecoder::set_size(int width, int height);
   friend void ImageDecoder::draw(int x, int y, int w, int h, const Color &color);
   friend void ImageDecoder::draw_rgb565_block(int x, int y, int w, int h, const uint8_t *data);
+  friend void ImageDecoder::write_rgb565_row(int y, const uint8_t *data);
 };
 
 template<typename... Ts> class OnlineImageSetUrlAction : public Action<Ts...> {

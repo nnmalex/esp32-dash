@@ -24,6 +24,10 @@ class JpegDecoder : public ImageDecoder {
 
   int prepare(size_t download_size) override;
   int HOT decode(uint8_t *buffer, size_t size) override;
+
+ protected:
+  static size_t resample_scratch_size(int src_w, int dst_w);
+  void decode_resampled_(jpeg_decompress_struct *cinfo, uint8_t *scratch, int dst_w, int dst_h, bool big_endian);
 };
 
 }  // namespace online_image

@@ -7,6 +7,10 @@
 #include "esphome/core/log.h"
 
 #include "online_image.h"
+
+#include <algorithm>
+#include <utility>
+
 static const char *const TAG = "online_image.jpeg";
 
 namespace esphome {
@@ -42,6 +46,90 @@ int JpegDecoder::prepare(size_t download_size) {
   return 0;
 }
 
+size_t JpegDecoder::resample_scratch_size(int src_w, int dst_w) {
+  // x-map (uint16 x0 + uint8 weight per output column), two source RGB888 rows,
+  // one output RGB565 row.
+  return static_cast<size_t>(dst_w) * 3 + static_cast<size_t>(src_w) * 6 + static_cast<size_t>(dst_w) * 2;
+}
+
+// Bilinear resample from the decoder's RGB888 scanlines straight into the
+// RGB565 image buffer. It is streamed: output rows walk the source top to
+// bottom, so only the two source rows bracketing the current output row are
+// held, never the whole frame. The IDCT step above keeps any downscale under
+// 2x, which is the range a 2x2 bilinear tap covers without dropping pixels.
+void HOT JpegDecoder::decode_resampled_(jpeg_decompress_struct *cinfo, uint8_t *scratch, int dst_w, int dst_h,
+                                        bool big_endian) {
+  const int src_w = static_cast<int>(cinfo->output_width);
+  const int src_h = static_cast<int>(cinfo->output_height);
+  uint16_t *x0s = reinterpret_cast<uint16_t *>(scratch);
+  uint8_t *fxs = scratch + static_cast<size_t>(dst_w) * 2;
+  uint8_t *prev = fxs + dst_w;
+  uint8_t *cur = prev + static_cast<size_t>(src_w) * 3;
+  uint8_t *out = cur + static_cast<size_t>(src_w) * 3;
+
+  // Source position of an output pixel centre, in 1/256 px, clamped to the image.
+  auto src_pos = [](int d, int src, int dst) -> int {
+    int p = static_cast<int>(static_cast<int64_t>(2 * d + 1) * src * 256 / (2 * dst)) - 128;
+    int max = (src - 1) * 256;
+    return p < 0 ? 0 : (p > max ? max : p);
+  };
+  for (int dx = 0; dx < dst_w; dx++) {
+    int p = src_pos(dx, src_w, dst_w);
+    x0s[dx] = static_cast<uint16_t>(p >> 8);
+    fxs[dx] = static_cast<uint8_t>(p & 0xFF);
+  }
+
+  int have = -1;  // source row held in `cur`; `prev` holds row have - 1
+  for (int dy = 0; dy < dst_h; dy++) {
+    int p = src_pos(dy, src_h, dst_h);
+    int y0 = p >> 8;
+    int fy = p & 0xFF;
+    int y1 = std::min(y0 + 1, src_h - 1);
+    while (have < y1) {
+      std::swap(prev, cur);
+      JSAMPROW row = cur;
+      jpeg_read_scanlines(cinfo, &row, 1);
+      have++;
+    }
+    const uint8_t *r0 = (y0 == have) ? cur : prev;
+    const uint8_t *r1 = cur;
+
+    uint8_t *o = out;
+    for (int dx = 0; dx < dst_w; dx++) {
+      int x0 = x0s[dx];
+      int x1 = x0 + 1 < src_w ? x0 + 1 : x0;
+      int fx = fxs[dx];
+      const uint8_t *a = r0 + x0 * 3, *b = r0 + x1 * 3, *c = r1 + x0 * 3, *d = r1 + x1 * 3;
+      int rgb[3];
+      for (int ch = 0; ch < 3; ch++) {
+        int top = a[ch] * (256 - fx) + b[ch] * fx;
+        int bot = c[ch] * (256 - fx) + d[ch] * fx;
+        rgb[ch] = (top * (256 - fy) + bot * fy) >> 16;
+      }
+      uint16_t rgb565 = ((rgb[0] & 0xF8) << 8) | ((rgb[1] & 0xFC) << 3) | (rgb[2] >> 3);
+      if (big_endian) {
+        o[0] = rgb565 >> 8;
+        o[1] = rgb565 & 0xFF;
+      } else {
+        o[0] = rgb565 & 0xFF;
+        o[1] = rgb565 >> 8;
+      }
+      o += 2;
+    }
+    this->write_rgb565_row(dy, out);
+
+    if ((dy & 63) == 0) {
+      App.feed_wdt();
+    }
+  }
+
+  // jpeg_finish_decompress() rejects a stream with unread scanlines.
+  while (cinfo->output_scanline < cinfo->output_height) {
+    JSAMPROW row = cur;
+    jpeg_read_scanlines(cinfo, &row, 1);
+  }
+}
+
 int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
   if (size < this->download_size_) {
     ESP_LOGV(TAG, "Download not complete. Size: %zu/%zu", size, this->download_size_);
@@ -54,8 +142,9 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
   cinfo.err = jpeg_std_error(&jerr.pub);
   jerr.pub.error_exit = jpeg_error_exit;
 
-  // Raw pointer for longjmp safety — unique_ptr destructors are skipped by longjmp
-  uint8_t *row_buffer = nullptr;
+  // Raw pointer for longjmp safety — unique_ptr destructors are skipped by longjmp.
+  // volatile: it is assigned after setjmp() and read in the handler.
+  uint8_t *volatile row_buffer = nullptr;
 
   if (setjmp(jerr.setjmp_buffer)) {
     ESP_LOGE(TAG, "JPEG decode error: %s", jerr.message);
@@ -85,34 +174,20 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
   // and avoids pulling in the float IDCT code path.
   cinfo.dct_method = JDCT_IFAST;
 
-  // Use IDCT scaling to downscale during decode
-  int target_w = this->image_->get_fixed_width();
-  int target_h = this->image_->get_fixed_height();
-  if (target_w > 0 && target_h > 0) {
-    // libjpeg supports scale_num/scale_denom ratios: 1/1, 1/2, 1/4, 1/8
-    // Accept output >= 83% of target — LVGL zoom handles the remaining upscale.
-    // This avoids decoding at full resolution when a slightly-smaller IDCT step
-    // is available (e.g. 800→400 via 1/2 instead of 800→800 via 1/1 for a 480 target).
-    int thresh_w = target_w * 5 / 6;
-    int thresh_h = target_h * 5 / 6;
-    constexpr unsigned int denoms[] = {8, 4, 2, 1};
-    for (unsigned int denom : denoms) {
-      cinfo.scale_num = 1;
-      cinfo.scale_denom = denom;
-      jpeg_calc_output_dimensions(&cinfo);
-      if (static_cast<int>(cinfo.output_width) >= thresh_w &&
-          static_cast<int>(cinfo.output_height) >= thresh_h) {
-        break;
-      }
-    }
-    if (static_cast<int>(cinfo.output_width) < thresh_w ||
-        static_cast<int>(cinfo.output_height) < thresh_h) {
-      cinfo.scale_num = 1;
-      cinfo.scale_denom = 1;
-      jpeg_calc_output_dimensions(&cinfo);
-    }
-  } else {
+  // The size the image is finally stored (and drawn 1:1) at.
+  int fit_w, fit_h;
+  this->image_->fit_to_box(src_w, src_h, fit_w, fit_h);
+
+  // libjpeg can downscale for free inside the IDCT (1/1, 1/2, 1/4, 1/8). Take the
+  // smallest step that still covers the fitted size, so the resample below only
+  // ever shrinks by less than 2x and never upscales a large source.
+  constexpr unsigned int denoms[] = {8, 4, 2, 1};
+  for (unsigned int denom : denoms) {
+    cinfo.scale_num = 1;
+    cinfo.scale_denom = denom;
     jpeg_calc_output_dimensions(&cinfo);
+    if (static_cast<int>(cinfo.output_width) >= fit_w && static_cast<int>(cinfo.output_height) >= fit_h)
+      break;
   }
 
   int out_w = cinfo.output_width;
@@ -126,7 +201,29 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
     return DECODE_ERROR_OUT_OF_MEMORY;
   }
 
+  bool use_rgb565 = (this->image_->image_type() == image::ImageType::IMAGE_TYPE_RGB565);
+  bool big_endian = this->image_->is_big_endian();
+  int dst_w = this->image_->get_buffer_width();
+  int dst_h = this->image_->get_buffer_height();
+
   jpeg_start_decompress(&cinfo);
+
+  if (use_rgb565 && (dst_w != out_w || dst_h != out_h)) {
+    // Scratch for the resample, held in row_buffer so the setjmp handler above
+    // frees it if libjpeg bails out part-way.
+    row_buffer = static_cast<uint8_t *>(malloc(resample_scratch_size(out_w, dst_w)));
+    if (row_buffer == nullptr) {
+      jpeg_destroy_decompress(&cinfo);
+      return DECODE_ERROR_OUT_OF_MEMORY;
+    }
+    ESP_LOGD(TAG, "Resampling %dx%d -> %dx%d", out_w, out_h, dst_w, dst_h);
+    this->decode_resampled_(&cinfo, row_buffer, dst_w, dst_h, big_endian);
+    jpeg_finish_decompress(&cinfo);
+    jpeg_destroy_decompress(&cinfo);
+    free(row_buffer);
+    this->decoded_bytes_ = size;
+    return size;
+  }
 
   // Allocate row buffers (raw pointers — safe across longjmp)
   size_t row_stride = static_cast<size_t>(out_w) * 3;
@@ -135,9 +232,6 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
     jpeg_destroy_decompress(&cinfo);
     return DECODE_ERROR_OUT_OF_MEMORY;
   }
-
-  bool use_rgb565 = (this->image_->image_type() == image::ImageType::IMAGE_TYPE_RGB565);
-  bool big_endian = this->image_->is_big_endian();
 
   int y = 0;
   while (cinfo.output_scanline < cinfo.output_height) {
