@@ -226,11 +226,18 @@ touchscreen:
           }
     on_release:
       - lambda: |-
-          int dx = id(touch_x_end) - id(touch_x_start);
-          int dy = id(touch_y_end) - id(touch_y_start);
+          // touch.x/y here are panel-native portrait (800x1280): ESPHome only
+          // rotates the copy it feeds LVGL. Map both ends through the same
+          // rotate_coordinates() so dx/dy are in screen (landscape) space —
+          // otherwise "horizontal" below would mean a vertical swipe.
+          int32_t sx = id(touch_x_start), sy = id(touch_y_start);
+          int32_t ex = id(touch_x_end),   ey = id(touch_y_end);
+          id(lvgl_main)->rotate_coordinates(sx, sy);
+          id(lvgl_main)->rotate_coordinates(ex, ey);
+          int dx = ex - sx;
+          int dy = ey - sy;
           ESP_LOGD("touch", "Swipe dx=%d dy=%d start=(%d,%d) end=(%d,%d)",
-                   dx, dy, id(touch_x_start), id(touch_y_start),
-                   id(touch_x_end), id(touch_y_end));
+                   dx, dy, (int) sx, (int) sy, (int) ex, (int) ey);
 
           // --- Dismiss actions prompt on tap ---
           if (!lv_obj_has_flag(id(actions_prompt), LV_OBJ_FLAG_HIDDEN)) {
@@ -239,19 +246,20 @@ touchscreen:
               id(actions_prompt_acked) = true;
               id(device_has_been_setup) = true;
               global_preferences->sync();
-              App.safe_reboot();
+              // Setup is complete: go straight to the home view. (This used to
+              // reboot, inherited from the upstream project. Nothing needs it —
+              // HA reloads the device's connection itself when the actions
+              // option is toggled, and the subscriptions survive a reconnect.)
+              id(show_idle_view).execute();
             }
             return;
           }
 
-          // Navbar view switching is dispatched by LVGL on_press on each nav
-          // button (see device/navbar.yaml). The ESPHome touchscreen callback
-          // receives panel-native portrait coordinates (800x1280) after the
-          // swap_xy=false transform, so it cannot cleanly identify landscape
-          // navbar taps here without a coordinate conversion. A previous
-          // attempt to dispatch navbar taps from this callback using
-          // landscape-space checks (touch_y_start >= 740) matched the wrong
-          // region and caused Forecast taps to flash to idle.
+          // Navbar view switching is dispatched by LVGL on_click on each nav
+          // button (see device/navbar.yaml), not from here. A previous attempt
+          // to dispatch navbar taps from this callback compared raw (portrait)
+          // coordinates against landscape regions (touch_y_start >= 740),
+          // matched the wrong area and made Forecast taps flash to idle.
 
           // --- Horizontal swipe: track navigation (music page only) ---
           if (abs(dx) > 80 && abs(dx) > abs(dy) * 2 && id(current_view) == 1) {

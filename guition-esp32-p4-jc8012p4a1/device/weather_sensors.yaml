@@ -160,6 +160,15 @@ globals:
     type: bool
     initial_value: 'false'
 
+  # The two halves of the detail line under the idle temperature, joined by
+  # idle_weather_detail: "Feels like 19°" and "H 24° · L 13°" (empty = omitted).
+  - id: idle_feels_txt
+    type: std::string
+    initial_value: '""'
+  - id: idle_hilo_txt
+    type: std::string
+    initial_value: '""'
+
   # Runtime storage for the weather background URL (built from ha_base_url +
   # weather_bg_path + "/" + condition + ".jpg" when condition updates)
   - id: weather_bg_url_str
@@ -604,6 +613,8 @@ text_sensor:
             }
             return s;
       - lambda: |-
+          lv_label_set_text(id(idle_weather_icon_label),
+                            x.empty() ? "" : esp32_dash::weather::condition_icon(x.c_str()));
           // Load weather background image if path is configured
           std::string path = id(weather_bg_path_global);
           if (!path.empty() && !x.empty()) {
@@ -642,20 +653,18 @@ text_sensor:
     id: idle_weather_feels_sensor
     on_value:
       - lambda: |-
+          // Left out when it rounds to the displayed temperature.
           auto v = esphome::parse_number<float>(x);
-          if (!v.has_value() || id(current_temp_int) == -9999) {
-            lv_obj_add_flag(id(idle_weather_feels_label), LV_OBJ_FLAG_HIDDEN);
-            return;
+          id(idle_feels_txt) = "";
+          if (v.has_value() && id(current_temp_int) != -9999) {
+            int feels = (int) lroundf(v.value());
+            if (feels != id(current_temp_int)) {
+              char buf[24];
+              snprintf(buf, sizeof(buf), "Feels like %d\xc2\xb0", feels);
+              id(idle_feels_txt) = buf;
+            }
           }
-          int feels = (int) lroundf(v.value());
-          if (feels == id(current_temp_int)) {
-            lv_obj_add_flag(id(idle_weather_feels_label), LV_OBJ_FLAG_HIDDEN);
-            return;
-          }
-          char buf[24];
-          snprintf(buf, sizeof(buf), "Feels like %d\xc2\xb0", feels);
-          lv_label_set_text(id(idle_weather_feels_label), buf);
-          lv_obj_clear_flag(id(idle_weather_feels_label), LV_OBJ_FLAG_HIDDEN);
+          id(idle_weather_detail).execute();
 
   # Sensor tile states
   - platform: template
@@ -777,6 +786,64 @@ text_sensor:
 script:
 
   # ---------------------------------------------------------------------------
+  # idle_weather_detail: joins feels-like and today's high/low into the line
+  # under the idle temperature; hidden when both are empty.
+  # ---------------------------------------------------------------------------
+  - id: idle_weather_detail
+    mode: single
+    then:
+      - lambda: |-
+          std::string t = id(idle_feels_txt);
+          if (!id(idle_hilo_txt).empty()) {
+            if (!t.empty()) t += "  \xc2\xb7  ";
+            t += id(idle_hilo_txt);
+          }
+          lv_label_set_text(id(idle_weather_feels_label), t.c_str());
+          if (t.empty()) lv_obj_add_flag(id(idle_weather_feels_label), LV_OBJ_FLAG_HIDDEN);
+          else lv_obj_clear_flag(id(idle_weather_feels_label), LV_OBJ_FLAG_HIDDEN);
+
+  # ---------------------------------------------------------------------------
+  # update_idle_hilo: today's high/low from the cached daily forecast
+  # (wf_data_buf, forecast_sensors.yaml). Run after each forecast fetch and
+  # from update_idle_clock, so it rolls over at midnight; clears itself when
+  # the cache has no line for today.
+  # ---------------------------------------------------------------------------
+  - id: update_idle_hilo
+    mode: single
+    then:
+      - lambda: |-
+          auto now = id(ha_time).now();
+          std::string out;
+          if (now.is_valid()) {
+            const std::string &buf = id(wf_data_buf);
+            size_t pos = 0;
+            while (pos < buf.size()) {
+              size_t nl = buf.find('\n', pos);
+              if (nl == std::string::npos) nl = buf.size();
+              // "DAYNAME|DAYNUM|HIGH|LOW|..."
+              std::string line = buf.substr(pos, nl - pos);
+              pos = nl + 1;
+              size_t p1 = line.find('|'), p2 = line.find('|', p1 + 1), p3 = line.find('|', p2 + 1);
+              if (p1 == std::string::npos || p2 == std::string::npos || p3 == std::string::npos) continue;
+              if (atoi(line.c_str() + p1 + 1) != now.day_of_month) continue;
+              std::string hi = line.substr(p2 + 1, p3 - p2 - 1);
+              size_t p4 = line.find('|', p3 + 1);
+              std::string lo = line.substr(p3 + 1, p4 == std::string::npos ? std::string::npos : p4 - p3 - 1);
+              char b[40] = "";
+              if (!hi.empty() && !lo.empty())
+                snprintf(b, sizeof(b), "H %ld\xc2\xb0  \xc2\xb7  L %ld\xc2\xb0", lroundf(atof(hi.c_str())), lroundf(atof(lo.c_str())));
+              else if (!hi.empty())
+                snprintf(b, sizeof(b), "H %ld\xc2\xb0", lroundf(atof(hi.c_str())));
+              out = b;
+              break;
+            }
+          }
+          if (out != id(idle_hilo_txt)) {
+            id(idle_hilo_txt) = out;
+            id(idle_weather_detail).execute();
+          }
+
+  # ---------------------------------------------------------------------------
   # load_weather_bg: sets the weather background image URL and triggers download.
   # Called from idle_weather_condition_sensor.on_value when bg_path is configured.
   # ---------------------------------------------------------------------------
@@ -803,6 +870,7 @@ script:
             id(weather_subbed) = "";
             id(weather_sub_gen) += 1;
             lv_label_set_text(id(idle_weather_condition_label), "\xe2\x80\x94");
+            lv_label_set_text(id(idle_weather_icon_label), "");
             if (!id(use_local_temp))
               lv_label_set_text(id(idle_weather_temp_label), "\xe2\x80\x94");
             if (!entity.empty()) {
@@ -914,8 +982,8 @@ script:
           if (entity.empty()) {
             id(feels_like_subbed) = "";
             id(feels_like_sub_gen) += 1;
-            lv_obj_add_flag(id(idle_weather_feels_label), LV_OBJ_FLAG_HIDDEN);
-            lv_label_set_text(id(idle_weather_feels_label), "");
+            id(idle_feels_txt) = "";
+            id(idle_weather_detail).execute();
             return;
           }
 

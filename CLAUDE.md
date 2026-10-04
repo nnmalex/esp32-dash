@@ -181,7 +181,7 @@ Phase 4b (complete): Idle view redesign — two-pane layout (800px left + 480px 
 | Phase | New file | Contents |
 |---|---|---|
 | 5 | `device/forecast_view.yaml` | LVGL `forecast_page`: 7-day chart + precipitation + condition icons |
-| 5 | `device/forecast_sensors.yaml` | `wf_data_buf` global, `fetch_forecast` (HTTP POST), 30-min interval |
+| 5 | `device/forecast_sensors.yaml` | `wf_data_buf` global, `fetch_forecast` (HTTP POST), 30-min interval (not on music view) |
 | 6 | `device/timer_overlay.yaml` | `timer_bar` in the right of the nav bar; subscribes to up to 3 `timer.*` entities |
 
 ## Idle page: weather background images
@@ -240,7 +240,10 @@ are not in the tree. Listed so they are not mistaken for regressions:
   indefinitely. There are no `is_screen_dimmed` / `is_clock_screensaver_showing`
   globals and no clock screensaver overlay.
 - **Swipe-up to idle.** The touch handler in `device/device.yaml` implements
-  horizontal swipes (track skip) only.
+  horizontal swipes (track skip) only. Note `touch.x/y` in the `touchscreen`
+  callbacks are panel-native portrait; the handler maps them through
+  `id(lvgl_main)->rotate_coordinates()` before comparing directions. (Before
+  that fix, the "horizontal" track-skip swipe fired on vertical swipes.)
 - **On-device volume control and speaker grouping.** The swipe-down settings
   panel, the volume arc, and `addon/speaker_group.yaml` (which needed a
   `sensor.speaker_group` template sensor in HA) were removed. Nothing subscribes
@@ -284,6 +287,9 @@ happens, and how long each one takes:
   up whatever went stale.
 - The fetch window is fixed at day −1..+7, so calendar prev/next navigation
   re-renders from cache and never refetches.
+- The forecast follows the same rule: 30-minute interval skipped on the music
+  view, plus `maybe_fetch_forecast` on API connect, because the idle page shows
+  today's high/low from `wf_data_buf` (`update_idle_hilo`).
 - **Interactive callers go through `maybe_fetch_calendar` /
   `maybe_fetch_forecast`** (`calendar_sensors.yaml`, `forecast_sensors.yaml`),
   never `fetch_*` directly. Those wrappers `delay: 300ms` so the stall lands
