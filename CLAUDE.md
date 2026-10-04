@@ -343,6 +343,14 @@ setup is acceptable.
   `- lambda: 'id(x)->publish_state(x);'`. Do not switch to `on_value` instead:
   template numbers set up (`HARDWARE` priority) before LVGL, so the restore
   publish at boot would run LVGL code against uncreated widgets.
+- **Bundled IDF libraries must be declared, not copied.** `online_image` adds
+  `components/libjpeg-turbo-esp32` with `esp32.add_idf_component(path=...)`, so
+  it lands in `src/idf_component.yml` and in `src`'s REQUIRES. It used to be
+  copied into `<build>/components` and left to ESPHome's component discovery,
+  whose list comes from the *previous* configure — a build dir configured
+  before the copy existed then failed with "jpeglib.h: No such file or
+  directory" (seen after PR #50 forced a reconfigure). Reproduce by deleting
+  the entry from `build/project_description.json` and compiling.
 - **Check MDI codepoints against the font, not memory.** Several glyphs were
   wrong for a long time (pressure showed `format-wrap-tight`, "windy-variant" a
   globe). Verify with the 7.4.47 CSS

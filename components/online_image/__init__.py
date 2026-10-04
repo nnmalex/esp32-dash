@@ -73,26 +73,29 @@ class JPEGFormat(Format):
     def actions(self):
         cg.add_define("USE_ONLINE_IMAGE_JPEG_SUPPORT")
         import shutil
+        from esphome.components import esp32
         from esphome.core import CORE
 
-        # Copy libjpeg-turbo as an IDF component into the build directory.
-        # Skip if dest already exists and CMakeLists.txt mtimes match (avoid
-        # redundant copies on incremental builds).
-        src_path = os.path.join(
-            os.path.dirname(__file__), "..", "libjpeg-turbo-esp32"
+        # Declare libjpeg-turbo as a local-path IDF dependency of the app.
+        # ESPHome writes it into src/idf_component.yml, so the component
+        # manager adds it to src's REQUIRES itself, and a change to that file
+        # clears the CMake cache.
+        #
+        # It used to be copied into <build>/components and left to ESPHome's
+        # component discovery. That list comes from the *previous* configure's
+        # project_description.json and is only rebuilt when the build dir looks
+        # outdated, so a build dir configured before the copy existed compiled
+        # with libjpeg missing from src's REQUIRES: "jpeglib.h: No such file".
+        src_path = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "libjpeg-turbo-esp32")
         )
-        dest_path = str(
-            CORE.relative_build_path("components", "libjpeg-turbo-esp32")
-        )
-        src_cmake = os.path.join(src_path, "CMakeLists.txt")
-        dest_cmake = os.path.join(dest_path, "CMakeLists.txt")
-        needs_copy = not os.path.exists(dest_cmake) or (
-            os.path.getmtime(src_cmake) > os.path.getmtime(dest_cmake)
-        )
-        if needs_copy:
-            if os.path.exists(dest_path):
-                shutil.rmtree(dest_path)
-            shutil.copytree(src_path, dest_path)
+        esp32.add_idf_component(name="libjpeg-turbo-esp32", path=src_path)
+
+        # Remove a copy left by older versions: two components with the same
+        # name would make IDF pick one arbitrarily.
+        stale_copy = str(CORE.relative_build_path("components", "libjpeg-turbo-esp32"))
+        if os.path.isdir(stale_copy):
+            shutil.rmtree(stale_copy)
 
 
 class PNGFormat(Format):
