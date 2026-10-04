@@ -8,6 +8,22 @@ time:
   - platform: homeassistant
     id: ha_time
     timezone: UTC
+    # Minute-aligned UI refresh. A free-running 60 s interval starts at boot, so
+    # the idle clock could show the previous minute for up to 59 s; a cron
+    # trigger fires on the boundary (and catches up if the loop was blocked).
+    on_time:
+      - seconds: 0
+        then:
+          - if:
+              condition:
+                lambda: 'return id(current_view) == 0;'
+              then:
+                - script.execute: update_idle_clock
+          - if:
+              condition:
+                lambda: 'return id(current_view) == 2;'
+              then:
+                - script.execute: position_cal_now_line
     on_time_sync:
       - lambda: |-
           // After reboot, HA may push media_position before time syncs.

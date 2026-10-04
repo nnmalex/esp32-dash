@@ -6,10 +6,9 @@
 #   y=  0.. 40  Day name labels  ("MON", "TUE"…)  roboto_light26_font  0x888888
 #   y= 40.. 88  Date number labels ("29", "30"…)   roboto_light40_font  0xAAAAAA
 #   y= 88.. 90  Thin horizontal separator           0x2A2A2A
-#   y= 90..450  Temperature lv_chart (height=360)
-#                 pad_left=91, pad_right=91 → 7 points land at column centres
-#                 pad_top=40,  pad_bottom=20 → content y 130..430
-#                 High series 0x6CB4F0 · Low series 0x4B78B0
+#   y= 90..450  Temperature: two lv_line polylines (wf_line_high/low), points
+#                 at the column centres, plotted in content y 130..430
+#                 High line 0x6CB4F0 · Low line 0x4B78B0
 #                 Temp labels float above/below each dot
 #   y=450..452  Thin horizontal separator
 #   y=452..548  Precipitation bars (max h=90 px, bottom-aligned to y=548)
@@ -103,6 +102,7 @@ script:
             bool  valid;
             bool  has_high;   // integration may omit temperature / templow
             bool  has_low;
+            bool  has_prob;   // ... and precipitation_probability
           } days[7] = {};
 
           int n_days = 0;
@@ -135,6 +135,7 @@ script:
                 d.high     = d.has_high ? atof(fld[2]) : 0.0f;
                 d.low      = d.has_low  ? atof(fld[3]) : 0.0f;
                 d.precip   = atof(fld[4]);
+                d.has_prob = (fld[5][0] != '\0');
                 d.prob     = atoi(fld[5]);
                 strncpy(d.cond, fld[6], 31); d.cond[31] = '\0';
                 d.valid    = true;
@@ -172,6 +173,15 @@ script:
                 break;
               }
             }
+          }
+          // A cache fetched on an earlier day still starts with days that have
+          // passed; drop them so the page always opens on today. (The refetch
+          // that follows the cached render fills the remaining columns.)
+          if (today_col > 0) {
+            for (int i = 0; i + today_col < n_days; i++) days[i] = days[i + today_col];
+            for (int i = n_days - today_col; i < n_days; i++) days[i] = DayData{};
+            n_days -= today_col;
+            today_col = 0;
           }
           id(wf_today_col) = today_col;
 
@@ -235,6 +245,16 @@ script:
             lv_obj_add_flag(id(wf_line_low)->obj, LV_OBJ_FLAG_HIDDEN);
           }
 
+          // Every per-column label spans its whole column with centred text, so
+          // "-12°" and "5°" or "12.5 mm" and "—" all sit on the column centre.
+          auto place = [COL_W](lv_obj_t *lbl, int col, int y) {
+            lv_obj_set_width(lbl, COL_W);
+            lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
+            lv_obj_set_pos(lbl, col * COL_W, y);
+          };
+          const std::string &unit = id(wf_precip_unit);
+          bool inches = (unit == "in");
+
           // ── Per-column updates ─────────────────────────────────────────────
           for (int i = 0; i < 7; i++) {
             bool valid    = (i < n_days && days[i].valid);
@@ -271,7 +291,6 @@ script:
                 lv_color_hex(is_today ? 0xFFFFFFU : 0xAAAAAAU), 0);
 
             // ── Temperature labels — same geometry as line points ──
-            int px      = 91 + 1098 * i / 6;
             int py_high = 130 + 300 * (chart_max - (int)roundf(d.high)) / range;
             int py_low  = 130 + 300 * (chart_max - (int)roundf(d.low))  / range;
 
@@ -280,7 +299,7 @@ script:
             if (d.has_high) {
               snprintf(t_buf, sizeof(t_buf), "%d\xc2\xb0", (int)roundf(d.high));
               lv_label_set_text(high_lbl[i], t_buf);
-              lv_obj_set_pos(high_lbl[i], px - 22, py_high - 36);
+              place(high_lbl[i], i, py_high - 36);
             } else {
               lv_label_set_text(high_lbl[i], "");
             }
@@ -289,7 +308,7 @@ script:
             if (d.has_low) {
               snprintf(t_buf, sizeof(t_buf), "%d\xc2\xb0", (int)roundf(d.low));
               lv_label_set_text(low_lbl[i], t_buf);
-              lv_obj_set_pos(low_lbl[i], px - 22, py_low + 8);
+              place(low_lbl[i], i, py_low + 8);
             } else {
               lv_label_set_text(low_lbl[i], "");
             }
@@ -302,26 +321,26 @@ script:
             int bar_y = BAR_BOTTOM - bar_h;
             lv_obj_set_pos(prec_bar[i], bar_x, bar_y);
             lv_obj_set_size(prec_bar[i], BAR_W, std::max(1, bar_h));
-            // Opacity: low probability = faint; 100% = fully opaque
+            // Opacity: low probability = faint; 100% = fully opaque. Without a
+            // probability, a neutral middle value.
             lv_obj_set_style_bg_opa(prec_bar[i],
-                (lv_opa_t)std::min(255, 60 + d.prob * 195 / 100), 0);
+                d.has_prob ? (lv_opa_t)std::min(255, 60 + d.prob * 195 / 100) : (lv_opa_t) 180, 0);
 
             // ── Precipitation text labels ──
-            char mm_buf[16];
-            if (d.precip < 0.05f) {
+            // In the weather entity's own unit (precipitation_unit attribute).
+            char mm_buf[24];
+            if (d.precip < (inches ? 0.005f : 0.05f)) {
               snprintf(mm_buf, sizeof(mm_buf), "\xe2\x80\x94");   // em-dash
             } else {
-              snprintf(mm_buf, sizeof(mm_buf), "%.1f mm", d.precip);
+              snprintf(mm_buf, sizeof(mm_buf), inches ? "%.2f %s" : "%.1f %s", d.precip, unit.c_str());
             }
             lv_label_set_text(mm_lbl[i], mm_buf);
-            lv_obj_set_x(mm_lbl[i], col_cx - 30);
-            lv_obj_set_y(mm_lbl[i], MM_LBL_Y);
+            place(mm_lbl[i], i, MM_LBL_Y);
 
-            char pct_buf[8];
-            snprintf(pct_buf, sizeof(pct_buf), "%d%%", d.prob);
+            char pct_buf[8] = "";
+            if (d.has_prob) snprintf(pct_buf, sizeof(pct_buf), "%d%%", d.prob);
             lv_label_set_text(pct_lbl[i], pct_buf);
-            lv_obj_set_x(pct_lbl[i], col_cx - 16);
-            lv_obj_set_y(pct_lbl[i], PCT_LBL_Y);
+            place(pct_lbl[i], i, PCT_LBL_Y);
 
             // ── Condition icon ──
             const char *icon_str;
@@ -338,13 +357,12 @@ script:
             else if (c == "pouring")                    icon_str = "\U000F0596";
             else if (c == "snowy")                      icon_str = "\U000F0598";
             else if (c == "snowy-rainy")                icon_str = "\U000F067F";
-            else if (c == "windy")                      icon_str = "\U000F059E";
-            else if (c == "windy-variant")              icon_str = "\U000F059F";
+            else if (c == "windy")                      icon_str = "\U000F059D";
+            else if (c == "windy-variant")              icon_str = "\U000F059E";
             else                                         icon_str = "\U000F0590";  // cloudy fallback
 
             lv_label_set_text(icon_lbl[i], icon_str);
-            lv_obj_set_x(icon_lbl[i], col_cx - 22);
-            lv_obj_set_y(icon_lbl[i], ICON_Y);
+            place(icon_lbl[i], i, ICON_Y);
           }
 
 

@@ -1,12 +1,11 @@
 # =============================================================================
 # CALENDAR SENSORS — HA subscription + REST fetch for up to three calendars
 # =============================================================================
-# Each slot subscribes to a calendar.* entity's state + attributes:
+# Each slot subscribes to a calendar.* entity's attributes:
 #   message    → event title
 #   start_time → "YYYY-MM-DD HH:MM:SS" (or "YYYY-MM-DD" for all-day)
 #   end_time   → "YYYY-MM-DD HH:MM:SS" (used to detect past events)
 #   all_day    → "True"/"False"
-#   location   → description line (calendar page only)
 #
 # Those attributes only ever expose the *next* event per calendar, so they are
 # used purely as a fallback for when no HA access token is configured.
@@ -162,6 +161,28 @@ text:
 
 
 # -----------------------------------------------------------------------------
+# How long ended events stay (greyed out) on the idle agenda.
+# -----------------------------------------------------------------------------
+number:
+  - platform: template
+    name: "Agenda: Past Event Lookback"
+    id: agenda_lookback
+    entity_category: config
+    icon: "mdi:history"
+    min_value: 0
+    max_value: 720
+    step: 15
+    initial_value: 120
+    unit_of_measurement: "min"
+    optimistic: true
+    restore_value: true
+    set_action:
+      # set_action runs before the value is stored; publish so the script sees it
+      - lambda: 'id(agenda_lookback)->publish_state(x);'
+      - script.execute: render_idle_agenda
+
+
+# -----------------------------------------------------------------------------
 # Scripts
 # -----------------------------------------------------------------------------
 script:
@@ -169,9 +190,12 @@ script:
   # ---------------------------------------------------------------------------
   # render_idle_agenda
   # ---------------------------------------------------------------------------
-  # Populates idle_agenda_slot_0..4 from cal_events_buf, keeping only events that
-  # start today or tomorrow. Falls back to the per-calendar subscription globals
-  # when the buffer is empty (no ha_token configured). Past events are greyed.
+  # Populates idle_agenda_slot_0..4 from cal_events_buf with events that fall on
+  # today or tomorrow — including ones that began earlier and are still running,
+  # and multi-day all-day events. Timed events that have ended are greyed out
+  # and drop off once they are older than the "Agenda: Past Event Lookback"
+  # setting. Falls back to the per-calendar subscription globals when the
+  # buffer is empty (no ha_token configured).
   # ---------------------------------------------------------------------------
   - id: render_idle_agenda
     mode: single
@@ -179,23 +203,23 @@ script:
       - lambda: |-
           auto now_time = id(ha_time).now();
           if (!now_time.is_valid()) return;
+          namespace cj = esp32_dash::calendar_json;
 
-          // Build ISO date strings for today and tomorrow
-          char today_str[11], tomorrow_str[11];
-          snprintf(today_str, sizeof(today_str), "%04d-%02d-%02d",
-                   now_time.year, now_time.month, now_time.day_of_month);
+          // Day boundaries as "YYYY-MM-DD" (DST-safe, see calendar_json.h).
+          char today_str[11], tomorrow_str[11], after_str[11];
+          cj::local_date(now_time.timestamp, 0, today_str);
+          cj::local_date(now_time.timestamp, 1, tomorrow_str);
+          cj::local_date(now_time.timestamp, 2, after_str);
 
-          time_t ts_tomorrow = now_time.timestamp + 86400;
-          struct tm tm_buf;
-          localtime_r(&ts_tomorrow, &tm_buf);
-          snprintf(tomorrow_str, sizeof(tomorrow_str), "%04d-%02d-%02d",
-                   tm_buf.tm_year + 1900, tm_buf.tm_mon + 1, tm_buf.tm_mday);
-
-          // Build now datetime string for past-event comparison ("YYYY-MM-DD HH:MM:SS")
-          char now_dt[20];
-          snprintf(now_dt, sizeof(now_dt), "%04d-%02d-%02d %02d:%02d:%02d",
-                   now_time.year, now_time.month, now_time.day_of_month,
-                   now_time.hour, now_time.minute, now_time.second);
+          // Timed events that ended within the look-back stay on the agenda,
+          // greyed out; older ones drop off so they stop crowding out what is
+          // coming up. Yesterday's events never show, even inside the window.
+          char now_dt[20], cutoff_dt[20], today_start[20], after_start[20];
+          cj::local_datetime(now_time.timestamp, now_dt);
+          cj::local_datetime(now_time.timestamp - (time_t) id(agenda_lookback).state * 60, cutoff_dt);
+          snprintf(today_start, sizeof(today_start), "%s 00:00:00", today_str);
+          snprintf(after_start, sizeof(after_start), "%s 00:00:00", after_str);
+          const char *floor_dt = strcmp(cutoff_dt, today_start) > 0 ? cutoff_dt : today_start;
 
           // Calendar accent colors (matching calendar page slots)
           const uint32_t CAL_COLORS[3] = {0x4A90E2, 0x5BA55A, 0xE2914A};
@@ -205,9 +229,9 @@ script:
           const int MAX_ITEMS = 12;
 
           struct AgendaItem {
-            char start[20];       // "YYYY-MM-DD HH:MM:SS\0" (normalized, space sep)
+            char sort_key[20];    // "YYYY-MM-DD HH:MM:SS\0" — when it sorts on the agenda
             char title[64];
-            char time_label[48];  // "Tomorrow · 12:00\0"
+            char time_label[48];  // "Tomorrow · 12:00–13:00\0"
             uint32_t accent_color;
             bool is_past;
           };
@@ -216,59 +240,71 @@ script:
           int item_count = 0;
           memset(items, 0, sizeof(items));
 
-          // Helper: build a time_label string and add to items[].
+          // Adds one event if any part of it falls on today or tomorrow.
           auto add_item = [&](
               const char *title_c,
-              std::string start,   // mutable copy — we normalize T→space
-              const std::string &end_s_in,
+              std::string start,   // mutable copies — we normalize T→space
+              std::string end_s,
               bool is_allday,
               int cal_idx) {
 
             if (!title_c || title_c[0] == '\0') return;
             if (start.length() < 10) return;
             if (item_count >= MAX_ITEMS) return;
-
-            bool is_today    = (strncmp(start.c_str(), today_str, 10) == 0);
-            bool is_tomorrow = (strncmp(start.c_str(), tomorrow_str, 10) == 0);
-            if (!is_today && !is_tomorrow) return;
-
-            // Normalize T separator → space for consistent ISO comparison
             if (start.length() >= 11 && start[10] == 'T') start[10] = ' ';
-            std::string end_s = end_s_in;
             if (end_s.length() >= 11 && end_s[10] == 'T') end_s[10] = ' ';
 
-            // Is past? All-day events count as past only once the day is over,
-            // which the today/tomorrow filter already guarantees is not the case.
-            bool is_past = false;
-            if (!is_allday && end_s.length() >= 19) {
-              is_past = (strncmp(end_s.c_str(), now_dt, 19) < 0);
-            }
-
-            // Build human-readable time label  e.g. "Today · 09:00–10:00"
-            const char *day_prefix = is_today ? "Today" : "Tomorrow";
             char time_buf[48];
+            char key[20];
+            bool is_past = false;
+
             if (is_allday) {
-              snprintf(time_buf, sizeof(time_buf), "%s \xc2\xb7 All Day", day_prefix);
-            } else if (start.length() >= 16) {
-              int sh   = atoi(start.c_str() + 11);
-              int smin = atoi(start.c_str() + 14);
-              if (end_s.length() >= 16) {
-                int eh   = atoi(end_s.c_str() + 11);
-                int emin = atoi(end_s.c_str() + 14);
-                snprintf(time_buf, sizeof(time_buf), "%s \xc2\xb7 %02d:%02d\xe2\x80\x93%02d:%02d",
-                         day_prefix, sh, smin, eh, emin);
-              } else {
-                snprintf(time_buf, sizeof(time_buf), "%s \xc2\xb7 %02d:%02d",
-                         day_prefix, sh, smin);
-              }
+              // Dates only; the end date is exclusive. No end means one day.
+              std::string sd = start.substr(0, 10);
+              std::string ed = end_s.length() >= 10 ? end_s.substr(0, 10) : std::string();
+              auto covers = [&](const char *day) {
+                return sd <= day && (ed.empty() ? sd == day : ed > day);
+              };
+              bool on_today = covers(today_str);
+              if (!on_today && !covers(tomorrow_str)) return;
+              const char *day = on_today ? today_str : tomorrow_str;
+              snprintf(time_buf, sizeof(time_buf), "%s \xc2\xb7 All Day", on_today ? "Today" : "Tomorrow");
+              // A multi-day event sorts under the day it is shown for, not the
+              // day it began.
+              snprintf(key, sizeof(key), "%s 00:00:00", day);
             } else {
-              snprintf(time_buf, sizeof(time_buf), "%s", day_prefix);
+              if (start.length() < 16) return;
+              bool has_end = end_s.length() >= 16;
+              const std::string &end_cmp = has_end ? end_s : start;
+              // Keep events overlapping [floor, start of the day after tomorrow).
+              if (start.compare(0, 19, after_start) >= 0) return;
+              if (end_cmp.compare(0, 19, floor_dt) <= 0) return;
+              is_past = end_cmp.compare(0, 19, now_dt) <= 0;
+
+              int sh = atoi(start.c_str() + 11), smin = atoi(start.c_str() + 14);
+              int eh = atoi(end_cmp.c_str() + 11), emin = atoi(end_cmp.c_str() + 14);
+              if (start.compare(0, 10, today_str) < 0) {
+                // Already running when today began.
+                if (end_cmp.compare(0, 10, today_str) == 0)
+                  snprintf(time_buf, sizeof(time_buf), "Today \xc2\xb7 until %02d:%02d", eh, emin);
+                else
+                  snprintf(time_buf, sizeof(time_buf), "Today \xc2\xb7 Ongoing");
+                snprintf(key, sizeof(key), "%s", today_start);
+              } else {
+                const char *day_prefix = start.compare(0, 10, tomorrow_str) == 0 ? "Tomorrow" : "Today";
+                if (has_end)
+                  snprintf(time_buf, sizeof(time_buf), "%s \xc2\xb7 %02d:%02d\xe2\x80\x93%02d:%02d",
+                           day_prefix, sh, smin, eh, emin);
+                else
+                  snprintf(time_buf, sizeof(time_buf), "%s \xc2\xb7 %02d:%02d", day_prefix, sh, smin);
+                snprintf(key, sizeof(key), "%.19s", start.c_str());
+              }
             }
 
             AgendaItem &item = items[item_count++];
-            strncpy(item.start,      start.c_str(),  sizeof(item.start)      - 1);
-            strncpy(item.title,      title_c,         sizeof(item.title)      - 1);
-            strncpy(item.time_label, time_buf,        sizeof(item.time_label) - 1);
+            strncpy(item.sort_key,   key,      sizeof(item.sort_key)   - 1);
+            strncpy(item.title,      title_c,  sizeof(item.title)      - 1);
+            strncpy(item.time_label, time_buf, sizeof(item.time_label) - 1);
             item.accent_color = (cal_idx >= 0 && cal_idx < 3) ? CAL_COLORS[cal_idx] : 0x888888U;
             item.is_past = is_past;
           };
@@ -322,7 +358,7 @@ script:
           for (int i = 0; i < sort_n; i++) {
             int best = i;
             for (int j = i + 1; j < item_count; j++) {
-              if (strcmp(items[j].start, items[best].start) < 0) best = j;
+              if (strcmp(items[j].sort_key, items[best].sort_key) < 0) best = j;
             }
             if (best != i) {
               AgendaItem tmp = items[i];
@@ -367,6 +403,19 @@ script:
               lv_obj_add_flag(slot_objs[i], LV_OBJ_FLAG_HIDDEN);
             }
           }
+
+          // Empty state — only once there is something to be empty of: a
+          // configured calendar, and either fetched data or no token to fetch
+          // with (so a blank pane during the first fetch is not mislabelled).
+          bool any_cal = false;
+          for (auto *sel : {id(calendar_entity_select_0), id(calendar_entity_select_1),
+                            id(calendar_entity_select_2)})
+            if (sel->state.rfind("calendar.", 0) == 0) any_cal = true;
+          bool loaded = id(cal_last_fetch_ms) != 0 || id(ha_token_global).empty();
+          if (item_count == 0 && any_cal && loaded)
+            lv_obj_clear_flag(id(idle_agenda_empty), LV_OBJ_FLAG_HIDDEN);
+          else
+            lv_obj_add_flag(id(idle_agenda_empty), LV_OBJ_FLAG_HIDDEN);
 
   # ---------------------------------------------------------------------------
   # maybe_fetch_calendar
@@ -433,19 +482,12 @@ script:
           const int DAY_FROM = -1;
           const int DAY_TO   = 7;   // exclusive
 
-          time_t midnight = t.timestamp - (t.hour * 3600 + t.minute * 60 + t.second);
-          time_t base_ts  = midnight + (time_t) DAY_FROM * 86400;
-          time_t end_ts   = midnight + (time_t) DAY_TO   * 86400;
-
-          struct tm start_tm, end_tm;
-          localtime_r(&base_ts, &start_tm);
-          localtime_r(&end_ts,  &end_tm);
-
+          char d0[11], d1[11];
+          esp32_dash::calendar_json::local_date(t.timestamp, DAY_FROM, d0);
+          esp32_dash::calendar_json::local_date(t.timestamp, DAY_TO, d1);
           char s[21], e[21];
-          snprintf(s, sizeof(s), "%04d-%02d-%02dT00:00:00",
-                   start_tm.tm_year + 1900, start_tm.tm_mon + 1, start_tm.tm_mday);
-          snprintf(e, sizeof(e), "%04d-%02d-%02dT00:00:00",
-                   end_tm.tm_year + 1900,   end_tm.tm_mon + 1,   end_tm.tm_mday);
+          snprintf(s, sizeof(s), "%sT00:00:00", d0);
+          snprintf(e, sizeof(e), "%sT00:00:00", d1);
 
           id(cal_fetch_start) = std::string(s);
           id(cal_fetch_end)   = std::string(e);
@@ -606,9 +648,6 @@ script:
           std::string *starts[3] = { &id(cal_start_0), &id(cal_start_1), &id(cal_start_2) };
           std::string *ends[3]   = { &id(cal_end_0),   &id(cal_end_1),   &id(cal_end_2) };
           std::string *alldays[3] = { &id(cal_all_day_0), &id(cal_all_day_1), &id(cal_all_day_2) };
-          lv_obj_t *time_lbls[3]  = { id(cal_time_label_0),  id(cal_time_label_1),  id(cal_time_label_2) };
-          lv_obj_t *title_lbls[3] = { id(cal_title_label_0), id(cal_title_label_1), id(cal_title_label_2) };
-          lv_obj_t *desc_lbls[3]  = { id(cal_desc_label_0),  id(cal_desc_label_1),  id(cal_desc_label_2) };
 
           std::string entity = sel[slot]->state;
 
@@ -617,9 +656,6 @@ script:
             *titles[slot] = ""; *starts[slot] = ""; *ends[slot] = ""; *alldays[slot] = "";
             id(cal_subbed)[slot] = "";
             (*gens[slot])++;
-            lv_label_set_text(time_lbls[slot], "\xe2\x80\x94");
-            lv_label_set_text(title_lbls[slot], "No calendar set");
-            lv_label_set_text(desc_lbls[slot], "");
             id(render_idle_agenda).execute();
             if (!entity.empty()) {
               ESP_LOGW("calendar", "Slot %d: '%s' must start with 'calendar.'", slot, entity.c_str());
@@ -642,72 +678,24 @@ script:
           std::string *start_ptr = starts[slot];
           std::string *end_ptr   = ends[slot];
           std::string *allday_ptr = alldays[slot];
-          lv_obj_t *time_lbl  = time_lbls[slot];
-          lv_obj_t *title_lbl = title_lbls[slot];
-          lv_obj_t *desc_lbl  = desc_lbls[slot];
 
           auto *api = esphome::api::global_api_server;
           using str_cb = std::function<void(const std::string &)>;
 
-          auto fmt_time = [](const std::string &start, const std::string &all_day) -> std::string {
-            if (all_day == "True" || all_day == "true" || all_day == "1") return std::string("All Day");
-            if (start.length() < 16) return std::string("");
-            int hour   = atoi(start.substr(11, 2).c_str());
-            int minute = atoi(start.substr(14, 2).c_str());
-            const char *ap = hour >= 12 ? "PM" : "AM";
-            int h12 = hour % 12; if (h12 == 0) h12 = 12;
-            char buf[16];
-            snprintf(buf, sizeof(buf), "%d:%02d %s", h12, minute, ap);
-            return std::string(buf);
+          // These attributes only describe the *next* event, so they are just the
+          // agenda's fallback when no token is set; once a fetch has filled
+          // cal_events_buf the agenda ignores them and a re-render is wasted.
+          auto store = [gen, gen_ptr](std::string *dst) {
+            return str_cb([gen, gen_ptr, dst](const std::string &state) {
+              if (gen != *gen_ptr) return;
+              *dst = state;
+              if (id(cal_events_buf).empty()) id(render_idle_agenda).execute();
+            });
           };
-
-          // The agenda only consults these globals when cal_events_buf is empty,
-          // so a re-render is pointless (and costly) once a fetch has succeeded.
-          auto agenda_needs_refresh = []() { return id(cal_events_buf).empty(); };
-
-          // message → title label + agenda re-render
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("message"),
-              str_cb([gen, gen_ptr, title_ptr, title_lbl, agenda_needs_refresh](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                *title_ptr = state;
-                lv_label_set_text(title_lbl, state.empty() ? "No upcoming events" : state.c_str());
-                if (agenda_needs_refresh()) id(render_idle_agenda).execute();
-              }));
-
-          // start_time → time label + agenda re-render
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("start_time"),
-              str_cb([gen, gen_ptr, start_ptr, allday_ptr, time_lbl, fmt_time,
-                      agenda_needs_refresh](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                *start_ptr = state;
-                std::string ts = fmt_time(state, *allday_ptr);
-                lv_label_set_text(time_lbl, ts.empty() ? "\xe2\x80\x94" : ts.c_str());
-                if (agenda_needs_refresh()) id(render_idle_agenda).execute();
-              }));
-
-          // end_time → stored for past-event detection
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("end_time"),
-              str_cb([gen, gen_ptr, end_ptr, agenda_needs_refresh](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                *end_ptr = state;
-                if (agenda_needs_refresh()) id(render_idle_agenda).execute();
-              }));
-
-          // all_day → update time label
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("all_day"),
-              str_cb([gen, gen_ptr, allday_ptr, start_ptr, time_lbl, fmt_time](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                *allday_ptr = state;
-                std::string ts = fmt_time(*start_ptr, state);
-                lv_label_set_text(time_lbl, ts.empty() ? "\xe2\x80\x94" : ts.c_str());
-              }));
-
-          // location → description label (calendar page only)
-          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("location"),
-              str_cb([gen, gen_ptr, desc_lbl](const std::string &state) {
-                if (gen != *gen_ptr) return;
-                lv_label_set_text(desc_lbl, state.c_str());
-              }));
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("message"), store(title_ptr));
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("start_time"), store(start_ptr));
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("end_time"), store(end_ptr));
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("all_day"), store(allday_ptr));
 
           ESP_LOGI("calendar", "Slot %d: subscribed to '%s'", slot, entity.c_str());
 

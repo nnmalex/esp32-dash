@@ -97,6 +97,15 @@ script:
             lv_obj_set_style_bg_color(id(artwork_bg_panel), dark_accent, 0);
 
             int br = r * 3 / 4, bg = g * 3 / 4, bb = b * 3 / 4;
+            // The play/pause icon is white: keep the button dark enough for it
+            // to read on pale artwork by capping the button's luma.
+            int luma = (br * 299 + bg * 587 + bb * 114) / 1000;
+            const int MAX_LUMA = 140;
+            if (luma > MAX_LUMA) {
+              br = br * MAX_LUMA / luma;
+              bg = bg * MAX_LUMA / luma;
+              bb = bb * MAX_LUMA / luma;
+            }
             lv_color_t bright_accent = lv_color_make(br, bg, bb);
             lv_obj_set_style_bg_color(id(media_play_pause_button), bright_accent, 0);
 

@@ -127,14 +127,14 @@ Four LVGL pages defined across two files (`device/lvgl.yaml` + `device/navbar.ya
     arc, and `addon/speaker_group.yaml` were removed. Volume is controlled from
     HA, not the panel.
 - **`idle_page`** (Phase 4b complete) — two-pane layout
-  - Left 800px: weather background image + dark overlay; clock+date top-left; condition+temp top-right; two columns of 5 sensor tiles each (left col x=0..389 = tiles 0-4, right col x=400..789 = tiles 5-9; hidden when entity not configured)
-  - Right 480px: merged calendar agenda (today+tomorrow from all 3 calendars, sorted, past events greyed out) — 5 agenda slots (`idle_agenda_slot_0..4`)
+  - Left 800px: weather background image (`fit: cover`, darkened in its pixels on download — there is no overlay object); clock+date top-left (refreshed by `ha_time` `on_time: seconds: 0`, not a free-running interval); condition+temp top-right (condition ids mapped to display names); two columns of 5 sensor tiles each (left col x=0..389 = tiles 0-4, right col x=400..789 = tiles 5-9; hidden when entity not configured, visible ones restacked from the top by `pack_idle_tiles`). Tile icons come from the entity's `icon` attribute, else its `device_class`; `unavailable`/`unknown` show a dimmed "—"; the k-prefix applies only to SI units (W, Wh, V, A, Hz, g, m…)
+  - Right 480px: merged calendar agenda (today+tomorrow from all 3 calendars, sorted) — 5 agenda slots (`idle_agenda_slot_0..4`) plus an `idle_agenda_empty` state. Includes events still running from earlier days and multi-day all-day events. Ended timed events stay greyed out for the "Agenda: Past Event Lookback" number (`agenda_lookback`, default 120 min), then drop off
 - **`calendar_page`** (Phase 4c complete) — 5-day week grid view
-  - Header (y=0..60): 5 day-column labels (day name + date), highlighted today, prev/next nav (offset -1..+2)
-  - All-day strip (y=60..84): one chip per column for all-day events
-  - Time grid (y=84..740, scrollable 656px): 44px/hour, default scroll shows 6 AM–9 PM; 30 pre-allocated event blocks (6 per column), current-time red indicator
+  - Header (y=0..60): 5 day-column labels (day name + date, month on the first column and on the 1st), highlighted today, chevron prev/next nav (offset -1..+2). Entering the view resets to today and scrolls the current time ~1/3 down (`scroll_calendar_to_now`); paging keeps the scroll position
+  - All-day strip (y=60..84): one chip per column; multi-day all-day events appear in every column they cover; "+N" when a column has more than fits (extra all-day events or more than 6 timed)
+  - Time grid (y=84..740, scrollable 656px): 44px/hour; 30 pre-allocated event blocks (6 per column) labelled with their start time, dimmed once ended, split at midnight when they span days; current-time red indicator. Hour lines/labels and column separators are painted by an `LV_EVENT_DRAW_MAIN_END` callback on `cal_grid_scroll` (registered in `lvgl: on_boot`), with one invisible spacer holding the 24 h scroll extent
   - Data: fetched via HA REST API (`GET /api/calendars/<entity>?start=...&end=...`) by `fetch_calendar_data`, which loops over the 3 calendar slots in one script and fills the shared `cal_events_buf`; requires the `ha_token` substitution to be set
-  - Legacy 9 labels kept hidden for idle-agenda subscription compatibility
+  - Day boundaries use `esp32_dash::calendar_json::local_day/local_date` (mktime-based), never `timestamp + n*86400`, which is an hour off across DST
 - **`forecast_page`** — (Phase 5 complete) 7-day weather forecast
   - 7 columns (183 px wide each); column centres at 91+i×183
   - Header (y=0..88): day name + date number per column; today highlighted in accent blue
@@ -148,7 +148,7 @@ Four LVGL pages defined across two files (`device/lvgl.yaml` + `device/navbar.ya
 
 Navigation bar (`nav_bar`) defined in `device/navbar.yaml`, reparented to `lv_layer_top()` on boot so it floats above all pages. 60px bar at y=740, visible on all four views (every `show_*_view` script reveals it; it starts hidden only so it does not flash during boot/setup), four icon buttons: Home, Music, Calendar, Forecast. `update_nav_highlight` (run by every `show_*_view`) brightens the current view's icon and shows its accent mark (`nav_*_mark`); the others are dimmed. `layout_nav_bar` narrows the buttons to 4×200px in the left 800px while `timer_bar` is visible, and restores 4×320px otherwise.
 
-Timer overlay (`timer_bar`) defined in `device/timer_overlay.yaml`, reparented into `nav_bar` on boot and occupying its right 480px (x=800). It sits inside the nav bar rather than floating above it so it never covers page content; it is hidden when no timers are active. Shows soonest-expiring active timer name + MM:SS countdown + "+N" badge. Tapping dismisses until next HA `remaining` update. Subscribes to up to 3 `timer.*` entities (compile-time substitutions `timer_entity_1..3` or runtime via HA device settings). Remaining time is computed from the `finishes_at` attribute against the clock (`tmr_finishes_0..2`), so blocking HTTP fetches and reconnects do not make it drift; a local 1 s decrement is only the fallback before time sync. Time label turns red when < 60 s remaining.
+Timer overlay (`timer_bar`) defined in `device/timer_overlay.yaml`, reparented into `nav_bar` on boot and occupying its right 480px (x=800). It sits inside the nav bar rather than floating above it so it never covers page content; it is hidden when no timers are active. Shows soonest-expiring active timer name + MM:SS countdown + "+N" badge. Tapping dismisses until next HA `remaining` update. Subscribes to up to 3 `timer.*` entities (compile-time substitutions `timer_entity_1..3` or runtime via HA device settings). Remaining time is computed from the `finishes_at` attribute against the clock (`tmr_finishes_0..2`), so blocking HTTP fetches and reconnects do not make it drift; a local 1 s decrement is only the fallback before time sync. Time label turns red when < 60 s remaining. A paused timer is shown (greyed, "· Paused") when none is running. When a timer goes active → idle within a few seconds of its `finishes_at`, `show_timer_done` raises `tmr_done_overlay` (full-screen card on `lv_layer_top()`, wakes the backlight, tap or 10 min to dismiss); a cancel, or a reconnect long after it ended, does not.
 
 Global state flags in `device/device.yaml`:
 - `actions_prompt_acked` — user dismissed the "enable actions" prompt (NVS-backed)
@@ -174,7 +174,7 @@ Phase 2 (complete): navbar, `current_view` global, auto-switching, swipe gesture
 Phase 3 (complete): `device/idle_view.yaml` + `device/weather_sensors.yaml` — real idle page with clock, weather card, calendar preview placeholders, 4-tile sensor row; weather entity + 4 sensor row entities (NVS-persisted, gen-counter subscriptions).
 Phase 4 (complete): `device/calendar_view.yaml` + `device/calendar_sensors.yaml` — real calendar page; 3 calendar entity slots.
 Phase 4c (complete): Calendar view redesigned as 5-day week grid. Key IDs: `cal_grid_scroll` (scrollable time grid), `cal_col_hdr_0..4`, `cal_ev_00..29` (event blocks), `cal_ad_0..4` (all-day chips), `cal_now_line` (current time). New globals: `cal_view_offset`, `cal_events_buf`, `cal_fetch_start/end`, `cal_last_fetch_ms`. New scripts: `fetch_calendar_data`, `render_calendar_grid`, `position_cal_now_line`. Token set via the `ha_token` substitution.
-Phase 4b (complete): Idle view redesign — two-pane layout (800px left + 480px right). Left pane: weather background image (online_image, loaded from HA `/local/` path by condition name), dark overlay, clock+date top-left, weather condition+temperature top-right, two columns of 5 sensor tiles each (left col x=0..389 = tiles 0-4, right col x=400..789 = tiles 5-9; hidden when entity not configured). Right pane: merged calendar agenda (today+tomorrow from all 3 calendars, sorted, past events greyed out). New substitutions: `weather_bg_path`, `local_temp_entity`, `idle_sensor_1..10`. Key new IDs: `idle_weather_bg_image` (online_image in weather_sensors.yaml), `idle_sensor_tile_0..9`, `idle_agenda_slot_0..4`, `render_idle_agenda` script.
+Phase 4b (complete): Idle view redesign — two-pane layout (800px left + 480px right). Left pane: weather background image (online_image, loaded from HA `/local/` path by condition name), darkened, clock+date top-left, weather condition+temperature top-right, two columns of 5 sensor tiles each (left col x=0..389 = tiles 0-4, right col x=400..789 = tiles 5-9; hidden when entity not configured). Right pane: merged calendar agenda (today+tomorrow from all 3 calendars, sorted, ended events greyed out within a look-back window). New substitutions: `weather_bg_path`, `local_temp_entity`, `idle_sensor_1..10`. Key new IDs: `idle_weather_bg_image` (online_image in weather_sensors.yaml), `idle_sensor_tile_0..9`, `idle_agenda_slot_0..4`, `render_idle_agenda` script.
 
 ### Phase 5 (complete): forecast view
 
@@ -202,7 +202,7 @@ The left pane of the idle page displays a full-panel weather background image lo
    snowy.jpg         snowy-rainy.jpg   sunny.jpg
    windy.jpg         windy-variant.jpg
    ```
-   Recommended size: 800×740 px JPEG. The `online_image` component decodes and scales the image on-device.
+   Recommended size: 800×740 px JPEG. The `online_image` component decodes and scales the image on-device, cropping other aspect ratios to fill the pane (`fit: cover`).
 
 3. **Local temperature sensor** — optionally add to substitutions:
    ```yaml
@@ -326,6 +326,21 @@ doing the HTTP off the loop task and handing results back via `defer()`. It keep
 the zero-config story but costs ~250 lines of C++ and careful thread discipline
 (no LVGL or global access from the worker). Push is the cheaper win if the HA-side
 setup is acceptable.
+
+## Gotchas
+
+- **Template `number` `set_action` runs before the value is stored.**
+  `TemplateNumber::control()` fires the trigger and only then `publish_state()`s,
+  so a script called from `set_action` that reads `id(x).state` sees the
+  *previous* value. Every such `set_action` here starts with
+  `- lambda: 'id(x)->publish_state(x);'`. Do not switch to `on_value` instead:
+  template numbers set up (`HARDWARE` priority) before LVGL, so the restore
+  publish at boot would run LVGL code against uncreated widgets.
+- **Check MDI codepoints against the font, not memory.** Several glyphs were
+  wrong for a long time (pressure showed `format-wrap-tight`, "windy-variant" a
+  globe). Verify with the 7.4.47 CSS
+  (`cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.css`), and add
+  any glyph used from a lambda to the font's `glyphs:` list.
 
 ## Idle page: key substitutions summary
 

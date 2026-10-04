@@ -48,6 +48,8 @@ number:
     icon: "mdi:brightness-7"
     entity_category: config
     set_action:
+      # set_action runs before the value is stored; publish so the script sees it
+      - lambda: 'id(backlight_day_active_brightness)->publish_state(x);'
       - script.execute: backlight_wake_timeout
 
   - platform: template
@@ -63,6 +65,8 @@ number:
     icon: "mdi:brightness-4"
     entity_category: config
     set_action:
+      # set_action runs before the value is stored; publish so the script sees it
+      - lambda: 'id(backlight_night_active_brightness)->publish_state(x);'
       - script.execute: backlight_wake_timeout
 
   - platform: template
@@ -78,6 +82,8 @@ number:
     icon: "mdi:weather-night"
     entity_category: config
     set_action:
+      # set_action runs before the value is stored; publish so the script sees it
+      - lambda: 'id(night_start_hour)->publish_state(x);'
       - script.execute: backlight_wake_timeout
 
   - platform: template
@@ -93,6 +99,8 @@ number:
     icon: "mdi:weather-sunny"
     entity_category: config
     set_action:
+      # set_action runs before the value is stored; publish so the script sees it
+      - lambda: 'id(night_end_hour)->publish_state(x);'
       - script.execute: backlight_wake_timeout
 
 

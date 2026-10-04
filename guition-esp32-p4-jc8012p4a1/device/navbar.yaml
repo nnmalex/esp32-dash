@@ -49,10 +49,14 @@ script:
   - id: show_calendar_view
     mode: single
     then:
-      - lambda: 'id(current_view) = 2;'
+      # Always open on today, scrolled to the current time.
+      - lambda: |-
+          id(current_view) = 2;
+          id(cal_view_offset) = 0;
       - script.execute: update_nav_highlight
       - script.execute: update_calendar_date
       - script.execute: render_calendar_grid  # render on hidden page before showing
+      - script.execute: scroll_calendar_to_now
       - lvgl.page.show: calendar_page
       - lvgl.widget.show: nav_bar
       - script.execute: maybe_fetch_calendar
@@ -174,12 +178,13 @@ lvgl:
             hidden: true
 
             widgets:
-              # Nav buttons dispatch via LVGL on_press (LV_EVENT_PRESSED) on
-              # each button. The ESPHome touchscreen on_release callback in
-              # device.yaml operates in panel-native portrait coordinates and
-              # cannot reliably identify landscape navbar regions, so LVGL
-              # hit-testing (which runs after rotate_coordinates) is the sole
-              # dispatch path.
+              # Nav buttons dispatch via LVGL on_click on each button: on
+              # release, and only if the finger did not slide off — so a scroll
+              # that ends on the nav bar does not switch view. The ESPHome
+              # touchscreen on_release callback in device.yaml operates in
+              # panel-native portrait coordinates and cannot reliably identify
+              # landscape navbar regions, so LVGL hit-testing (which runs after
+              # rotate_coordinates) is the sole dispatch path.
 
               # ---- Home ----
               - button:
@@ -194,7 +199,7 @@ lvgl:
                   radius: 0
                   shadow_width: 0
                   pad_all: 0
-                  on_press:
+                  on_click:
                     - script.execute: show_idle_view
                   widgets:
                     - label:
@@ -228,7 +233,7 @@ lvgl:
                   radius: 0
                   shadow_width: 0
                   pad_all: 0
-                  on_press:
+                  on_click:
                     - script.execute: show_music_view
                   widgets:
                     - label:
@@ -262,7 +267,7 @@ lvgl:
                   radius: 0
                   shadow_width: 0
                   pad_all: 0
-                  on_press:
+                  on_click:
                     - script.execute: show_calendar_view
                   widgets:
                     - label:
@@ -296,7 +301,7 @@ lvgl:
                   radius: 0
                   shadow_width: 0
                   pad_all: 0
-                  on_press:
+                  on_click:
                     - script.execute: show_forecast_view
                   widgets:
                     - label:

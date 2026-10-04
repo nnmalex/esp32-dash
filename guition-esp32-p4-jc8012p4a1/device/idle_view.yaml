@@ -3,7 +3,7 @@
 # =============================================================================
 # Layout (1280×800, navbar at y=740 — usable height 740px):
 #
-#   Left pane  (x=0..799,   w=800): weather background image + dark overlay
+#   Left pane  (x=0..799,   w=800): weather background image (darkened at download)
 #              Top-left:  clock (large) + day + date
 #              Top-right: weather condition + temperature
 #              Middle:    two columns of 5 sensor tiles each (hidden when no entity set)
@@ -15,7 +15,8 @@
 #              sorted by start time; past events are greyed out.
 #
 # Scripts called from outside:
-#   update_idle_clock — called by show_idle_view (navbar.yaml) and 60 s interval
+#   update_idle_clock — called by show_idle_view (navbar.yaml) and on each
+#                       minute boundary (ha_time on_time, addon/time.yaml)
 #   render_idle_agenda — defined in calendar_sensors.yaml; called here too
 #
 # Weather background image (idle_weather_bg_image) is defined in
@@ -59,20 +60,6 @@ script:
       - script.execute: render_idle_agenda
 
 
-interval:
-  # Calendar data is refreshed by the 15-minute interval in calendar_sensors.yaml;
-  # an extra hourly fetch keyed on `minute == 0` was both redundant and unreliable
-  # (a free-running 60 s interval drifts, so that tick can miss the minute or land
-  # on it twice).
-  - interval: 60s
-    then:
-      - if:
-          condition:
-            lambda: 'return id(current_view) == 0;'
-          then:
-            - script.execute: update_idle_clock
-
-
 lvgl:
   pages:
     - id: idle_page
@@ -98,19 +85,8 @@ lvgl:
             src: idle_weather_bg_image
             opa: 100%
 
-        # Layer 2: dark overlay for text readability (drawn over image)
-        - obj:
-            x: 0
-            y: 0
-            width: 800
-            height: 740
-            bg_color: 0x000000
-            bg_opa: 62%
-            border_width: 0
-            radius: 0
-            pad_all: 0
-            scrollable: false
-            clickable: false
+        # (No overlay object: idle_weather_bg_image is darkened in its pixels
+        # when it downloads — see weather_sensors.yaml.)
 
         # ---- Clock: top-left of left pane ----
         - label:
@@ -169,7 +145,7 @@ lvgl:
             text_align: right
             text: "—"
 
-        # Feels-like temperature  e.g. "(feels 19°)"  — hidden until entity configured
+        # Feels-like temperature  e.g. "Feels like 19°"  — hidden until entity configured
         - label:
             id: idle_weather_feels_label
             x: 390
@@ -184,8 +160,9 @@ lvgl:
         # ---- Sensor tiles — two columns of 5, hidden by default ----
         # Each tile is shown/hidden by subscribe_idle_sensor_N in weather_sensors.yaml.
         # Left column (x=0, w=390): tiles 0-4. Right column (x=400, w=390): tiles 5-9.
-        # Tiles are absolutely positioned; gaps appear when inner tiles are hidden.
-        # Tile height=80, spacing=100; y positions: 240,340,440,540,640 per column.
+        # Tile height=80, spacing=100: y slots 240,340,440,540,640 per column. The
+        # y values below are only the initial layout — pack_idle_tiles restacks
+        # the visible tiles of each column from the top so hidden ones leave no gap.
 
         # ---- Left column: tiles 0-4 (x=0, w=390) ----
 
@@ -742,7 +719,7 @@ lvgl:
             y: 18
             width: 440
             text_font: roboto_light26_font
-            text_color: 0x444444
+            text_color: 0x777777
             text_align: left
             text: "UPCOMING"
 
@@ -757,6 +734,19 @@ lvgl:
             border_width: 0
             radius: 0
             pad_all: 0
+
+        # Empty state, shown by render_idle_agenda when nothing falls on today
+        # or tomorrow.
+        - label:
+            id: idle_agenda_empty
+            x: 820
+            y: 96
+            width: 440
+            text_font: roboto_light30_font
+            text_color: 0x666666
+            text_align: left
+            text: "Nothing scheduled for today or tomorrow"
+            hidden: true
 
         # ---- Agenda slot 0 (y: 61..175, h=115) ----
         # Each slot: accent bar (4px left) + time label + title label
@@ -789,7 +779,7 @@ lvgl:
               - label:
                   id: idle_agenda_time_0
                   x: 16
-                  y: 10
+                  y: 8
                   width: 456
                   text_font: roboto_light26_font
                   text_color: 0x4A90E2
@@ -798,8 +788,10 @@ lvgl:
               - label:
                   id: idle_agenda_title_0
                   x: 16
-                  y: 46
+                  y: 40
                   width: 456
+                  height: 72      # two lines, then an ellipsis
+                  long_mode: dot
                   text_font: roboto_light30_font
                   text_color: 0xDDDDDD
                   text_align: left
@@ -834,7 +826,7 @@ lvgl:
               - label:
                   id: idle_agenda_time_1
                   x: 16
-                  y: 10
+                  y: 8
                   width: 456
                   text_font: roboto_light26_font
                   text_color: 0x5BA55A
@@ -843,8 +835,10 @@ lvgl:
               - label:
                   id: idle_agenda_title_1
                   x: 16
-                  y: 46
+                  y: 40
                   width: 456
+                  height: 72      # two lines, then an ellipsis
+                  long_mode: dot
                   text_font: roboto_light30_font
                   text_color: 0xDDDDDD
                   text_align: left
@@ -879,7 +873,7 @@ lvgl:
               - label:
                   id: idle_agenda_time_2
                   x: 16
-                  y: 10
+                  y: 8
                   width: 456
                   text_font: roboto_light26_font
                   text_color: 0xE2914A
@@ -888,8 +882,10 @@ lvgl:
               - label:
                   id: idle_agenda_title_2
                   x: 16
-                  y: 46
+                  y: 40
                   width: 456
+                  height: 72      # two lines, then an ellipsis
+                  long_mode: dot
                   text_font: roboto_light30_font
                   text_color: 0xDDDDDD
                   text_align: left
@@ -924,7 +920,7 @@ lvgl:
               - label:
                   id: idle_agenda_time_3
                   x: 16
-                  y: 10
+                  y: 8
                   width: 456
                   text_font: roboto_light26_font
                   text_color: 0x4A90E2
@@ -933,8 +929,10 @@ lvgl:
               - label:
                   id: idle_agenda_title_3
                   x: 16
-                  y: 46
+                  y: 40
                   width: 456
+                  height: 72      # two lines, then an ellipsis
+                  long_mode: dot
                   text_font: roboto_light30_font
                   text_color: 0xDDDDDD
                   text_align: left
@@ -969,7 +967,7 @@ lvgl:
               - label:
                   id: idle_agenda_time_4
                   x: 16
-                  y: 10
+                  y: 8
                   width: 456
                   text_font: roboto_light26_font
                   text_color: 0x5BA55A
@@ -978,8 +976,10 @@ lvgl:
               - label:
                   id: idle_agenda_title_4
                   x: 16
-                  y: 46
+                  y: 40
                   width: 456
+                  height: 72      # two lines, then an ellipsis
+                  long_mode: dot
                   text_font: roboto_light30_font
                   text_color: 0xDDDDDD
                   text_align: left
