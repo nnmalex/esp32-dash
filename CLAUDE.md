@@ -25,7 +25,7 @@ guition-esp32-p4-jc8012p4a1/
     time.yaml           # HA time sync
     timezone.yaml       # clock timezone select
   assets/
-    fonts.yaml          # Roboto variants (20–300px)
+    fonts.yaml          # Roboto variants (19–100px)
     icons.yaml          # Material Design icons (28–64px)
     placeholder.png     # fallback album art
   device/
@@ -46,7 +46,8 @@ guition-esp32-p4-jc8012p4a1/
     button.yaml         # LVGL style definitions
 components/
   online_image/         # custom C++ component: downloads & decodes album art
-  calendar_json/        # header-only JSON parser shared by calendar + forecast
+  calendar_json/        # header-only JSON parser + date helpers (calendar, forecast);
+                        # weather_icons.h: condition → MDI glyph map
   gsl3680/              # vendored touch driver (see its README.md)
   libjpeg-turbo-esp32/  # JPEG decode library (CMake IDF component)
 builds/
