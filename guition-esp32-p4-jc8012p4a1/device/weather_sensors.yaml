@@ -51,8 +51,30 @@ online_image:
     type: RGB565
     byte_order: little_endian
     resize: 800x740
+    # Fill the pane and crop, rather than letterbox a photo of another shape.
+    fit: cover
     buffer_size: 65536
     on_download_finished:
+      # Darken the pixels once here instead of drawing a 62% black overlay over
+      # the whole pane, which LVGL re-blends on every clock or tile update.
+      # `cached` = HTTP 304: the buffer still holds the already-darkened image.
+      - lambda: |-
+          if (cached) return;
+          auto *img = id(idle_weather_bg_image);
+          lv_image_dsc_t *dsc = img->get_lv_image_dsc();
+          uint8_t *px = const_cast<uint8_t *>(dsc->data);
+          if (px == nullptr) return;
+          const size_t n = (size_t) img->get_width() * img->get_height();
+          const uint32_t K = 97;  // keep 38% of each channel (= 62% black overlay)
+          for (size_t i = 0; i < n; i++, px += 2) {
+            uint16_t c = px[0] | (px[1] << 8);  // little-endian RGB565
+            uint32_t r = ((c >> 11) & 0x1F) * K >> 8;
+            uint32_t g = ((c >> 5) & 0x3F) * K >> 8;
+            uint32_t b = (c & 0x1F) * K >> 8;
+            c = (r << 11) | (g << 5) | b;
+            px[0] = c & 0xFF;
+            px[1] = c >> 8;
+          }
       - lvgl.image.update:
           id: idle_weather_bg_widget
           src: idle_weather_bg_image
@@ -103,6 +125,16 @@ globals:
     type: std::array<std::string, 10>
     initial_value: '{"","","","","","","","","",""}'
 
+  # Tile icon sources. Most entities have no `icon` attribute (HA derives one
+  # from the device class client-side), so device_class supplies a fallback and
+  # an explicit icon attribute wins when present. nullptr = not received.
+  - id: idle_sensor_icon_attr
+    type: std::array<const char *, 10>
+    initial_value: 'std::array<const char *, 10>{}'
+  - id: idle_sensor_icon_dc
+    type: std::array<const char *, 10>
+    initial_value: 'std::array<const char *, 10>{}'
+
   # Base (unscaled) unit from HA per tile; k-prefix applied at display time
   - id: idle_sensor_unit_base
     type: std::array<std::string, 10>
@@ -127,6 +159,15 @@ globals:
   - id: use_local_temp
     type: bool
     initial_value: 'false'
+
+  # The two halves of the detail line under the idle temperature, joined by
+  # idle_weather_detail: "Feels like 19°" and "H 24° · L 13°" (empty = omitted).
+  - id: idle_feels_txt
+    type: std::string
+    initial_value: '""'
+  - id: idle_hilo_txt
+    type: std::string
+    initial_value: '""'
 
   # Runtime storage for the weather background URL (built from ha_base_url +
   # weather_bg_path + "/" + condition + ".jpg" when condition updates)
@@ -366,6 +407,8 @@ number:
     restore_value: true
     initial_value: -1
     set_action:
+      # set_action runs before the value is stored; publish so the script sees it
+      - lambda: 'id(idle_sensor_prec_0)->publish_state(x);'
       - script.execute:
           id: idle_sensor_reformat
           slot: 0
@@ -382,6 +425,8 @@ number:
     restore_value: true
     initial_value: -1
     set_action:
+      # set_action runs before the value is stored; publish so the script sees it
+      - lambda: 'id(idle_sensor_prec_1)->publish_state(x);'
       - script.execute:
           id: idle_sensor_reformat
           slot: 1
@@ -398,6 +443,8 @@ number:
     restore_value: true
     initial_value: -1
     set_action:
+      # set_action runs before the value is stored; publish so the script sees it
+      - lambda: 'id(idle_sensor_prec_2)->publish_state(x);'
       - script.execute:
           id: idle_sensor_reformat
           slot: 2
@@ -414,6 +461,8 @@ number:
     restore_value: true
     initial_value: -1
     set_action:
+      # set_action runs before the value is stored; publish so the script sees it
+      - lambda: 'id(idle_sensor_prec_3)->publish_state(x);'
       - script.execute:
           id: idle_sensor_reformat
           slot: 3
@@ -430,6 +479,8 @@ number:
     restore_value: true
     initial_value: -1
     set_action:
+      # set_action runs before the value is stored; publish so the script sees it
+      - lambda: 'id(idle_sensor_prec_4)->publish_state(x);'
       - script.execute:
           id: idle_sensor_reformat
           slot: 4
@@ -446,6 +497,8 @@ number:
     restore_value: true
     initial_value: -1
     set_action:
+      # set_action runs before the value is stored; publish so the script sees it
+      - lambda: 'id(idle_sensor_prec_5)->publish_state(x);'
       - script.execute:
           id: idle_sensor_reformat
           slot: 5
@@ -462,6 +515,8 @@ number:
     restore_value: true
     initial_value: -1
     set_action:
+      # set_action runs before the value is stored; publish so the script sees it
+      - lambda: 'id(idle_sensor_prec_6)->publish_state(x);'
       - script.execute:
           id: idle_sensor_reformat
           slot: 6
@@ -478,6 +533,8 @@ number:
     restore_value: true
     initial_value: -1
     set_action:
+      # set_action runs before the value is stored; publish so the script sees it
+      - lambda: 'id(idle_sensor_prec_7)->publish_state(x);'
       - script.execute:
           id: idle_sensor_reformat
           slot: 7
@@ -494,6 +551,8 @@ number:
     restore_value: true
     initial_value: -1
     set_action:
+      # set_action runs before the value is stored; publish so the script sees it
+      - lambda: 'id(idle_sensor_prec_8)->publish_state(x);'
       - script.execute:
           id: idle_sensor_reformat
           slot: 8
@@ -510,6 +569,8 @@ number:
     restore_value: true
     initial_value: -1
     set_action:
+      # set_action runs before the value is stored; publish so the script sees it
+      - lambda: 'id(idle_sensor_prec_9)->publish_state(x);'
       - script.execute:
           id: idle_sensor_reformat
           slot: 9
@@ -528,6 +589,21 @@ text_sensor:
       - lvgl.label.update:
           id: idle_weather_condition_label
           text: !lambda |-
+            // HA's condition ids are not display text ("partlycloudy",
+            // "lightning-rainy"), so map the known set and only title-case
+            // anything unexpected.
+            static const char *const names[][2] = {
+              {"clear-night", "Clear"},          {"cloudy", "Cloudy"},
+              {"exceptional", "Severe weather"}, {"fog", "Fog"},
+              {"hail", "Hail"},                  {"lightning", "Thunder"},
+              {"lightning-rainy", "Thunderstorms"}, {"partlycloudy", "Partly cloudy"},
+              {"pouring", "Heavy rain"},         {"rainy", "Rain"},
+              {"snowy", "Snow"},                 {"snowy-rainy", "Sleet"},
+              {"sunny", "Sunny"},                {"windy", "Windy"},
+              {"windy-variant", "Windy"},
+            };
+            for (auto &n : names)
+              if (x == n[0]) return std::string(n[1]);
             std::string s = x;
             bool cap = true;
             for (char &c : s) {
@@ -537,6 +613,8 @@ text_sensor:
             }
             return s;
       - lambda: |-
+          lv_label_set_text(id(idle_weather_icon_label),
+                            x.empty() ? "" : esp32_dash::weather::condition_icon(x.c_str()));
           // Load weather background image if path is configured
           std::string path = id(weather_bg_path_global);
           if (!path.empty() && !x.empty()) {
@@ -559,7 +637,7 @@ text_sensor:
             lv_label_set_text(id(idle_weather_temp_label), "\xe2\x80\x94");
             id(current_temp_int) = -9999;
           } else {
-            int rounded = (int)(v.value() + 0.5f);
+            int rounded = (int) lroundf(v.value());
             char buf[16];
             snprintf(buf, sizeof(buf), "%d\xc2\xb0", rounded);
             lv_label_set_text(id(idle_weather_temp_label), buf);
@@ -569,26 +647,24 @@ text_sensor:
           if (id(idle_weather_feels_sensor).has_state())
             id(idle_weather_feels_sensor).publish_state(id(idle_weather_feels_sensor).state);
 
-  # Feels-like temperature  e.g. "19.2" → "(feels 19°)"
+  # Feels-like temperature  e.g. "19.2" → "Feels like 19°"
   # Hidden when feels-like rounds to the same integer as the current display temp.
   - platform: template
     id: idle_weather_feels_sensor
     on_value:
       - lambda: |-
+          // Left out when it rounds to the displayed temperature.
           auto v = esphome::parse_number<float>(x);
-          if (!v.has_value() || id(current_temp_int) == -9999) {
-            lv_obj_add_flag(id(idle_weather_feels_label), LV_OBJ_FLAG_HIDDEN);
-            return;
+          id(idle_feels_txt) = "";
+          if (v.has_value() && id(current_temp_int) != -9999) {
+            int feels = (int) lroundf(v.value());
+            if (feels != id(current_temp_int)) {
+              char buf[24];
+              snprintf(buf, sizeof(buf), "Feels like %d\xc2\xb0", feels);
+              id(idle_feels_txt) = buf;
+            }
           }
-          int feels = (int)(v.value() + 0.5f);
-          if (feels == id(current_temp_int)) {
-            lv_obj_add_flag(id(idle_weather_feels_label), LV_OBJ_FLAG_HIDDEN);
-            return;
-          }
-          char buf[24];
-          snprintf(buf, sizeof(buf), "(feels %d\xc2\xb0)", feels);
-          lv_label_set_text(id(idle_weather_feels_label), buf);
-          lv_obj_clear_flag(id(idle_weather_feels_label), LV_OBJ_FLAG_HIDDEN);
+          id(idle_weather_detail).execute();
 
   # Sensor tile states
   - platform: template
@@ -710,6 +786,64 @@ text_sensor:
 script:
 
   # ---------------------------------------------------------------------------
+  # idle_weather_detail: joins feels-like and today's high/low into the line
+  # under the idle temperature; hidden when both are empty.
+  # ---------------------------------------------------------------------------
+  - id: idle_weather_detail
+    mode: single
+    then:
+      - lambda: |-
+          std::string t = id(idle_feels_txt);
+          if (!id(idle_hilo_txt).empty()) {
+            if (!t.empty()) t += "  \xc2\xb7  ";
+            t += id(idle_hilo_txt);
+          }
+          lv_label_set_text(id(idle_weather_feels_label), t.c_str());
+          if (t.empty()) lv_obj_add_flag(id(idle_weather_feels_label), LV_OBJ_FLAG_HIDDEN);
+          else lv_obj_clear_flag(id(idle_weather_feels_label), LV_OBJ_FLAG_HIDDEN);
+
+  # ---------------------------------------------------------------------------
+  # update_idle_hilo: today's high/low from the cached daily forecast
+  # (wf_data_buf, forecast_sensors.yaml). Run after each forecast fetch and
+  # from update_idle_clock, so it rolls over at midnight; clears itself when
+  # the cache has no line for today.
+  # ---------------------------------------------------------------------------
+  - id: update_idle_hilo
+    mode: single
+    then:
+      - lambda: |-
+          auto now = id(ha_time).now();
+          std::string out;
+          if (now.is_valid()) {
+            const std::string &buf = id(wf_data_buf);
+            size_t pos = 0;
+            while (pos < buf.size()) {
+              size_t nl = buf.find('\n', pos);
+              if (nl == std::string::npos) nl = buf.size();
+              // "DAYNAME|DAYNUM|HIGH|LOW|..."
+              std::string line = buf.substr(pos, nl - pos);
+              pos = nl + 1;
+              size_t p1 = line.find('|'), p2 = line.find('|', p1 + 1), p3 = line.find('|', p2 + 1);
+              if (p1 == std::string::npos || p2 == std::string::npos || p3 == std::string::npos) continue;
+              if (atoi(line.c_str() + p1 + 1) != now.day_of_month) continue;
+              std::string hi = line.substr(p2 + 1, p3 - p2 - 1);
+              size_t p4 = line.find('|', p3 + 1);
+              std::string lo = line.substr(p3 + 1, p4 == std::string::npos ? std::string::npos : p4 - p3 - 1);
+              char b[40] = "";
+              if (!hi.empty() && !lo.empty())
+                snprintf(b, sizeof(b), "H %ld\xc2\xb0  \xc2\xb7  L %ld\xc2\xb0", lroundf(atof(hi.c_str())), lroundf(atof(lo.c_str())));
+              else if (!hi.empty())
+                snprintf(b, sizeof(b), "H %ld\xc2\xb0", lroundf(atof(hi.c_str())));
+              out = b;
+              break;
+            }
+          }
+          if (out != id(idle_hilo_txt)) {
+            id(idle_hilo_txt) = out;
+            id(idle_weather_detail).execute();
+          }
+
+  # ---------------------------------------------------------------------------
   # load_weather_bg: sets the weather background image URL and triggers download.
   # Called from idle_weather_condition_sensor.on_value when bg_path is configured.
   # ---------------------------------------------------------------------------
@@ -736,6 +870,7 @@ script:
             id(weather_subbed) = "";
             id(weather_sub_gen) += 1;
             lv_label_set_text(id(idle_weather_condition_label), "\xe2\x80\x94");
+            lv_label_set_text(id(idle_weather_icon_label), "");
             if (!id(use_local_temp))
               lv_label_set_text(id(idle_weather_temp_label), "\xe2\x80\x94");
             if (!entity.empty()) {
@@ -770,6 +905,13 @@ script:
               str_cb([gen, gen_ptr](const std::string &state) {
                 if (gen != *gen_ptr) return;
                 id(idle_weather_temp_sensor).publish_state(state);
+              }));
+
+          // precipitation_unit attribute — labels the forecast's rain amounts
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("precipitation_unit"),
+              str_cb([gen, gen_ptr](const std::string &state) {
+                if (gen != *gen_ptr || state.empty()) return;
+                id(wf_precip_unit) = state;
               }));
 
           ESP_LOGI("weather", "Subscribed to '%s'", entity.c_str());
@@ -814,7 +956,7 @@ script:
                 auto v = esphome::parse_number<float>(state);
                 if (!v.has_value()) return;
                 id(use_local_temp) = true;
-                int rounded = (int)(v.value() + 0.5f);
+                int rounded = (int) lroundf(v.value());
                 char buf[16];
                 snprintf(buf, sizeof(buf), "%d\xc2\xb0", rounded);
                 lv_label_set_text(id(idle_weather_temp_label), buf);
@@ -828,7 +970,7 @@ script:
 
   # ---------------------------------------------------------------------------
   # subscribe_feels_like: subscribes to an optional HA sensor entity for
-  # apparent/feels-like temperature. Shows "(feels N°)" below the main temp.
+  # apparent/feels-like temperature. Shows "Feels like N°" below the main temp.
   # Hides the label when entity is cleared.
   # ---------------------------------------------------------------------------
   - id: subscribe_feels_like
@@ -840,8 +982,8 @@ script:
           if (entity.empty()) {
             id(feels_like_subbed) = "";
             id(feels_like_sub_gen) += 1;
-            lv_obj_add_flag(id(idle_weather_feels_label), LV_OBJ_FLAG_HIDDEN);
-            lv_label_set_text(id(idle_weather_feels_label), "");
+            id(idle_feels_txt) = "";
+            id(idle_weather_detail).execute();
             return;
           }
 
@@ -907,11 +1049,23 @@ script:
           std::string out          = raw;
           std::string unit_display = unit_base;
 
-          if (prec >= 0 && !raw.empty()) {
+          // HA's placeholder states are not values: show a dimmed dash rather
+          // than "unavailable" in the 40 px value font.
+          bool no_value = raw == "unavailable" || raw == "unknown";
+          lv_obj_set_style_text_color(value_lbl, lv_color_hex(no_value ? 0x555555U : 0xFFFFFFU), 0);
+          if (no_value) {
+            out = "\xe2\x80\x94";
+            unit_display = "";
+          } else if (prec >= 0 && !raw.empty()) {
             char *ep; float val = strtof(raw.c_str(), &ep);
             if (ep != raw.c_str()) {
               char buf[32];
-              if (val >= 1000.0f || val <= -1000.0f) {
+              // Only SI units where a k-prefix reads naturally. Others stay
+              // as-is: 1013 hPa must not become "1.013 khPa", nor ppm "kppm".
+              static const char *const k_units[] = {"W", "Wh", "VA", "var", "varh", "V", "A", "Hz", "g", "m"};
+              bool k_ok = false;
+              for (auto *u : k_units) if (unit_base == u) { k_ok = true; break; }
+              if (k_ok && (val >= 1000.0f || val <= -1000.0f)) {
                 // Scale to k-units; the configured precision applies to the
                 // scaled value.
                 snprintf(buf, sizeof(buf), "%.*f", prec, val / 1000.0f);
@@ -936,6 +1090,27 @@ script:
             lv_obj_set_x(unit_lbl, 70 + _sz.x + 6);
           }
           t_state[slot]->publish_state(out);
+
+  # ---------------------------------------------------------------------------
+  # pack_idle_tiles: stacks the visible tiles of each column from the top, so an
+  # unconfigured slot does not leave a gap. Called whenever a tile is shown or
+  # hidden.
+  # ---------------------------------------------------------------------------
+  - id: pack_idle_tiles
+    mode: single
+    then:
+      - lambda: |-
+          lv_obj_t *tiles[10] = { id(idle_sensor_tile_0), id(idle_sensor_tile_1), id(idle_sensor_tile_2),
+                                  id(idle_sensor_tile_3), id(idle_sensor_tile_4), id(idle_sensor_tile_5),
+                                  id(idle_sensor_tile_6), id(idle_sensor_tile_7), id(idle_sensor_tile_8),
+                                  id(idle_sensor_tile_9) };
+          for (int col = 0; col < 2; col++) {
+            int row = 0;
+            for (int i = col * 5; i < col * 5 + 5; i++) {
+              if (lv_obj_has_flag(tiles[i], LV_OBJ_FLAG_HIDDEN)) continue;
+              lv_obj_set_y(tiles[i], 240 + row++ * 100);
+            }
+          }
 
   # ---------------------------------------------------------------------------
   # subscribe_idle_sensor: subscribes to state + attributes of sensor tile N.
@@ -1002,6 +1177,9 @@ script:
             lv_label_set_text(unit_lbl,  "");
             id(idle_sensor_raw)[slot] = "";
             id(idle_sensor_unit_base)[slot] = "";
+            id(idle_sensor_icon_attr)[slot] = nullptr;
+            id(idle_sensor_icon_dc)[slot] = nullptr;
+            id(pack_idle_tiles).execute();
             return;
           }
 
@@ -1019,12 +1197,15 @@ script:
           lv_label_set_text(icon_lbl, "\U000F0208");  // eye fallback
           lv_label_set_text(unit_lbl, "");
           lv_obj_clear_flag(tile, LV_OBJ_FLAG_HIDDEN);
+          id(pack_idle_tiles).execute();
 
           if (esphome::api::global_api_server == nullptr) return;
 
           // Already registered for this entity (e.g. HA reconnect).
           if (entity == id(idle_sensor_subbed)[slot]) return;
           id(idle_sensor_subbed)[slot] = entity;
+          id(idle_sensor_icon_attr)[slot] = nullptr;
+          id(idle_sensor_icon_dc)[slot] = nullptr;
 
           id(idle_sensor_gen)[slot] += 1;
           int gen = id(idle_sensor_gen)[slot];
@@ -1060,9 +1241,42 @@ script:
                 id(idle_sensor_reformat).execute(slot);
               }));
 
+          // Shows the explicit icon if one mapped, else the device-class icon,
+          // else the eye fallback.
+          auto apply_icon = [icon_lbl, slot]() {
+            const char *ic = id(idle_sensor_icon_attr)[slot];
+            if (ic == nullptr) ic = id(idle_sensor_icon_dc)[slot];
+            lv_label_set_text(icon_lbl, ic != nullptr ? ic : "\U000F0208");
+          };
+
+          // device_class subscription — the usual source of a sensor's icon.
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("device_class"),
+              str_cb([gen, gen_ptr, slot, apply_icon](const std::string &dc) {
+                if (gen != *gen_ptr) return;
+                static const char *const map[][2] = {
+                  {"temperature", "\U000F050F"},   {"humidity", "\U000F058E"},
+                  {"moisture", "\U000F058E"},      {"pressure", "\U000F029A"},
+                  {"atmospheric_pressure", "\U000F029A"},
+                  {"power", "\U000F140B"},         {"energy", "\U000F140B"},
+                  {"apparent_power", "\U000F140B"}, {"voltage", "\U000F0241"},
+                  {"current", "\U000F1480"},       {"frequency", "\U000F095B"},
+                  {"power_factor", "\U000F095B"},  {"carbon_dioxide", "\U000F07E4"},
+                  {"illuminance", "\U000F05A8"},   {"battery", "\U000F0079"},
+                  {"wind_speed", "\U000F059D"},    {"precipitation", "\U000F058C"},
+                  {"precipitation_intensity", "\U000F058C"}, {"water", "\U000F058C"},
+                  {"duration", "\U000F0150"},      {"timestamp", "\U000F0150"},
+                  {"distance", "\U000F046D"},      {"motion", "\U000F0D91"},
+                  {"occupancy", "\U000F0D91"},     {"presence", "\U000F0D91"},
+                };
+                const char *ic = nullptr;
+                for (auto &m : map) if (dc == m[0]) { ic = m[1]; break; }
+                id(idle_sensor_icon_dc)[slot] = ic;
+                apply_icon();
+              }));
+
           // Icon subscription — maps mdi:* attribute to compiled glyph codepoint
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
-              str_cb([gen, gen_ptr, icon_lbl](const std::string &icon_attr) {
+              str_cb([gen, gen_ptr, slot, apply_icon](const std::string &icon_attr) {
                 if (gen != *gen_ptr) return;
                 const char *ic;
                 if (icon_attr == "mdi:thermometer" ||
@@ -1075,10 +1289,12 @@ script:
                 } else if (icon_attr == "mdi:water-percent") {
                   ic = "\U000F058E";
                 } else if (icon_attr == "mdi:gauge") {
-                  ic = "\U000F028A";
+                  ic = "\U000F029A";
                 } else if (icon_attr == "mdi:water") {
                   ic = "\U000F058C";
                 } else if (icon_attr == "mdi:weather-windy") {
+                  ic = "\U000F059D";
+                } else if (icon_attr == "mdi:weather-windy-variant") {
                   ic = "\U000F059E";
                 } else if (icon_attr == "mdi:lightning-bolt" ||
                            icon_attr == "mdi:flash") {
@@ -1126,9 +1342,10 @@ script:
                 } else if (icon_attr == "mdi:trash-can") {
                   ic = "\U000F0A79";
                 } else {
-                  ic = "\U000F0208";  // mdi:eye fallback
+                  ic = nullptr;  // unmapped: let device_class decide
                 }
-                lv_label_set_text(icon_lbl, ic);
+                id(idle_sensor_icon_attr)[slot] = ic;
+                apply_icon();
               }));
 
           ESP_LOGI("idle_sensors", "Tile %d: subscribed to '%s'", slot, entity.c_str());

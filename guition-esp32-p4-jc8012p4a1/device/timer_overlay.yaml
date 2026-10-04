@@ -1,13 +1,22 @@
 # =============================================================================
-# TIMER OVERLAY — floating bar above the nav bar showing active HA timers
+# TIMER OVERLAY — active HA timers, shown in the right of the nav bar
 # =============================================================================
-# When any configured timer.* entity is active, a 42 px bar appears above the
-# nav bar (y=698) showing the soonest-expiring timer name and time remaining,
-# plus a "+N more" badge when multiple timers are running.
+# When any configured timer.* entity is active, timer_bar fills the right-hand
+# 480 px of the nav bar (the same split as the idle and music pages) and the
+# four nav buttons narrow to share the left 800 px. It shows the soonest-
+# expiring timer's name and time remaining, plus a "+N" badge when several are
+# running. It lives inside the nav bar rather than floating above it, so it
+# never covers page content such as the music progress bar.
 #
-# The bar dismisses on tap and reappears on the next HA remaining update.
-# A local 1-second interval decrements remaining seconds between HA updates,
-# following the same pattern as playback position interpolation in sensors.yaml.
+# The bar dismisses on tap and reappears on the next HA remaining update. A
+# paused timer is shown (greyed) when none is running. When a timer runs out,
+# show_timer_done raises a full-screen card until tapped.
+#
+# Remaining time is computed from HA's `finishes_at` attribute against the
+# clock, not by decrementing a counter: a counter loses every second the main
+# loop is blocked (the calendar fetch stalls it for seconds at a time), and HA
+# only updates `remaining` on state changes, so after a reconnect it is stale.
+# The counter is kept only as a fallback before the clock has synced.
 #
 # Substitutions (set in packages.yaml or user config):
 #   timer_entity_1..3  — HA timer.* entity IDs (default "")
@@ -44,6 +53,19 @@ globals:
     initial_value: '0'
   - id: tmr_remaining_secs_2
     type: int
+    initial_value: '0'
+
+  # Unix time the timer ends (from the `finishes_at` attribute), or 0 when not
+  # known. Only meaningful while the timer is active; HA drops the attribute
+  # when it pauses or finishes.
+  - id: tmr_finishes_0
+    type: int64_t
+    initial_value: '0'
+  - id: tmr_finishes_1
+    type: int64_t
+    initial_value: '0'
+  - id: tmr_finishes_2
+    type: int64_t
     initial_value: '0'
 
   - id: tmr_name_0
@@ -144,40 +166,62 @@ script:
       - lambda: |-
           std::string *states[3] = {&id(tmr_state_0), &id(tmr_state_1), &id(tmr_state_2)};
           int *secs[3] = {&id(tmr_remaining_secs_0), &id(tmr_remaining_secs_1), &id(tmr_remaining_secs_2)};
+          int64_t fins[3] = {id(tmr_finishes_0), id(tmr_finishes_1), id(tmr_finishes_2)};
 
-          int active_count = 0;
-          int soonest_secs = INT_MAX;
-          int soonest_idx = -1;
-          for (int i = 0; i < 3; i++) {
-            if (*states[i] == "active") {
-              active_count++;
-              if (*secs[i] < soonest_secs) {
-                soonest_secs = *secs[i];
-                soonest_idx = i;
+          // Re-derive remaining time from the end timestamp whenever it is known.
+          auto now = id(ha_time).now();
+          if (now.is_valid()) {
+            for (int i = 0; i < 3; i++) {
+              if (*states[i] == "active" && fins[i] > 0) {
+                int64_t left = fins[i] - (int64_t) now.timestamp;
+                *secs[i] = left > 0 ? (int) left : 0;
               }
             }
           }
-          id(tmr_active_count) = active_count;
 
-          if (active_count == 0 || id(tmr_dismissed)) {
-            lv_obj_add_flag(id(timer_bar), LV_OBJ_FLAG_HIDDEN);
-            return;
+          // Running timers take the bar (soonest first); a paused one is shown
+          // only when nothing is running, so it is not forgotten.
+          int active_count = 0, shown_count = 0;
+          int soonest_secs = INT_MAX;
+          int soonest_idx = -1;
+          bool soonest_paused = false;
+          for (int i = 0; i < 3; i++) {
+            bool active = *states[i] == "active";
+            bool paused = *states[i] == "paused";
+            if (!active && !paused) continue;
+            shown_count++;
+            if (active) active_count++;
+            bool better = soonest_idx < 0
+                || (soonest_paused && active)
+                || (soonest_paused == paused && *secs[i] < soonest_secs);
+            if (better) {
+              soonest_secs = *secs[i];
+              soonest_idx = i;
+              soonest_paused = paused;
+            }
           }
+          id(tmr_active_count) = active_count;  // drives the 1 s tick
 
-          lv_obj_clear_flag(id(timer_bar), LV_OBJ_FLAG_HIDDEN);
+          bool show = shown_count > 0 && !id(tmr_dismissed);
+          if (show == lv_obj_has_flag(id(timer_bar), LV_OBJ_FLAG_HIDDEN)) {
+            if (show) lv_obj_clear_flag(id(timer_bar), LV_OBJ_FLAG_HIDDEN);
+            else lv_obj_add_flag(id(timer_bar), LV_OBJ_FLAG_HIDDEN);
+            id(layout_nav_bar).execute();
+          }
+          if (!show) return;
 
           // Name label — show soonest timer's friendly name. The name comes from
           // an optional input_text helper, so fall back to a generic label rather
           // than rendering an empty bar when that helper does not exist.
           std::string *names[3] = {&id(tmr_name_0), &id(tmr_name_1), &id(tmr_name_2)};
-          const std::string &soonest_name = *names[soonest_idx];
-          lv_label_set_text(id(tmr_bar_name_lbl),
-                            soonest_name.empty() ? "Timer" : soonest_name.c_str());
+          std::string name = names[soonest_idx]->empty() ? "Timer" : *names[soonest_idx];
+          if (soonest_paused) name += " \xc2\xb7 Paused";
+          lv_label_set_text(id(tmr_bar_name_lbl), name.c_str());
 
-          // "+N more" badge — visible only when multiple timers are active
-          if (active_count > 1) {
+          // "+N" badge — visible only when more than one timer is running or paused
+          if (shown_count > 1) {
             char badge[16];
-            snprintf(badge, sizeof(badge), "+%d more", active_count - 1);
+            snprintf(badge, sizeof(badge), "+%d", shown_count - 1);
             lv_label_set_text(id(tmr_bar_more_lbl), badge);
             lv_obj_clear_flag(id(tmr_bar_more_lbl), LV_OBJ_FLAG_HIDDEN);
           } else {
@@ -193,25 +237,46 @@ script:
             snprintf(time_buf, sizeof(time_buf), "%d:%02d", s / 60, s % 60);
           lv_label_set_text(id(tmr_bar_time_lbl), time_buf);
 
-          // Red when < 60 seconds remaining
+          // Red when < 60 seconds remaining; grey while paused
           lv_obj_set_style_text_color(id(tmr_bar_time_lbl),
-              s < 60 ? lv_color_hex(0xFF6B6B) : lv_color_hex(0xEEEEEE), 0);
+              lv_color_hex(soonest_paused ? 0x888888 : s < 60 ? 0xFF6B6B : 0xEEEEEE), 0);
 
   # ---------------------------------------------------------------------------
-  # tick_timers: called every 1 s to decrement active timers locally between
-  # HA state updates (same pattern as playback position in sensors.yaml).
+  # show_timer_done: full-screen "timer finished" card. Wakes the backlight and
+  # stays until tapped, or for 10 minutes.
+  # ---------------------------------------------------------------------------
+  - id: show_timer_done
+    parameters:
+      name: std::string
+    mode: restart
+    then:
+      - lambda: |-
+          lv_label_set_text(id(tmr_done_name_lbl), name.c_str());
+          lv_obj_move_foreground(id(tmr_done_overlay));
+          lv_obj_clear_flag(id(tmr_done_overlay), LV_OBJ_FLAG_HIDDEN);
+      - script.execute: backlight_wake_timeout
+      - delay: 10min
+      - lvgl.widget.hide: tmr_done_overlay
+
+  # ---------------------------------------------------------------------------
+  # tick_timers: called every 1 s to refresh the countdown. Timers with a known
+  # finishes_at are recomputed from the clock in update_timer_bar; the others
+  # (clock not synced yet, or finishes_at not received) fall back to counting
+  # down locally.
   # ---------------------------------------------------------------------------
   - id: tick_timers
     mode: single
     then:
       - lambda: |-
           bool any_active = false;
+          bool clock_ok = id(ha_time).now().is_valid();
           std::string *states[3] = {&id(tmr_state_0), &id(tmr_state_1), &id(tmr_state_2)};
           int *secs[3] = {&id(tmr_remaining_secs_0), &id(tmr_remaining_secs_1), &id(tmr_remaining_secs_2)};
+          int64_t fins[3] = {id(tmr_finishes_0), id(tmr_finishes_1), id(tmr_finishes_2)};
           for (int i = 0; i < 3; i++) {
             if (*states[i] == "active") {
               any_active = true;
-              if (*secs[i] > 0) (*secs[i])--;
+              if ((fins[i] == 0 || !clock_ok) && *secs[i] > 0) (*secs[i])--;
             }
           }
           // Keep counting down while dismissed so the value stays accurate, but
@@ -240,9 +305,9 @@ script:
           // Reset slot if entity is not configured or has wrong prefix
           if (entity.rfind("timer.", 0) != 0) {
             switch (slot) {
-              case 0: id(tmr_state_0) = ""; id(tmr_remaining_secs_0) = 0; id(tmr_name_0) = ""; break;
-              case 1: id(tmr_state_1) = ""; id(tmr_remaining_secs_1) = 0; id(tmr_name_1) = ""; break;
-              default: id(tmr_state_2) = ""; id(tmr_remaining_secs_2) = 0; id(tmr_name_2) = ""; break;
+              case 0: id(tmr_state_0) = ""; id(tmr_remaining_secs_0) = 0; id(tmr_finishes_0) = 0; id(tmr_name_0) = ""; break;
+              case 1: id(tmr_state_1) = ""; id(tmr_remaining_secs_1) = 0; id(tmr_finishes_1) = 0; id(tmr_name_1) = ""; break;
+              default: id(tmr_state_2) = ""; id(tmr_remaining_secs_2) = 0; id(tmr_finishes_2) = 0; id(tmr_name_2) = ""; break;
             }
             id(tmr_subbed)[slot] = "";
             id(update_timer_bar).execute();
@@ -261,19 +326,20 @@ script:
           int *gen_ctr;
           std::string *state_ptr, *name_ptr;
           int *secs_ptr;
+          int64_t *fin_ptr;
           switch (slot) {
             case 0:
               gen_ctr = &id(tmr_sub_gen_0);
               state_ptr = &id(tmr_state_0); secs_ptr = &id(tmr_remaining_secs_0);
-              name_ptr = &id(tmr_name_0); break;
+              fin_ptr = &id(tmr_finishes_0); name_ptr = &id(tmr_name_0); break;
             case 1:
               gen_ctr = &id(tmr_sub_gen_1);
               state_ptr = &id(tmr_state_1); secs_ptr = &id(tmr_remaining_secs_1);
-              name_ptr = &id(tmr_name_1); break;
+              fin_ptr = &id(tmr_finishes_1); name_ptr = &id(tmr_name_1); break;
             default:
               gen_ctr = &id(tmr_sub_gen_2);
               state_ptr = &id(tmr_state_2); secs_ptr = &id(tmr_remaining_secs_2);
-              name_ptr = &id(tmr_name_2); break;
+              fin_ptr = &id(tmr_finishes_2); name_ptr = &id(tmr_name_2); break;
           }
 
           (*gen_ctr)++;
@@ -285,9 +351,54 @@ script:
 
           // state → "active" / "idle" / "paused"
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(),
-              str_cb([gen, gen_ptr, state_ptr](const std::string &state) {
+              str_cb([gen, gen_ptr, state_ptr, fin_ptr, secs_ptr, name_ptr](const std::string &state) {
                 if (gen != *gen_ptr) return;
+                // active → idle at (or just after) the end time means it ran out,
+                // as opposed to being cancelled early. The upper bound stops a
+                // reconnect from announcing a timer that ended long ago.
+                if (*state_ptr == "active" && state == "idle") {
+                  auto now = id(ha_time).now();
+                  bool finished = (*fin_ptr > 0 && now.is_valid())
+                      ? (int64_t) now.timestamp >= *fin_ptr - 3 && (int64_t) now.timestamp <= *fin_ptr + 60
+                      : *secs_ptr <= 3;
+                  if (finished) id(show_timer_done).execute(name_ptr->empty() ? std::string("Timer") : *name_ptr);
+                }
                 *state_ptr = state;
+                // HA removes finishes_at on pause/finish but does not push the
+                // removal, so drop it here. On resume the new value arrives with
+                // the state change; until then `remaining` (updated on pause) is
+                // used instead of a stale end time.
+                if (state != "active") *fin_ptr = 0;
+                id(update_timer_bar).execute();
+              }));
+
+          // finishes_at → absolute end time, e.g. "2026-10-04T12:34:56+00:00"
+          // (fractional seconds optional). The countdown is derived from this.
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("finishes_at"),
+              str_cb([gen, gen_ptr, fin_ptr](const std::string &state) {
+                if (gen != *gen_ptr) return;
+                int yr, mo, dy, hr, mn, sc, n = 0;
+                if (sscanf(state.c_str(), "%d-%d-%dT%d:%d:%d%n", &yr, &mo, &dy, &hr, &mn, &sc, &n) != 6) {
+                  *fin_ptr = 0;
+                  return;
+                }
+                const char *p = state.c_str() + n;
+                if (*p == '.') {
+                  p++;
+                  while (*p >= '0' && *p <= '9') p++;
+                }
+                int offset = 0;
+                if (*p == '+' || *p == '-') {
+                  int oh = 0, om = 0;
+                  sscanf(p + 1, "%d:%d", &oh, &om);
+                  offset = (oh * 3600 + om * 60) * (*p == '-' ? -1 : 1);
+                }
+                // Days since the Unix epoch (same civil-date formula as
+                // media_position_updated_at in sensors.yaml).
+                int y = yr, m = mo;
+                if (m <= 2) { y--; m += 12; }
+                int64_t days = 365LL*y + y/4 - y/100 + y/400 + (153*(m-3)+2)/5 + dy - 719469;
+                *fin_ptr = days * 86400LL + hr * 3600 + mn * 60 + sc - offset;
                 id(update_timer_bar).execute();
               }));
 
@@ -335,10 +446,12 @@ api:
 
 lvgl:
   on_boot:
-    # Reparent timer_bar to lv_layer_top() so it floats above all pages,
-    # including the music page (same approach as nav_bar in navbar.yaml).
+    # Move timer_bar into the nav bar (itself reparented to lv_layer_top() in
+    # navbar.yaml), so it shows on every page and shares the nav bar's hidden
+    # state during boot and setup. Its x/y below are relative to the nav bar.
     - lambda: |-
-        lv_obj_set_parent(id(timer_bar), lv_layer_top());
+        lv_obj_set_parent(id(timer_bar), id(nav_bar));
+        lv_obj_set_parent(id(tmr_done_overlay), lv_layer_top());
 
   pages:
     # -------------------------------------------------------------------------
@@ -351,67 +464,127 @@ lvgl:
       height: 100%
       bg_opa: 0%
       widgets:
+        # Right-hand 480 px of the 60 px nav bar. layout_nav_bar (navbar.yaml)
+        # narrows the nav buttons into the left 800 px while this is visible.
         - button:
             id: timer_bar
-            x: 0
-            y: 698
-            width: 1280
-            height: 42
-            bg_color: 0x1A1A1A
-            bg_opa: 90%
+            x: 800
+            y: 0
+            width: 480
+            height: 60
+            bg_color: 0x242424
+            bg_opa: 100%
             border_width: 0
             radius: 0
-            pad_all: 0
             shadow_width: 0
+            pad_top: 0
+            pad_bottom: 0
+            pad_left: 18
+            pad_right: 22
             hidden: true
+            layout:
+              type: flex
+              flex_flow: ROW
+              flex_align_main: START
+              flex_align_cross: CENTER
+              flex_align_track: CENTER
+              pad_column: 12
             on_click:
               - lambda: |-
                   id(tmr_dismissed) = true;
                   lv_obj_add_flag(id(timer_bar), LV_OBJ_FLAG_HIDDEN);
+                  id(layout_nav_bar).execute();
             widgets:
               # Timer icon (mdi:timer-outline)
               - label:
                   id: tmr_bar_icon_lbl
-                  x: 10
-                  y: 1
-                  width: 40
-                  height: 40
                   text: $icon_timer
                   text_font: icon_font
                   text_color: 0xCCCCCC
-                  text_align: center
 
-              # Timer name (soonest-expiring active timer)
+              # Timer name (soonest-expiring active timer). Takes the free width
+              # and ellipsises, so a long name never pushes the time off-screen.
               - label:
                   id: tmr_bar_name_lbl
-                  x: 58
-                  y: 6
-                  width: 680
+                  flex_grow: 1
+                  height: 36
                   text: ""
                   text_font: roboto_light30_font
                   text_color: 0xEEEEEE
                   text_align: left
-                  long_mode: clip
+                  long_mode: dot
 
-              # "+N more" badge — shown only when multiple timers are active
+              # "+N" badge — shown only when multiple timers are active
               - label:
                   id: tmr_bar_more_lbl
-                  x: 750
-                  y: 6
-                  width: 200
                   text: ""
                   text_font: roboto_light30_font
                   text_color: 0x6CB4F0
-                  text_align: left
                   hidden: true
 
-              # Time remaining (right edge; turns red when < 60 s)
+              # Time remaining (turns red when < 60 s)
               - label:
                   id: tmr_bar_time_lbl
-                  x: 960
-                  y: 6
-                  width: 308
                   text: ""
                   text_font: roboto30_font
                   text_color: 0xEEEEEE
-                  text_align: right
+
+        # Timer finished — full-screen card over every page and the nav bar.
+        # Reparented to lv_layer_top() on boot; shown by show_timer_done.
+        - obj:
+            id: tmr_done_overlay
+            x: 0
+            y: 0
+            width: 1280
+            height: 800
+            bg_color: 0x000000
+            bg_opa: 75%
+            border_width: 0
+            radius: 0
+            pad_all: 0
+            scrollable: false
+            hidden: true
+            on_click:
+              - script.stop: show_timer_done
+              - lvgl.widget.hide: tmr_done_overlay
+            widgets:
+              - obj:
+                  align: CENTER
+                  width: 640
+                  height: SIZE_CONTENT
+                  bg_color: 0x1E1E1E
+                  bg_opa: 100%
+                  border_width: 3
+                  border_color: 0xFF6B6B
+                  radius: 24
+                  pad_all: 40
+                  scrollable: false
+                  clickable: false
+                  layout:
+                    type: flex
+                    flex_flow: COLUMN
+                    flex_align_main: CENTER
+                    flex_align_cross: CENTER
+                    pad_row: 16
+                  widgets:
+                    - label:
+                        text: $icon_timer
+                        text_font: icon_font_setup
+                        text_color: 0xFF6B6B
+                    - label:
+                        id: tmr_done_name_lbl
+                        text: "Timer"
+                        width: 560
+                        text_font: roboto_light70_font
+                        text_color: 0xFFFFFF
+                        text_align: center
+                        long_mode: dot
+                        height: 84
+                    - label:
+                        text: "is done"
+                        text_font: roboto_light30_font
+                        text_color: 0xBBBBBB
+                    - label:
+                        text: "Tap to dismiss"
+                        text_font: roboto_light26_font
+                        text_color: 0x666666

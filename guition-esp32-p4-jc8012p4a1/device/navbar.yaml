@@ -7,7 +7,8 @@
 # calendar_page is defined in device/calendar_view.yaml (Phase 4).
 #
 # The nav_bar widget is defined here and moved to lv_layer_top() in on_boot so
-# it floats above all pages. It is hidden while the music page is active.
+# it floats above all pages. The active view is marked by update_nav_highlight;
+# while a timer is running, layout_nav_bar gives its right 480 px to timer_bar.
 #
 # Pages defined here are merged with music_page from device/lvgl.yaml via
 # ESPHome package merging of the `lvgl.pages` list.
@@ -24,6 +25,7 @@ script:
     mode: single
     then:
       - lambda: 'id(current_view) = 0;'
+      - script.execute: update_nav_highlight
       - script.execute: update_idle_clock  # also calls render_idle_agenda internally
       - lvgl.page.show: idle_page
       - lvgl.widget.show: nav_bar
@@ -36,6 +38,7 @@ script:
     mode: single
     then:
       - lambda: 'id(current_view) = 1;'
+      - script.execute: update_nav_highlight
       - lvgl.page.show: music_page
       - lvgl.widget.show: nav_bar
 
@@ -46,9 +49,14 @@ script:
   - id: show_calendar_view
     mode: single
     then:
-      - lambda: 'id(current_view) = 2;'
+      # Always open on today, scrolled to the current time.
+      - lambda: |-
+          id(current_view) = 2;
+          id(cal_view_offset) = 0;
+      - script.execute: update_nav_highlight
       - script.execute: update_calendar_date
       - script.execute: render_calendar_grid  # render on hidden page before showing
+      - script.execute: scroll_calendar_to_now
       - lvgl.page.show: calendar_page
       - lvgl.widget.show: nav_bar
       - script.execute: maybe_fetch_calendar
@@ -57,10 +65,44 @@ script:
     mode: single
     then:
       - lambda: 'id(current_view) = 3;'
+      - script.execute: update_nav_highlight
       - script.execute: render_forecast    # show cached data immediately before the page appears
       - lvgl.page.show: forecast_page
       - lvgl.widget.show: nav_bar
       - script.execute: maybe_fetch_forecast
+
+  # Marks the current view's nav button: bright icon plus an accent bar along
+  # the top edge; the other icons are dimmed.
+  - id: update_nav_highlight
+    mode: single
+    then:
+      - lambda: |-
+          lv_obj_t *icons[4] = {id(nav_home_icon), id(nav_music_icon),
+                                id(nav_calendar_icon), id(nav_forecast_icon)};
+          lv_obj_t *marks[4] = {id(nav_home_mark), id(nav_music_mark),
+                                id(nav_calendar_mark), id(nav_forecast_mark)};
+          for (int i = 0; i < 4; i++) {
+            bool active = (i == id(current_view));
+            lv_obj_set_style_text_color(icons[i], lv_color_hex(active ? 0xFFFFFF : 0x7A7A7A), 0);
+            if (active) lv_obj_clear_flag(marks[i], LV_OBJ_FLAG_HIDDEN);
+            else lv_obj_add_flag(marks[i], LV_OBJ_FLAG_HIDDEN);
+          }
+
+  # Splits the nav bar while a timer is showing: the four buttons share the
+  # left 800 px and timer_bar (timer_overlay.yaml) takes the right 480 px —
+  # the same split the idle and music pages use. Full width otherwise.
+  - id: layout_nav_bar
+    mode: single
+    then:
+      - lambda: |-
+          bool timer = !lv_obj_has_flag(id(timer_bar), LV_OBJ_FLAG_HIDDEN);
+          const int w = timer ? 200 : 320;
+          lv_obj_t *btns[4] = {id(nav_home_btn), id(nav_music_btn),
+                               id(nav_calendar_btn), id(nav_forecast_btn)};
+          for (int i = 0; i < 4; i++) {
+            lv_obj_set_x(btns[i], i * w);
+            lv_obj_set_width(btns[i], w);
+          }
 
   # Returns to music view (if playing) or idle view (if not) after a
   # configurable period of inactivity. Mode restart means any touch resets it.
@@ -136,12 +178,13 @@ lvgl:
             hidden: true
 
             widgets:
-              # Nav buttons dispatch via LVGL on_press (LV_EVENT_PRESSED) on
-              # each button. The ESPHome touchscreen on_release callback in
-              # device.yaml operates in panel-native portrait coordinates and
-              # cannot reliably identify landscape navbar regions, so LVGL
-              # hit-testing (which runs after rotate_coordinates) is the sole
-              # dispatch path.
+              # Nav buttons dispatch via LVGL on_click on each button: on
+              # release, and only if the finger did not slide off — so a scroll
+              # that ends on the nav bar does not switch view. The ESPHome
+              # touchscreen on_release callback in device.yaml operates in
+              # panel-native portrait coordinates and cannot reliably identify
+              # landscape navbar regions, so LVGL hit-testing (which runs after
+              # rotate_coordinates) is the sole dispatch path.
 
               # ---- Home ----
               - button:
@@ -155,14 +198,27 @@ lvgl:
                   border_width: 0
                   radius: 0
                   shadow_width: 0
-                  on_press:
+                  pad_all: 0
+                  on_click:
                     - script.execute: show_idle_view
                   widgets:
                     - label:
+                        id: nav_home_icon
                         text: $icon_home
                         text_font: icon_font
-                        text_color: 0xFFFFFF
+                        text_color: 0x7A7A7A
                         align: CENTER
+                    - obj:
+                        id: nav_home_mark
+                        align: TOP_MID
+                        width: 48
+                        height: 3
+                        bg_color: 0x6CB4F0
+                        bg_opa: 100%
+                        border_width: 0
+                        radius: 0
+                        clickable: false
+                        hidden: true
 
               # ---- Music ----
               - button:
@@ -176,14 +232,27 @@ lvgl:
                   border_width: 0
                   radius: 0
                   shadow_width: 0
-                  on_press:
+                  pad_all: 0
+                  on_click:
                     - script.execute: show_music_view
                   widgets:
                     - label:
+                        id: nav_music_icon
                         text: $icon_music
                         text_font: icon_font
-                        text_color: 0xFFFFFF
+                        text_color: 0x7A7A7A
                         align: CENTER
+                    - obj:
+                        id: nav_music_mark
+                        align: TOP_MID
+                        width: 48
+                        height: 3
+                        bg_color: 0x6CB4F0
+                        bg_opa: 100%
+                        border_width: 0
+                        radius: 0
+                        clickable: false
+                        hidden: true
 
               # ---- Calendar ----
               - button:
@@ -197,14 +266,27 @@ lvgl:
                   border_width: 0
                   radius: 0
                   shadow_width: 0
-                  on_press:
+                  pad_all: 0
+                  on_click:
                     - script.execute: show_calendar_view
                   widgets:
                     - label:
+                        id: nav_calendar_icon
                         text: $icon_calendar
                         text_font: icon_font
-                        text_color: 0xFFFFFF
+                        text_color: 0x7A7A7A
                         align: CENTER
+                    - obj:
+                        id: nav_calendar_mark
+                        align: TOP_MID
+                        width: 48
+                        height: 3
+                        bg_color: 0x6CB4F0
+                        bg_opa: 100%
+                        border_width: 0
+                        radius: 0
+                        clickable: false
+                        hidden: true
 
               # ---- Forecast ----
               - button:
@@ -218,11 +300,24 @@ lvgl:
                   border_width: 0
                   radius: 0
                   shadow_width: 0
-                  on_press:
+                  pad_all: 0
+                  on_click:
                     - script.execute: show_forecast_view
                   widgets:
                     - label:
+                        id: nav_forecast_icon
                         text: $icon_forecast
                         text_font: icon_font
-                        text_color: 0xFFFFFF
+                        text_color: 0x7A7A7A
                         align: CENTER
+                    - obj:
+                        id: nav_forecast_mark
+                        align: TOP_MID
+                        width: 48
+                        height: 3
+                        bg_color: 0x6CB4F0
+                        bg_opa: 100%
+                        border_width: 0
+                        radius: 0
+                        clickable: false
+                        hidden: true

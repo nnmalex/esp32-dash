@@ -9,10 +9,11 @@ namespace online_image {
 ///
 /// Apple Music embeds resolution in the filename (e.g. /3000x3000bb.jpg).
 /// Requesting the full-res image can exceed ESP32 heap and cause OOM.
-/// This rewrites the dimension component to at most max_dim (default 600).
+/// This rewrites the dimension component to at most max_dim (default 740, the
+/// music page's art box, so the decoder only ever shrinks the image).
 ///
 /// URLs that don't match a known pattern are returned unchanged.
-inline std::string cap_artwork_url(const std::string &url, int max_dim = 600) {
+inline std::string cap_artwork_url(const std::string &url, int max_dim = 740) {
   // Apple Music CDN: ...mzstatic.com/.../3000x3000bb.jpg
   // Pattern: /{W}x{H}bb.{ext} at the end of the URL path
   auto bb_pos = url.rfind("bb.");

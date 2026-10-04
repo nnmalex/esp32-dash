@@ -71,15 +71,23 @@ online_image:
     type: RGB565
     byte_order: little_endian
     placeholder: album_art_placeholder
-    resize: 800x800
+    # The art box on the music page (800 wide, 740 above the navbar). The
+    # decoder scales the image to fit it once, at download, so LVGL can draw it
+    # 1:1 — a zoomed image is re-transformed on every redraw, and the progress
+    # and timer bars that overlap it redraw every second.
+    resize: 740x740
     buffer_size: 262144
     on_download_finished:
-      - script.execute: apply_downloaded_artwork
+      - script.execute:
+          id: apply_downloaded_artwork
+          cached: !lambda 'return cached;'
     on_error:
       - script.execute: handle_artwork_error
 
 script:
   - id: apply_downloaded_artwork
+    parameters:
+      cached: bool   # HTTP 304: the same art is already in the buffer
     mode: restart
     then:
       - lvgl.widget.hide: artwork_error_label
@@ -89,21 +97,13 @@ script:
           int ih = img->get_height();
           auto *w = id(album_art_background_widget);
           if (iw > 0 && ih > 0) {
-            // Scale to fit within 800×740 (display width × height above navbar),
-            // maintaining aspect ratio. Zoom pivot defaults to image centre.
+            // Already fitted to the 740x740 box by the decoder: draw unscaled,
+            // centred in the 800x740 panel.
             constexpr int display_w = 800;
             constexpr int display_h = 740;
-            float scale = ((float)display_w / iw < (float)display_h / ih)
-                          ? (float)display_w / iw
-                          : (float)display_h / ih;
-            int zoom = (int)(scale * 256.0f);
-            if (zoom < 1) zoom = 1;
-            lv_img_set_zoom(w, zoom);
-            lv_img_set_offset_x(w, 0);
-            lv_img_set_offset_y(w, 0);
+            lv_image_set_scale(w, LV_SCALE_NONE);
             lv_obj_set_size(w, iw, ih);
-            // Position so the zoom pivot (image centre) lands at display centre
-            lv_obj_set_pos(w, display_w / 2 - iw / 2, display_h / 2 - ih / 2);
+            lv_obj_set_pos(w, (display_w - iw) / 2, (display_h - ih) / 2);
           }
       - lvgl.image.update:
           id: album_art_background_widget
@@ -111,6 +111,12 @@ script:
       - lvgl.widget.update:
           id: album_art_background_widget
           opa: 100%
+      # Fade new art in rather than snapping it in. Affordable because the art
+      # is drawn 1:1 (no transform); skipped for a 304 re-fetch of the same
+      # image and when the music page is not on screen.
+      - lambda: |-
+          if (!cached && id(current_view) == 1)
+            lv_obj_fade_in(id(album_art_background_widget), 250, 0);
       - script.execute: extract_accent_color
 
   - id: handle_artwork_error
