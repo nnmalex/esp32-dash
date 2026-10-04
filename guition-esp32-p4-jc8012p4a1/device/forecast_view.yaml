@@ -343,23 +343,7 @@ script:
             place(pct_lbl[i], i, PCT_LBL_Y);
 
             // ── Condition icon ──
-            const char *icon_str;
-            std::string c = d.cond;
-            if      (c == "sunny" || c == "clear-day")  icon_str = "\U000F0599";
-            else if (c == "clear-night")                 icon_str = "\U000F0594";
-            else if (c == "partlycloudy")               icon_str = "\U000F0595";
-            else if (c == "cloudy")                     icon_str = "\U000F0590";
-            else if (c == "fog")                        icon_str = "\U000F0591";
-            else if (c == "hail")                       icon_str = "\U000F0592";
-            else if (c == "lightning")                  icon_str = "\U000F0593";
-            else if (c == "lightning-rainy")            icon_str = "\U000F067E";
-            else if (c == "rainy" || c == "drizzle")    icon_str = "\U000F0597";
-            else if (c == "pouring")                    icon_str = "\U000F0596";
-            else if (c == "snowy")                      icon_str = "\U000F0598";
-            else if (c == "snowy-rainy")                icon_str = "\U000F067F";
-            else if (c == "windy")                      icon_str = "\U000F059D";
-            else if (c == "windy-variant")              icon_str = "\U000F059E";
-            else                                         icon_str = "\U000F0590";  // cloudy fallback
+            const char *icon_str = esp32_dash::weather::condition_icon(d.cond);
 
             lv_label_set_text(icon_lbl[i], icon_str);
             place(icon_lbl[i], i, ICON_Y);

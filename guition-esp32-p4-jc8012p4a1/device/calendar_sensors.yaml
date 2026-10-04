@@ -194,7 +194,7 @@ script:
   # today or tomorrow — including ones that began earlier and are still running,
   # and multi-day all-day events. Timed events that have ended are greyed out
   # and drop off once they are older than the "Agenda: Past Event Lookback"
-  # setting. Falls back to the per-calendar subscription globals when the
+  # setting. Items are grouped under TODAY / TOMORROW headings. Falls back to the per-calendar subscription globals when the
   # buffer is empty (no ha_token configured).
   # ---------------------------------------------------------------------------
   - id: render_idle_agenda
@@ -231,9 +231,10 @@ script:
           struct AgendaItem {
             char sort_key[20];    // "YYYY-MM-DD HH:MM:SS\0" — when it sorts on the agenda
             char title[64];
-            char time_label[48];  // "Tomorrow · 12:00–13:00\0"
+            char time_label[48];  // "12:00–13:00", "All Day", "until 15:30"
             uint32_t accent_color;
             bool is_past;
+            bool tomorrow;        // which section heading it sits under
           };
 
           AgendaItem items[MAX_ITEMS];
@@ -257,6 +258,7 @@ script:
             char time_buf[48];
             char key[20];
             bool is_past = false;
+            bool tomorrow = false;
 
             if (is_allday) {
               // Dates only; the end date is exclusive. No end means one day.
@@ -268,7 +270,8 @@ script:
               bool on_today = covers(today_str);
               if (!on_today && !covers(tomorrow_str)) return;
               const char *day = on_today ? today_str : tomorrow_str;
-              snprintf(time_buf, sizeof(time_buf), "%s \xc2\xb7 All Day", on_today ? "Today" : "Tomorrow");
+              tomorrow = !on_today;
+              snprintf(time_buf, sizeof(time_buf), "All Day");
               // A multi-day event sorts under the day it is shown for, not the
               // day it began.
               snprintf(key, sizeof(key), "%s 00:00:00", day);
@@ -286,17 +289,16 @@ script:
               if (start.compare(0, 10, today_str) < 0) {
                 // Already running when today began.
                 if (end_cmp.compare(0, 10, today_str) == 0)
-                  snprintf(time_buf, sizeof(time_buf), "Today \xc2\xb7 until %02d:%02d", eh, emin);
+                  snprintf(time_buf, sizeof(time_buf), "until %02d:%02d", eh, emin);
                 else
-                  snprintf(time_buf, sizeof(time_buf), "Today \xc2\xb7 Ongoing");
+                  snprintf(time_buf, sizeof(time_buf), "Ongoing");
                 snprintf(key, sizeof(key), "%s", today_start);
               } else {
-                const char *day_prefix = start.compare(0, 10, tomorrow_str) == 0 ? "Tomorrow" : "Today";
+                tomorrow = start.compare(0, 10, tomorrow_str) == 0;
                 if (has_end)
-                  snprintf(time_buf, sizeof(time_buf), "%s \xc2\xb7 %02d:%02d\xe2\x80\x93%02d:%02d",
-                           day_prefix, sh, smin, eh, emin);
+                  snprintf(time_buf, sizeof(time_buf), "%02d:%02d\xe2\x80\x93%02d:%02d", sh, smin, eh, emin);
                 else
-                  snprintf(time_buf, sizeof(time_buf), "%s \xc2\xb7 %02d:%02d", day_prefix, sh, smin);
+                  snprintf(time_buf, sizeof(time_buf), "%02d:%02d", sh, smin);
                 snprintf(key, sizeof(key), "%.19s", start.c_str());
               }
             }
@@ -307,6 +309,7 @@ script:
             strncpy(item.time_label, time_buf, sizeof(item.time_label) - 1);
             item.accent_color = (cal_idx >= 0 && cal_idx < 3) ? CAL_COLORS[cal_idx] : 0x888888U;
             item.is_past = is_past;
+            item.tomorrow = tomorrow;
           };
 
           if (!id(cal_events_buf).empty()) {
@@ -385,24 +388,12 @@ script:
             id(idle_agenda_title_3), id(idle_agenda_title_4)
           };
 
-          for (int i = 0; i < 5; i++) {
-            if (i < item_count) {
-              const AgendaItem &item = items[i];
-              lv_obj_clear_flag(slot_objs[i], LV_OBJ_FLAG_HIDDEN);
-
-              uint32_t accent_col = item.is_past ? 0x444444U : item.accent_color;
-              uint32_t time_col   = item.is_past ? 0x444444U : item.accent_color;
-              uint32_t title_col  = item.is_past ? 0x555555U : 0xDDDDDDU;
-
-              lv_obj_set_style_bg_color(accent_objs[i], lv_color_hex(accent_col), 0);
-              lv_obj_set_style_text_color(time_labels[i], lv_color_hex(time_col), 0);
-              lv_obj_set_style_text_color(title_labels[i], lv_color_hex(title_col), 0);
-              lv_label_set_text(time_labels[i], item.time_label);
-              lv_label_set_text(title_labels[i], item.title);
-            } else {
-              lv_obj_add_flag(slot_objs[i], LV_OBJ_FLAG_HIDDEN);
-            }
-          }
+          // Lay the list out top-down under "TODAY" / "TOMORROW" headings,
+          // stopping at whatever no longer fits above the nav bar (y = 740).
+          lv_obj_t *hdrs[2] = { id(idle_agenda_hdr_today), id(idle_agenda_hdr_tomorrow) };
+          const int TOP = 14, HDR_H = 48, SLOT_H = 115, BOTTOM = 740;
+          lv_obj_add_flag(hdrs[0], LV_OBJ_FLAG_HIDDEN);
+          lv_obj_add_flag(hdrs[1], LV_OBJ_FLAG_HIDDEN);
 
           // Empty state — only once there is something to be empty of: a
           // configured calendar, and either fetched data or no token to fetch
@@ -412,10 +403,44 @@ script:
                             id(calendar_entity_select_2)})
             if (sel->state.rfind("calendar.", 0) == 0) any_cal = true;
           bool loaded = id(cal_last_fetch_ms) != 0 || id(ha_token_global).empty();
-          if (item_count == 0 && any_cal && loaded)
+          bool empty = item_count == 0 && any_cal && loaded;
+          if (empty) {
+            lv_obj_set_y(hdrs[0], TOP);
+            lv_obj_clear_flag(hdrs[0], LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_y(id(idle_agenda_empty), TOP + HDR_H + 12);
             lv_obj_clear_flag(id(idle_agenda_empty), LV_OBJ_FLAG_HIDDEN);
-          else
+          } else {
             lv_obj_add_flag(id(idle_agenda_empty), LV_OBJ_FLAG_HIDDEN);
+          }
+
+          int y = TOP, shown = 0, section = -1;
+          for (int i = 0; i < item_count && shown < 5; i++) {
+            const AgendaItem &item = items[i];
+            int day = item.tomorrow ? 1 : 0;
+            if (day != section) {
+              if (y + HDR_H + SLOT_H > BOTTOM) break;
+              lv_obj_set_y(hdrs[day], y);
+              lv_obj_clear_flag(hdrs[day], LV_OBJ_FLAG_HIDDEN);
+              y += HDR_H;
+              section = day;
+            }
+            if (y + SLOT_H > BOTTOM) break;
+
+            uint32_t accent_col = item.is_past ? 0x444444U : item.accent_color;
+            uint32_t time_col   = item.is_past ? 0x444444U : item.accent_color;
+            uint32_t title_col  = item.is_past ? 0x555555U : 0xDDDDDDU;
+
+            lv_obj_set_y(slot_objs[shown], y);
+            lv_obj_set_style_bg_color(accent_objs[shown], lv_color_hex(accent_col), 0);
+            lv_obj_set_style_text_color(time_labels[shown], lv_color_hex(time_col), 0);
+            lv_obj_set_style_text_color(title_labels[shown], lv_color_hex(title_col), 0);
+            lv_label_set_text(time_labels[shown], item.time_label);
+            lv_label_set_text(title_labels[shown], item.title);
+            lv_obj_clear_flag(slot_objs[shown], LV_OBJ_FLAG_HIDDEN);
+            y += SLOT_H;
+            shown++;
+          }
+          for (int i = shown; i < 5; i++) lv_obj_add_flag(slot_objs[i], LV_OBJ_FLAG_HIDDEN);
 
   # ---------------------------------------------------------------------------
   # maybe_fetch_calendar

@@ -12,8 +12,9 @@
 #           e.g. "TUE|31|15.0|4.0|0.10|54|cloudy\n"
 #           HIGH, LOW and PROB are empty when the integration omits them.
 #
-# render_forecast (forecast_view.yaml) is called after a successful fetch.
-# Auto-refresh: every 30 minutes while forecast view is active.
+# render_forecast (forecast_view.yaml) and update_idle_hilo (weather_sensors.yaml)
+# run after each fetch. Auto-refresh: every 30 minutes except on the music view,
+# and on API connect.
 # =============================================================================
 
 globals:
@@ -226,14 +227,25 @@ script:
           id(wf_data_buf) = new_buf;
           if (day_count > 0) id(wf_last_fetch_ms) = millis();
           id(render_forecast).execute();
+      # Today's high/low on the idle weather card comes from the same data.
+      - script.execute: update_idle_hilo
 
 
 interval:
-  # Auto-refresh while forecast view is active
+  # Background refresh. The idle page shows today's high/low from this data,
+  # so it runs on every view except music — same rule as the calendar fetch:
+  # nothing on the music page uses it, and the fetch blocks the loop.
   - interval: 30min
     then:
       - if:
           condition:
-            lambda: 'return id(current_view) == 3;'
+            lambda: 'return id(current_view) != 1;'
           then:
             - script.execute: fetch_forecast
+
+
+# Seed the cache on (re)connect so the idle high/low appears without first
+# visiting the forecast page. maybe_ skips it while the cache is still fresh.
+api:
+  on_client_connected:
+    - script.execute: maybe_fetch_forecast

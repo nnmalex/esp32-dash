@@ -6,6 +6,7 @@
 # =============================================================================
 
 lvgl:
+  id: lvgl_main
   buffer_size: 25%
   byte_order: little_endian
   rotation: ${display_rotation}
