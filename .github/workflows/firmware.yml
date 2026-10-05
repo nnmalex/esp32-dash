@@ -9,6 +9,20 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Both ends of what users build with: the supported minimum (min_version in
+    # device.yaml), and the newest release, unpinned. HA add-on users move to new
+    # ESPHome releases on their own, so a release that breaks the build should
+    # turn CI red rather than surface as a failed install — 2026.9 removed
+    # RealTimeClock::set_timezone() while CI only tested 2026.7.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: minimum
+            esphome: "esphome>=2026.7.0,<2026.8"
+          - name: latest
+            esphome: "esphome"
+    name: build (ESPHome ${{ matrix.name }})
 
     steps:
       - uses: actions/checkout@v6.0.2
@@ -21,7 +35,7 @@ jobs:
           restore-keys: pio-${{ runner.os }}-
 
       - name: Install ESPHome
-        run: pip install "esphome>=2026.7.0,<2026.8"
+        run: pip install "${{ matrix.esphome }}"
 
       - name: Compile firmware
         run: esphome compile builds/guition-esp32-p4-jc8012p4a1.yaml
