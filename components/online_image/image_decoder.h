@@ -95,6 +95,29 @@ class ImageDecoder {
    */
   void write_rgb565_row(int y, const uint8_t *data);
 
+  /// Region of a decoded source image (in source pixels) that gets resampled.
+  struct Window {
+    int x, y, w, h;
+  };
+
+  /// Supplies the next source row as packed RGB888, top to bottom, one call per
+  /// row. Called src_h times at most; the caller drains anything left over.
+  using RowSource = void (*)(void *ctx, uint8_t *rgb888_row);
+
+  /// Bytes of scratch resample_() needs for a src_w-wide source.
+  static size_t resample_scratch_size(int src_w, int dst_w);
+
+  /// The part of a src_w x src_h image that fills the image buffer: all of it
+  /// (fit: contain), or the centred crop matching the box's aspect (fit: cover).
+  Window fit_window(int src_w, int src_h) const;
+
+  /// Bilinear resample of `win` from `next_row` into the RGB565 image buffer at
+  /// its full stored size. Streamed: output rows walk the source top to bottom,
+  /// so only the two source rows bracketing the current output row are held,
+  /// never the whole frame. Callers keep downscales under 2x (a 2x2 tap's
+  /// range). `scratch` must hold resample_scratch_size(src_w, buffer width).
+  void resample(RowSource next_row, void *ctx, int src_w, int src_h, Window win, uint8_t *scratch);
+
   bool is_finished() const { return this->decoded_bytes_ == this->download_size_; }
 
  protected:

@@ -10,7 +10,17 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <utility>
+#include <vector>
+
+#include <esp_timer.h>
+#include "soc/soc_caps.h"
+#if SOC_JPEG_DECODE_SUPPORTED && __has_include(<driver/jpeg_decode.h>)
+#define ONLINE_IMAGE_HW_JPEG 1
+#include <driver/jpeg_decode.h>
+#include <esp_heap_caps.h>
+#endif
 
 static const char *const TAG = "online_image.jpeg";
 
@@ -47,98 +57,145 @@ int JpegDecoder::prepare(size_t download_size) {
   return 0;
 }
 
-size_t JpegDecoder::resample_scratch_size(int src_w, int dst_w) {
-  // x-map (uint16 x0 + uint8 weight per output column), two source RGB888 rows,
-  // one output RGB565 row.
-  return static_cast<size_t>(dst_w) * 3 + static_cast<size_t>(src_w) * 6 + static_cast<size_t>(dst_w) * 2;
-}
+#ifdef ONLINE_IMAGE_HW_JPEG
+// Largest source the hardware path takes. Bigger images go to libjpeg, whose
+// IDCT scaling avoids materialising them at full size (an RGB565 frame this
+// big is already 8 MB of PSRAM).
+static constexpr uint64_t HW_MAX_PIXELS = 2048ULL * 2048ULL;
+// Created on first use and kept: it owns DMA descriptors and an interrupt.
+static jpeg_decoder_handle_t hw_engine = nullptr;
 
-// Bilinear resample of `win` (the whole image, or the centred crop for
-// fit: cover) from the decoder's RGB888 scanlines straight into the RGB565
-// image buffer. It is streamed: output rows walk the source top to bottom, so
-// only the two source rows bracketing the current output row are held, never
-// the whole frame. The IDCT step keeps any downscale under 2x, which is the
-// range a 2x2 bilinear tap covers without dropping pixels.
-void HOT JpegDecoder::decode_resampled_(jpeg_decompress_struct *cinfo, uint8_t *scratch, int dst_w, int dst_h,
-                                        Window win, bool big_endian) {
-  const int src_w = static_cast<int>(cinfo->output_width);
-  const int src_h = static_cast<int>(cinfo->output_height);
-  uint16_t *x0s = reinterpret_cast<uint16_t *>(scratch);
-  uint8_t *fxs = scratch + static_cast<size_t>(dst_w) * 2;
-  uint8_t *prev = fxs + dst_w;
-  uint8_t *cur = prev + static_cast<size_t>(src_w) * 3;
-  uint8_t *out = cur + static_cast<size_t>(src_w) * 3;
+bool JpegDecoder::decode_hw_(const uint8_t *buffer, size_t size) {
+  if (this->image_->image_type() != image::ImageType::IMAGE_TYPE_RGB565)
+    return false;
+  jpeg_decode_picture_info_t info;
+  if (jpeg_decoder_get_info(buffer, size, &info) != ESP_OK)
+    return false;
+  const int w = static_cast<int>(info.width), h = static_cast<int>(info.height);
+  if (w <= 0 || h <= 0 || static_cast<uint64_t>(w) * h > HW_MAX_PIXELS)
+    return false;
 
-  // Source position of an output pixel centre, in 1/256 px, clamped to the image.
-  // `w0`/`w` is the window along this axis; `src` the full decoded extent.
-  auto src_pos = [](int d, int w0, int w, int dst, int src) -> int {
-    int p = w0 * 256 + static_cast<int>(static_cast<int64_t>(2 * d + 1) * w * 256 / (2 * dst)) - 128;
-    int max = (src - 1) * 256;
-    return p < 0 ? 0 : (p > max ? max : p);
-  };
-  for (int dx = 0; dx < dst_w; dx++) {
-    int p = src_pos(dx, win.x, win.w, dst_w, src_w);
-    x0s[dx] = static_cast<uint16_t>(p >> 8);
-    fxs[dx] = static_cast<uint8_t>(p & 0xFF);
+  // The decoder writes whole MCUs, so its frame is padded: 16 px along a
+  // chroma-subsampled axis, 8 otherwise. The padded width is the row stride.
+  const bool sub_x = info.sample_method == JPEG_DOWN_SAMPLING_YUV420 ||
+                     info.sample_method == JPEG_DOWN_SAMPLING_YUV422;
+  const bool sub_y = info.sample_method == JPEG_DOWN_SAMPLING_YUV420;
+  const int mcu_x = sub_x ? 16 : 8, mcu_y = sub_y ? 16 : 8;
+  const int pad_w = (w + mcu_x - 1) / mcu_x * mcu_x;
+  const int pad_h = (h + mcu_y - 1) / mcu_y * mcu_y;
+  const size_t frame_bytes = static_cast<size_t>(pad_w) * pad_h * 2;
+
+  if (hw_engine == nullptr) {
+    jpeg_decode_engine_cfg_t engine_cfg = {};
+    engine_cfg.timeout_ms = 1000;
+    if (jpeg_new_decoder_engine(&engine_cfg, &hw_engine) != ESP_OK) {
+      ESP_LOGW(TAG, "Hardware JPEG decoder unavailable, using libjpeg");
+      hw_engine = nullptr;
+      return false;
+    }
   }
 
-  int have = -1;  // source row held in `cur`; `prev` holds row have - 1
-  for (int dy = 0; dy < dst_h; dy++) {
-    int p = src_pos(dy, win.y, win.h, dst_h, src_h);
-    int y0 = p >> 8;
-    int fy = p & 0xFF;
-    int y1 = std::min(y0 + 1, src_h - 1);
-    while (have < y1) {
-      std::swap(prev, cur);
-      JSAMPROW row = cur;
-      jpeg_read_scanlines(cinfo, &row, 1);
-      have++;
-    }
-    const uint8_t *r0 = (y0 == have) ? cur : prev;
-    const uint8_t *r1 = cur;
+  // DMA-capable, cache-aligned buffers in PSRAM, as the driver requires.
+  jpeg_decode_memory_alloc_cfg_t in_cfg = {};
+  in_cfg.buffer_direction = JPEG_DEC_ALLOC_INPUT_BUFFER;
+  jpeg_decode_memory_alloc_cfg_t out_cfg = {};
+  out_cfg.buffer_direction = JPEG_DEC_ALLOC_OUTPUT_BUFFER;
+  size_t in_cap = 0, out_cap = 0;
+  auto *in = static_cast<uint8_t *>(jpeg_alloc_decoder_mem(size, &in_cfg, &in_cap));
+  auto *frame = static_cast<uint8_t *>(jpeg_alloc_decoder_mem(frame_bytes, &out_cfg, &out_cap));
+  bool ok = false;
 
-    uint8_t *o = out;
-    for (int dx = 0; dx < dst_w; dx++) {
-      int x0 = x0s[dx];
-      int x1 = x0 + 1 < src_w ? x0 + 1 : x0;
-      int fx = fxs[dx];
-      const uint8_t *a = r0 + x0 * 3, *b = r0 + x1 * 3, *c = r1 + x0 * 3, *d = r1 + x1 * 3;
-      int rgb[3];
-      for (int ch = 0; ch < 3; ch++) {
-        int top = a[ch] * (256 - fx) + b[ch] * fx;
-        int bot = c[ch] * (256 - fx) + d[ch] * fx;
-        rgb[ch] = (top * (256 - fy) + bot * fy) >> 16;
-      }
-      uint16_t rgb565 = ((rgb[0] & 0xF8) << 8) | ((rgb[1] & 0xFC) << 3) | (rgb[2] >> 3);
-      if (big_endian) {
-        o[0] = rgb565 >> 8;
-        o[1] = rgb565 & 0xFF;
+  if (in != nullptr && frame != nullptr) {
+    memcpy(in, buffer, size);
+    jpeg_decode_cfg_t cfg = {};
+    cfg.output_format = JPEG_DECODE_OUT_FORMAT_RGB565;
+    cfg.rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_BGR;  // "small endian": little-endian RGB565
+    cfg.conv_std = JPEG_YUV_RGB_CONV_STD_BT601;
+    uint32_t out_len = 0;
+    const int64_t t0 = esp_timer_get_time();
+    esp_err_t err = jpeg_decoder_process(hw_engine, &cfg, in, size, frame, out_cap, &out_len);
+    const int decode_ms = static_cast<int>((esp_timer_get_time() - t0) / 1000);
+
+    // Unsupported streams (progressive, greyscale, ...) fail here; a length
+    // that is not the padded frame would mean the stride assumption is wrong.
+    if (err != ESP_OK || out_len != frame_bytes) {
+      ESP_LOGD(TAG, "Hardware JPEG decode declined (%s, %u bytes), using libjpeg", esp_err_to_name(err),
+               (unsigned) out_len);
+    } else if (this->set_size(w, h)) {
+      const int dst_w = this->image_->get_buffer_width();
+      const int dst_h = this->image_->get_buffer_height();
+      const Window win = this->fit_window(w, h);
+      const bool big_endian = this->image_->is_big_endian();
+
+      if (dst_w == w && dst_h == h && win.w == w && win.h == h) {
+        // Already the stored size: copy rows across the padded stride.
+        std::vector<uint8_t> row(static_cast<size_t>(w) * 2);
+        for (int y = 0; y < h; y++) {
+          const uint8_t *src = frame + static_cast<size_t>(y) * pad_w * 2;
+          if (big_endian) {
+            for (int x = 0; x < w * 2; x += 2) {
+              row[x] = src[x + 1];
+              row[x + 1] = src[x];
+            }
+            this->write_rgb565_row(y, row.data());
+          } else {
+            this->write_rgb565_row(y, src);
+          }
+        }
+        ok = true;
       } else {
-        o[0] = rgb565 & 0xFF;
-        o[1] = rgb565 >> 8;
+        auto *scratch = static_cast<uint8_t *>(malloc(resample_scratch_size(w, dst_w)));
+        if (scratch != nullptr) {
+          struct Rows {
+            const uint8_t *frame;
+            size_t stride;  // bytes per padded row
+            int width;      // visible pixels per row (the resampler's row size)
+            int next;
+          } rows{frame, static_cast<size_t>(pad_w) * 2, w, 0};
+          // Expand the visible part of one little-endian RGB565 row to RGB888.
+          auto next_row = [](void *ctx, uint8_t *rgb) {
+            auto *r = static_cast<Rows *>(ctx);
+            const uint8_t *src = r->frame + static_cast<size_t>(r->next++) * r->stride;
+            for (int i = 0; i < r->width; i++) {
+              uint16_t c = src[2 * i] | (src[2 * i + 1] << 8);
+              uint8_t r5 = c >> 11, g6 = (c >> 5) & 0x3F, b5 = c & 0x1F;
+              rgb[3 * i + 0] = (r5 << 3) | (r5 >> 2);
+              rgb[3 * i + 1] = (g6 << 2) | (g6 >> 4);
+              rgb[3 * i + 2] = (b5 << 3) | (b5 >> 2);
+            }
+          };
+          this->resample(next_row, &rows, w, h, win, scratch);
+          free(scratch);
+          ok = true;
+        }
       }
-      o += 2;
-    }
-    this->write_rgb565_row(dy, out);
-
-    if ((dy & 63) == 0) {
-      App.feed_wdt();
+      if (ok) {
+        ESP_LOGD(TAG, "Hardware JPEG decode %dx%d in %d ms", w, h, decode_ms);
+      }
     }
   }
 
-  // jpeg_finish_decompress() rejects a stream with unread scanlines.
-  while (cinfo->output_scanline < cinfo->output_height) {
-    JSAMPROW row = cur;
-    jpeg_read_scanlines(cinfo, &row, 1);
-  }
+  heap_caps_free(in);
+  heap_caps_free(frame);
+  return ok;
 }
+#else
+bool JpegDecoder::decode_hw_(const uint8_t *, size_t) { return false; }
+#endif
 
 int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
   if (size < this->download_size_) {
     ESP_LOGV(TAG, "Download not complete. Size: %zu/%zu", size, this->download_size_);
     return 0;
   }
+  if (this->decode_hw_(buffer, size)) {
+    this->decoded_bytes_ = size;
+    return size;
+  }
+  return this->decode_sw_(buffer, size);
+}
 
+int HOT JpegDecoder::decode_sw_(uint8_t *buffer, size_t size) {
   jpeg_decompress_struct cinfo;
   JpegErrorMgr jerr{};
 
@@ -214,14 +271,7 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
   jpeg_start_decompress(&cinfo);
 
   // Cover crops the overflow evenly from both sides; contain keeps it all.
-  Window win{0, 0, out_w, out_h};
-  if (this->image_->is_fit_cover()) {
-    double s = this->image_->fit_scale(out_w, out_h);
-    win.w = std::min(out_w, static_cast<int>(std::lround(dst_w / s)));
-    win.h = std::min(out_h, static_cast<int>(std::lround(dst_h / s)));
-    win.x = (out_w - win.w) / 2;
-    win.y = (out_h - win.h) / 2;
-  }
+  Window win = this->fit_window(out_w, out_h);
 
   if (use_rgb565 && (dst_w != out_w || dst_h != out_h || win.w != out_w || win.h != out_h)) {
     // Scratch for the resample, held in row_buffer so the setjmp handler above
@@ -232,7 +282,17 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
       return DECODE_ERROR_OUT_OF_MEMORY;
     }
     ESP_LOGD(TAG, "Resampling %dx%d -> %dx%d", out_w, out_h, dst_w, dst_h);
-    this->decode_resampled_(&cinfo, row_buffer, dst_w, dst_h, win, big_endian);
+    this->resample(
+        [](void *ctx, uint8_t *row) {
+          JSAMPROW r = row;
+          jpeg_read_scanlines(static_cast<j_decompress_ptr>(ctx), &r, 1);
+        },
+        &cinfo, out_w, out_h, win, row_buffer);
+    // jpeg_finish_decompress() rejects a stream with unread scanlines.
+    while (cinfo.output_scanline < cinfo.output_height) {
+      JSAMPROW r = row_buffer;
+      jpeg_read_scanlines(&cinfo, &r, 1);
+    }
     jpeg_finish_decompress(&cinfo);
     jpeg_destroy_decompress(&cinfo);
     free(row_buffer);
