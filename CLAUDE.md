@@ -116,7 +116,7 @@ Builder app bundles a matching 2026.7.3 CLI:
 — same command CI runs, and it needs no `secrets.yaml` (unlike `dev.yaml`, which
 wants `wifi_ssid` / `wifi_password`).
 
-**There is currently no OTA update-check feature.** `.github/workflows/firmware.yml` only compiles `builds/guition-esp32-p4-jc8012p4a1.yaml` and validates the factory build — it does not publish a manifest, upload an OTA binary, or inject a version. `project.version` is hardcoded to `dev` in both build files. Devices therefore expose no `update` entity for dashboard firmware, and users update by re-flashing or via the ESPHome dashboard. See "Not implemented" below.
+**There is currently no OTA update-check feature.** `.github/workflows/firmware.yml` only compiles `builds/guition-esp32-p4-jc8012p4a1.yaml` and validates the factory build (`.factory.yaml`, which adds only `dashboard_import`; it has no ESP32-C6 coprocessor firmware update — the `esp32_hosted` update and its `network_adapter_esp32c6.bin` blob, never committed, were dropped) — it does not publish a manifest, upload an OTA binary, or inject a version. `project.version` is hardcoded to `dev` in both build files. Devices therefore expose no `update` entity for dashboard firmware, and users update by re-flashing or via the ESPHome dashboard. See "Not implemented" below.
 
 ## Architecture: LVGL state machine
 
@@ -263,23 +263,6 @@ are not in the tree. Listed so they are not mistaken for regressions:
   `sensor.speaker_group` template sensor in HA) were removed. Nothing subscribes
   to `volume_level` or `group_members` any more, and the "Speakers: Auto-Close
   Timeout" number entity is gone.
-
-## Broken: factory build is missing its C6 blob
-
-`builds/guition-esp32-p4-jc8012p4a1.factory.yaml` declares:
-
-```yaml
-update:
-  - platform: esp32_hosted
-    path: network_adapter_esp32c6.bin
-```
-
-`builds/network_adapter_esp32c6.bin` is **not in the repo and never has been**, so
-`esphome config builds/guition-esp32-p4-jc8012p4a1.factory.yaml` fails with
-"Could not find file". The factory/web-installer build therefore cannot be built
-from a clean checkout. CI skips its validation step while the file is absent (with
-a warning) and starts enforcing it once the blob is committed. Either commit the
-blob or drop the `update:` block.
 
 ## Background HTTP: calendar and forecast fetches
 
