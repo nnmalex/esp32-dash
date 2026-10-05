@@ -87,9 +87,13 @@ from this same repo; `device/device.yaml` pulls `gsl3680` the same way. `dev.yam
 builds use the working tree instead of GitHub.
 
 **Minimum ESPHome version is 2026.7.0.** `image:` entries use `platform: file`, which
-does not exist before 2026.7 — older versions fail validation. CI pins
-`>=2026.7.0,<2026.8` so it tests what devices actually build with; that pin was
-previously `<2026.5`, which is why a build break on 2026.6+ passed CI unnoticed.
+does not exist before 2026.7 — older versions fail validation. CI builds a
+matrix: the minimum (`>=2026.7.0,<2026.8`) and the latest release, unpinned.
+Testing only one pinned version has missed breaks twice: `<2026.5` let a 2026.6+
+break through, and `<2026.8` let 2026.9's removal of `set_timezone()` reach
+users (who run whatever the HA add-on ships). To check locally against a newer
+release, `pip install esphome==<version>` into a venv under `builds/.esphome/`
+and compile the same file.
 
 **`api: homeassistant_states: true` is load-bearing** (set in `device/device.yaml`).
 It emits `USE_API_HOMEASSISTANT_STATES`, which is what compiles
@@ -351,6 +355,16 @@ setup is acceptable.
   before the copy existed then failed with "jpeglib.h: No such file or
   directory" (seen after PR #50 forced a reconfigure). Reproduce by deleting
   the entry from `build/project_description.json` and compiling.
+- **Timezone API differs across ESPHome versions.** 2026.9 removed
+  `RealTimeClock::set_timezone(string)`: the zone is a pre-parsed
+  `time::ParsedTimezone` set with `time::set_global_tz()`, and ESPHome replaces
+  libc `localtime()`/`localtime_r()` to read it, so `setenv("TZ")` alone no
+  longer changes local time (libc `mktime()` still reads `TZ`). `apply_timezone`
+  in `addon/timezone.yaml` branches on `ESPHOME_VERSION_CODE`; its table carries
+  each zone pre-parsed by `aioesphomeapi.posix_tz.parse_posix_tz` — regenerate
+  those columns with it when adding a zone. `ha_time` keeps `timezone: UTC`
+  explicitly: without it 2026.9 defines `USE_HOMEASSISTANT_TIMEZONE` and HA's
+  zone overwrites the selector after every time sync.
 - **Check MDI codepoints against the font, not memory.** Several glyphs were
   wrong for a long time (pressure showed `format-wrap-tight`, "windy-variant" a
   globe). Verify with the 7.4.47 CSS
