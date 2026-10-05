@@ -29,9 +29,7 @@ script:
       - script.execute: update_idle_clock  # also calls render_idle_agenda internally
       - lvgl.page.show: idle_page
       - lvgl.widget.show: nav_bar
-      # The agenda lives here too, and the 15-minute background refresh is
-      # suppressed while the music view is up — so catch up on anything that
-      # went stale while the user was on that page.
+      # Refresh the agenda if it has gone stale (no-op while the cache is warm).
       - script.execute: maybe_fetch_calendar
 
   - id: show_music_view
@@ -42,10 +40,9 @@ script:
       - lvgl.page.show: music_page
       - lvgl.widget.show: nav_bar
 
-  # http_request is synchronous, so a fetch here stalls the main loop (and LVGL)
-  # until it completes. Show the cached render first and hand the refresh to
-  # maybe_fetch_*, which defers it past the page transition and skips it
-  # entirely while the cache is warm — so these scripts never block.
+  # Show the cached render first, then hand the refresh to maybe_fetch_*, which
+  # skips it while the cache is warm. Fetches run on the http_worker task, so
+  # nothing here blocks the main loop.
   - id: show_calendar_view
     mode: single
     then:

@@ -14,7 +14,7 @@
 #
 # Remaining time is computed from HA's `finishes_at` attribute against the
 # clock, not by decrementing a counter: a counter loses every second the main
-# loop is blocked (the calendar fetch stalls it for seconds at a time), and HA
+# loop is blocked (decoding album art, an OTA, a slow lambda), and HA
 # only updates `remaining` on state changes, so after a reconnect it is stale.
 # The counter is kept only as a fallback before the clock has synced.
 #
