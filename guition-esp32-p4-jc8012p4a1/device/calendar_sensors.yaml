@@ -13,15 +13,14 @@
 # The primary data path is fetch_calendar_data: one batched REST call covering
 # every configured calendar, into the shared cal_events_buf as pipe-delimited
 # lines:
-#   CAL_IDX|TITLE|START_ISO|END_ISO|ALLDAY\n
+#   CAL_IDX|TITLE|START_ISO|END_ISO|ALLDAY|LOCATION|DESCRIPTION\n
 # Both consumers filter that single buffer by date:
 #   render_calendar_grid (calendar_view.yaml) — the 5-day week grid
 #   render_idle_agenda   (below)              — today + tomorrow on the idle page
 #
 # The window always spans the union of what both views need, so one fetch feeds
-# both. http_request is synchronous, so the request blocks the main loop (and
-# therefore LVGL) — hence one batched call rather than one per calendar, and
-# hence maybe_fetch_calendar for anything triggered by a UI interaction.
+# both. The requests run on a background task (http_worker) and never block
+# the main loop.
 #
 # Subscriptions follow the generation-counter pattern from media_player_select
 # and are registered once per entity — see cal_subbed below.
@@ -104,6 +103,18 @@ globals:
   - id: cal_fetch_end
     type: std::string
     initial_value: '""'
+
+  # Buffer line ("CAL_IDX|TITLE|START|END|ALLDAY|LOCATION|DESCRIPTION") behind
+  # each tappable event widget, read by show_event_details: agenda slots here,
+  # week-grid blocks and all-day chips in calendar_view.yaml.
+  - id: agenda_slot_line
+    type: std::array<std::string, 5>
+    initial_value: 'std::array<std::string, 5>{}'
+
+  # True while fetch_calendar_data's requests are with the http_worker.
+  - id: cal_fetch_in_flight
+    type: bool
+    initial_value: 'false'
 
   # millis() of the last successful fetch. Interactive callers (navbar) use this
   # to skip a blocking refetch when the cache is still warm. Unsigned wraparound
@@ -235,11 +246,14 @@ script:
             uint32_t accent_color;
             bool is_past;
             bool tomorrow;        // which section heading it sits under
+            int raw;              // index into raws: the event's buffer line, for the details card
           };
 
           AgendaItem items[MAX_ITEMS];
           int item_count = 0;
           memset(items, 0, sizeof(items));
+          std::vector<std::string> raws;
+          raws.reserve(MAX_ITEMS);
 
           // Adds one event if any part of it falls on today or tomorrow.
           auto add_item = [&](
@@ -247,7 +261,8 @@ script:
               std::string start,   // mutable copies — we normalize T→space
               std::string end_s,
               bool is_allday,
-              int cal_idx) {
+              int cal_idx,
+              const std::string &raw) {
 
             if (!title_c || title_c[0] == '\0') return;
             if (start.length() < 10) return;
@@ -310,11 +325,13 @@ script:
             item.accent_color = (cal_idx >= 0 && cal_idx < 3) ? CAL_COLORS[cal_idx] : 0x888888U;
             item.is_past = is_past;
             item.tomorrow = tomorrow;
+            item.raw = static_cast<int>(raws.size());
+            raws.push_back(raw);
           };
 
           if (!id(cal_events_buf).empty()) {
             // --- Primary path: parse the shared HTTP-fetched buffer ---
-            // Format: "CAL_IDX|TITLE|START|END|ALLDAY\n" (repeated)
+            // Format: "CAL_IDX|TITLE|START|END|ALLDAY|LOCATION|DESCRIPTION\n"
             const std::string &buf = id(cal_events_buf);
             size_t pos = 0;
             while (pos < buf.size() && item_count < MAX_ITEMS) {
@@ -322,19 +339,9 @@ script:
               if (nl == std::string::npos) nl = buf.size();
               if (nl > pos) {
                 std::string line = buf.substr(pos, nl - pos);
-                // Parse pipe-delimited fields
-                size_t p1 = line.find('|');
-                size_t p2 = (p1 != std::string::npos) ? line.find('|', p1 + 1) : std::string::npos;
-                size_t p3 = (p2 != std::string::npos) ? line.find('|', p2 + 1) : std::string::npos;
-                size_t p4 = (p3 != std::string::npos) ? line.find('|', p3 + 1) : std::string::npos;
-                if (p4 != std::string::npos) {
-                  int cal_idx      = atoi(line.c_str());
-                  std::string title = line.substr(p1 + 1, p2 - p1 - 1);
-                  std::string start = line.substr(p2 + 1, p3 - p2 - 1);
-                  std::string end_s = line.substr(p3 + 1, p4 - p3 - 1);
-                  bool is_allday   = (line.substr(p4 + 1) == "1");
-                  add_item(title.c_str(), start, end_s, is_allday, cal_idx);
-                }
+                esp32_dash::calendar_json::EventLine ev;
+                if (esp32_dash::calendar_json::parse_event_line(line, ev))
+                  add_item(ev.title.c_str(), ev.start, ev.end, ev.allday, ev.cal_idx, line);
               }
               pos = nl + 1;
             }
@@ -348,7 +355,10 @@ script:
                 const std::string &all_day_s,
                 int cal_idx) {
               bool is_allday = (all_day_s == "True" || all_day_s == "true" || all_day_s == "1");
-              add_item(title.c_str(), start, end_s, is_allday, cal_idx);
+              // Same line shape as the fetched buffer, so the details card reads both.
+              std::string raw = std::to_string(cal_idx) + "|" + title + "|" + start + "|" + end_s + "|" +
+                                (is_allday ? "1" : "0");
+              add_item(title.c_str(), start, end_s, is_allday, cal_idx, raw);
             };
             add_sub(id(cal_title_0), id(cal_start_0), id(cal_end_0), id(cal_all_day_0), 0);
             add_sub(id(cal_title_1), id(cal_start_1), id(cal_end_1), id(cal_all_day_1), 1);
@@ -436,6 +446,7 @@ script:
             lv_obj_set_style_text_color(title_labels[shown], lv_color_hex(title_col), 0);
             lv_label_set_text(time_labels[shown], item.time_label);
             lv_label_set_text(title_labels[shown], item.title);
+            id(agenda_slot_line)[shown] = raws[item.raw];   // for a tap → details card
             lv_obj_clear_flag(slot_objs[shown], LV_OBJ_FLAG_HIDDEN);
             y += SLOT_H;
             shown++;
@@ -445,16 +456,13 @@ script:
   # ---------------------------------------------------------------------------
   # maybe_fetch_calendar
   # ---------------------------------------------------------------------------
-  # The interactive entry point. Two things matter here:
-  #   - the delay lets the page transition finish drawing before the blocking
-  #     fetch stalls the loop, so the stall lands on a settled screen;
-  #   - mode: restart means a flurry of navbar taps coalesces into one fetch.
-  # Callers render from cache first and come here for the refresh.
+  # The interactive entry point: only fetches when the cache is empty or more
+  # than 5 minutes old, and mode: restart coalesces a flurry of navbar taps.
+  # Callers render from cache first; the fetch itself never blocks (see below).
   # ---------------------------------------------------------------------------
   - id: maybe_fetch_calendar
     mode: restart
     then:
-      - delay: 300ms
       - if:
           condition:
             lambda: |-
@@ -469,25 +477,27 @@ script:
   # ONE batched request covering every configured calendar:
   #   POST /api/services/calendar/get_events?return_response=true
   #   {"entity_id": [...], "start_date_time": ..., "end_date_time": ...}
-  # HA resolves all three server-side, so the device pays one connect and one
-  # round trip instead of three. Requires HA 2024.2 or newer.
+  # HA resolves all three server-side. Requires HA 2024.2 or newer.
   #
   # HA rejects the whole call if any one entity_id is unknown, which would take
-  # all three calendars down together — so a failed batch falls back to the old
-  # per-entity GET /api/calendars/<entity> loop, where a bad entity only costs
-  # its own slot.
+  # all three calendars down together — so a failed batch falls back to one
+  # GET /api/calendars/<entity> per calendar, where a bad entity only costs its
+  # own slot.
+  #
+  # Requests run on the http_worker task (calendar_json/http_worker.h), so the
+  # main loop, LVGL and touch keep running while HA answers. Callbacks run back
+  # on the main loop. One fetch at a time: a call while one is in flight is
+  # dropped (the in-flight one is about to refresh the same data).
   #
   # The window spans the union of what the week grid (5 columns from
-  # cal_view_offset) and the idle agenda (today + tomorrow) need, so a single
-  # fetch serves both.
-  #
-  # http_request is synchronous: this blocks the main loop for the duration.
-  # Interactive callers should go through maybe_fetch_calendar, not here.
+  # cal_view_offset, -1..+2) and the idle agenda (today + tomorrow) need, so a
+  # single fetch serves both and paging never refetches.
   # ---------------------------------------------------------------------------
   - id: fetch_calendar_data
-    mode: restart
+    mode: single
     then:
       - lambda: |-
+          if (id(cal_fetch_in_flight)) return;
           auto t = id(ha_time).now();
           if (!t.is_valid()) {
             ESP_LOGW("cal_fetch", "Time not valid, skipping fetch");
@@ -498,159 +508,119 @@ script:
             return;
           }
 
-          // Fixed window covering every view this data can feed:
-          //   week grid   — 5 columns from cal_view_offset, which is clamped to
-          //                 -1..+2, so days -1 through +6 are reachable
-          //   idle agenda — today and tomorrow
-          // Fetching the full span once means changing cal_view_offset only needs
-          // a re-render, never another blocking round of HTTP requests.
           const int DAY_FROM = -1;
           const int DAY_TO   = 7;   // exclusive
-
           char d0[11], d1[11];
           esp32_dash::calendar_json::local_date(t.timestamp, DAY_FROM, d0);
           esp32_dash::calendar_json::local_date(t.timestamp, DAY_TO, d1);
           char s[21], e[21];
           snprintf(s, sizeof(s), "%sT00:00:00", d0);
           snprintf(e, sizeof(e), "%sT00:00:00", d1);
-
           id(cal_fetch_start) = std::string(s);
           id(cal_fetch_end)   = std::string(e);
-          ESP_LOGI("cal_fetch", "Window %s .. %s", s, e);
-
-          esphome::text::Text *sel[3] = {
-            id(calendar_entity_select_0),
-            id(calendar_entity_select_1),
-            id(calendar_entity_select_2)
-          };
 
           // Slot index must survive into cal_events_buf (it picks the accent
-          // colour), so keep entities in a slot-indexed array rather than a
-          // compacted list.
-          std::string entities[3];
+          // colour), so keep entities in a slot-indexed array.
+          esphome::text::Text *sel[3] = {
+            id(calendar_entity_select_0), id(calendar_entity_select_1), id(calendar_entity_select_2)
+          };
+          std::array<std::string, 3> entities;
           std::string id_list;
           int n_ent = 0;
           for (int i = 0; i < 3; i++) {
-            std::string e = sel[i]->state;
-            if (e.rfind("calendar.", 0) != 0) continue;
-            entities[i] = e;
+            const std::string &ent = sel[i]->state;
+            if (ent.rfind("calendar.", 0) != 0) continue;
+            entities[i] = ent;
             if (!id_list.empty()) id_list += ", ";
-            id_list += "\"" + e + "\"";
+            id_list += "\"" + ent + "\"";
             n_ent++;
           }
           if (n_ent == 0) {
             ESP_LOGI("cal_fetch", "No calendar entities configured — skipping fetch");
             return;
           }
+          ESP_LOGI("cal_fetch", "Window %s .. %s", s, e);
 
-          std::string auth = "Bearer " + id(ha_token_global);
-          std::string new_buf;
-          int total = 0;
-          bool any_ok = false;
-          uint32_t http_ms = 0;
+          const std::string base = id(ha_base_url);
+          const std::string start = id(cal_fetch_start), end = id(cal_fetch_end);
+          const esp32_dash::HttpHeaders auth = {{"Authorization", "Bearer " + id(ha_token_global)}};
 
-          // Drain a response body in 4 KB chunks (matching buffer_size_rx) off
-          // the heap — a 4 KB frame would be a large bite out of the loop task's
-          // stack. content_length lets us size the string in one allocation.
-          auto drain = [&](std::shared_ptr<esphome::http_request::HttpContainer> c,
-                           std::string &out) {
-            out.reserve(c->content_length > 0 ? (size_t) c->content_length + 1 : 16384u);
-            std::vector<uint8_t> chunk(4096);
-            int n;
-            while ((n = c->read(chunk.data(), chunk.size())) > 0)
-              out.append(reinterpret_cast<char *>(chunk.data()), n);
-            http_ms += c->duration_ms;
-            c->end();
+          // Called once with the merged result. Only replaces the cache when
+          // something succeeded, so a network blip does not blank both views.
+          auto finish = [](bool ok, const std::string &buf, int total) {
+            id(cal_fetch_in_flight) = false;
+            if (!ok) {
+              ESP_LOGW("cal_fetch", "All calendar requests failed — keeping cached data");
+              return;
+            }
+            id(cal_events_buf) = buf;
+            id(cal_last_fetch_ms) = millis();
+            ESP_LOGI("cal_fetch", "Parsed %d events, buf len=%d", total, (int) buf.size());
+            id(render_calendar_grid).execute();
+            id(render_idle_agenda).execute();
+          };
+
+          // Fallback: one GET per calendar, all in flight at once; the last
+          // response to arrive merges and finishes.
+          auto fallback = [base, start, end, auth, entities, finish]() {
+            struct Merge { int pending = 0; bool ok = false; std::string buf; int total = 0; };
+            auto m = std::make_shared<Merge>();
+            for (int i = 0; i < 3; i++) if (!entities[i].empty()) m->pending++;
+            for (int i = 0; i < 3; i++) {
+              if (entities[i].empty()) continue;
+              std::string url = base + "/api/calendars/" + entities[i] + "?start=" + start + "&end=" + end;
+              bool queued = id(http_worker)->request(url, "", auth,
+                  [m, i, finish](const esp32_dash::HttpResponse &r) {
+                    if (r.status == 200) {
+                      m->ok = true;
+                      m->total += esp32_dash::calendar_json::append_calendar_events(r.body, i, m->buf);
+                    } else {
+                      ESP_LOGW("cal_fetch", "cal%d HTTP %d %s", i, r.status, r.error.c_str());
+                    }
+                    if (--m->pending == 0) finish(m->ok, m->buf, m->total);
+                  });
+              if (!queued && --m->pending == 0) finish(m->ok, m->buf, m->total);
+            }
           };
 
           // --- Primary path: one batched service call for all calendars ---
-          {
-            std::string url = id(ha_base_url) +
-                              "/api/services/calendar/get_events?return_response=true";
-            std::string req = "{\"entity_id\": [" + id_list +
-                              "], \"start_date_time\": \"" + id(cal_fetch_start) +
-                              "\", \"end_date_time\": \"" + id(cal_fetch_end) + "\"}";
+          std::string url = base + "/api/services/calendar/get_events?return_response=true";
+          std::string req = "{\"entity_id\": [" + id_list + "], \"start_date_time\": \"" + start +
+                            "\", \"end_date_time\": \"" + end + "\"}";
+          esp32_dash::HttpHeaders hdrs = auth;
+          hdrs.push_back({"Content-Type", "application/json"});
 
-            std::vector<esphome::http_request::Header> hdrs;
-            hdrs.push_back({"Authorization", auth});
-            hdrs.push_back({"Content-Type", "application/json"});
-
-            auto c = id(http_req)->post(url, req, hdrs);
-            if (c && c->status_code == 200) {
-              std::string resp;
-              drain(c, resp);
-
-              // {"changed_states": [], "service_response": {"calendar.x": {"events": [...]}}}
-              std::string svc;
-              int sections = 0;
-              if (esp32_dash::calendar_json::extract_object_field(resp, "service_response", svc)) {
-                for (int i = 0; i < 3; i++) {
-                  if (entities[i].empty()) continue;
-                  std::string ent_obj, events_arr;
-                  if (!esp32_dash::calendar_json::extract_object_field(
-                          svc, entities[i].c_str(), ent_obj)) {
-                    ESP_LOGW("cal_fetch", "No response section for %s", entities[i].c_str());
-                    continue;
+          id(cal_fetch_in_flight) = id(http_worker)->request(url, req, hdrs,
+              [entities, finish, fallback](const esp32_dash::HttpResponse &r) {
+                if (r.status == 200) {
+                  // {"changed_states": [], "service_response": {"calendar.x": {"events": [...]}}}
+                  namespace cj = esp32_dash::calendar_json;
+                  std::string svc, buf;
+                  int sections = 0, total = 0;
+                  if (cj::extract_object_field(r.body, "service_response", svc)) {
+                    for (int i = 0; i < 3; i++) {
+                      if (entities[i].empty()) continue;
+                      std::string ent_obj, events_arr;
+                      if (!cj::extract_object_field(svc, entities[i].c_str(), ent_obj)) {
+                        ESP_LOGW("cal_fetch", "No response section for %s", entities[i].c_str());
+                        continue;
+                      }
+                      sections++;
+                      if (cj::extract_array_field(ent_obj, "events", events_arr))
+                        total += cj::append_calendar_events(events_arr, i, buf);
+                    }
                   }
-                  sections++;
-                  if (!esp32_dash::calendar_json::extract_array_field(ent_obj, "events", events_arr))
-                    continue;
-                  total += esp32_dash::calendar_json::append_calendar_events(events_arr, i, new_buf);
+                  if (sections > 0) {
+                    finish(true, buf, total);
+                    return;
+                  }
+                  ESP_LOGW("cal_fetch", "Unrecognised get_events response — falling back");
+                } else {
+                  ESP_LOGW("cal_fetch", "Batched get_events HTTP %d %s — falling back to per-calendar GET",
+                           r.status, r.error.c_str());
                 }
-              }
-              // Nothing recognisable in the response — fall through to the
-              // per-calendar path rather than blanking both views.
-              any_ok = (sections > 0);
-              if (!any_ok)
-                ESP_LOGW("cal_fetch", "Unrecognised get_events response — falling back");
-            } else {
-              ESP_LOGW("cal_fetch", "Batched get_events HTTP %d — falling back to per-calendar GET",
-                       c ? c->status_code : -1);
-              if (c) { http_ms += c->duration_ms; c->end(); }
-            }
-          }
-
-          // --- Fallback: one GET per calendar (pre-2024.2 HA, or a bad entity
-          //     id that made HA reject the whole batch) ---
-          if (!any_ok) {
-            new_buf.clear();
-            total = 0;
-            for (int i = 0; i < 3; i++) {
-              if (entities[i].empty()) continue;
-
-              std::string url = id(ha_base_url) + "/api/calendars/" + entities[i] +
-                                "?start=" + id(cal_fetch_start) + "&end=" + id(cal_fetch_end);
-
-              std::vector<esphome::http_request::Header> hdrs;
-              hdrs.push_back({"Authorization", auth});
-
-              auto c = id(http_req)->get(url, hdrs);
-              if (!c || c->status_code != 200) {
-                ESP_LOGW("cal_fetch", "cal%d HTTP %d", i, c ? c->status_code : -1);
-                if (c) { http_ms += c->duration_ms; c->end(); }
-                continue;
-              }
-
-              std::string body;
-              drain(c, body);
-              any_ok = true;
-              total += esp32_dash::calendar_json::append_calendar_events(body, i, new_buf);
-            }
-          }
-
-          // Only replace the cache when at least one request succeeded, so a
-          // transient network failure does not blank both views.
-          if (any_ok) {
-            id(cal_events_buf) = new_buf;
-            id(cal_last_fetch_ms) = millis();
-            ESP_LOGI("cal_fetch", "Parsed %d events, buf len=%d, %u ms blocked in HTTP",
-                     total, (int) id(cal_events_buf).length(), (unsigned) http_ms);
-          } else {
-            ESP_LOGW("cal_fetch", "All calendar requests failed (%u ms) — keeping cached data",
-                     (unsigned) http_ms);
-          }
-      - script.execute: render_calendar_grid
-      - script.execute: render_idle_agenda
+                fallback();
+              });
 
   # ---------------------------------------------------------------------------
   # subscribe_calendar: subscribes to HA state + attributes of calendar slot N.
@@ -726,18 +696,12 @@ script:
 
 
 # Background refresh — one fetch feeds both the week grid and the idle agenda.
-# Skipped on the music view: neither consumer is on screen there, and a blocking
-# fetch mid-playback stalls the progress bar and timer countdown for no benefit.
-# show_idle_view calls maybe_fetch_calendar, so leaving the music page refreshes
-# whatever went stale in the meantime.
+# Runs on every view: the fetch happens on the http_worker task, so it no
+# longer stalls the music page's progress bar or the timer countdown.
 interval:
   - interval: 15min
     then:
-      - if:
-          condition:
-            lambda: 'return id(current_view) != 1;'
-          then:
-            - script.execute: fetch_calendar_data
+      - script.execute: fetch_calendar_data
 
 
 # Re-subscribe and seed data after HA reconnect (merged with api block in device.yaml)

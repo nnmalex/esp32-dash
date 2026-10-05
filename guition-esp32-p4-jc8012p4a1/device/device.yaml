@@ -126,10 +126,16 @@ logger:
 # It is declared alongside online_image and calendar_json in addon/music.yaml so
 # there is a single git external_components block for this repo.
 
-# Shared header-only JSON parser for calendar + forecast HTTP responses.
-# External component is declared in addon/music.yaml (git) and dev.yaml (local);
-# the component's __init__.py emits the corresponding #include into main.cpp.
+# Shared C++ helpers for the calendar + forecast views: JSON parser, date and
+# weather-icon helpers, and the background HTTP worker that does their fetches
+# off the main loop. External component is declared in addon/music.yaml (git)
+# and dev.yaml / builds (local); __init__.py emits the #includes into main.cpp.
 calendar_json:
+  fetcher:
+    id: http_worker
+    # Must match http_request's verify_ssl (addon/music.yaml): that component
+    # sets the TLS sdkconfig both clients share.
+    verify_ssl: ${ha_verify_ssl}
 
 
 # DSI PHY power rail
