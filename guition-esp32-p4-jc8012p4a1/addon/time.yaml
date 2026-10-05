@@ -7,6 +7,9 @@ time:
 
   - platform: homeassistant
     id: ha_time
+    # Load-bearing on ESPHome 2026.9+: with no explicit timezone, HA's own zone is
+    # applied after every time sync and overrides the "Clock: Timezone" selector
+    # (addon/timezone.yaml), which re-applies the user's choice on time sync.
     timezone: UTC
     # Minute-aligned UI refresh. A free-running 60 s interval starts at boot, so
     # the idle clock could show the previous minute for up to 59 s; a cron
