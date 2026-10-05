@@ -6,6 +6,11 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include "online_image.h"
+
+#include <algorithm>
+#include <cstring>
+
 static const char *const TAG = "online_image.png";
 
 namespace esphome {
@@ -21,7 +26,7 @@ namespace online_image {
  */
 static void init_callback(pngle_t *pngle, uint32_t w, uint32_t h) {
   PngDecoder *decoder = (PngDecoder *) pngle_get_user_data(pngle);
-  decoder->set_size(w, h);
+  decoder->on_header(w, h);
 }
 
 /**
@@ -37,8 +42,7 @@ static void init_callback(pngle_t *pngle, uint32_t w, uint32_t h) {
  */
 static void draw_callback(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint8_t rgba[4]) {
   PngDecoder *decoder = (PngDecoder *) pngle_get_user_data(pngle);
-  Color color(rgba[0], rgba[1], rgba[2], rgba[3]);
-  decoder->draw(x, y, w, h, color);
+  decoder->on_pixels(x, y, w, h, rgba);
 
   // Feed watchdog periodically to avoid triggering during long decode operations.
   // Feed every 1024 pixels to balance efficiency and responsiveness.
@@ -46,6 +50,85 @@ static void draw_callback(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, ui
   decoder->increment_pixels_decoded(pixels);
   if ((decoder->get_pixels_decoded() % 1024) < pixels) {
     App.feed_wdt();
+  }
+}
+
+static void done_callback(pngle_t *pngle) {
+  PngDecoder *decoder = (PngDecoder *) pngle_get_user_data(pngle);
+  decoder->on_done();
+}
+
+// Largest source buffered for the smooth resample (RGB888: 7.7 MB of PSRAM).
+// Bigger PNGs fall back to draw()'s nearest-neighbour scaling.
+static constexpr uint64_t FRAME_MAX_PIXELS = 1600ULL * 1600ULL;
+
+void PngDecoder::on_header(uint32_t w, uint32_t h) {
+  this->free_frame_();
+  if (!this->set_size(w, h))
+    return;
+  // Buffer the source only when it will actually be resampled, into an opaque
+  // RGB565 image (alpha and other formats keep the per-pixel path).
+  const auto *img = this->image_;
+  bool resized = img->get_buffer_width() != static_cast<int>(w) ||
+                 img->get_buffer_height() != static_cast<int>(h) || img->is_fit_cover();
+  if (!resized || img->image_type() != image::ImageType::IMAGE_TYPE_RGB565 || img->has_transparency() ||
+      static_cast<uint64_t>(w) * h > FRAME_MAX_PIXELS)
+    return;
+  this->frame_ = this->frame_allocator_.allocate(static_cast<size_t>(w) * h * 3);
+  if (this->frame_ == nullptr) {
+    ESP_LOGW(TAG, "No memory to buffer a %ux%u PNG; scaling without smoothing", (unsigned) w, (unsigned) h);
+    return;
+  }
+  this->frame_w_ = static_cast<int>(w);
+  this->frame_h_ = static_cast<int>(h);
+}
+
+void PngDecoder::on_pixels(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint8_t rgba[4]) {
+  if (this->frame_ == nullptr) {
+    this->draw(x, y, w, h, Color(rgba[0], rgba[1], rgba[2], rgba[3]));
+    return;
+  }
+  // Interlaced passes paint blocks larger than a pixel; clip to the frame.
+  uint32_t x_end = std::min<uint32_t>(x + w, this->frame_w_);
+  uint32_t y_end = std::min<uint32_t>(y + h, this->frame_h_);
+  for (uint32_t yy = y; yy < y_end; yy++) {
+    uint8_t *p = this->frame_ + (static_cast<size_t>(yy) * this->frame_w_ + x) * 3;
+    for (uint32_t xx = x; xx < x_end; xx++, p += 3) {
+      p[0] = rgba[0];
+      p[1] = rgba[1];
+      p[2] = rgba[2];
+    }
+  }
+}
+
+void PngDecoder::on_done() {
+  if (this->frame_ == nullptr)
+    return;
+  uint8_t *scratch =
+      static_cast<uint8_t *>(malloc(resample_scratch_size(this->frame_w_, this->image_->get_buffer_width())));
+  if (scratch != nullptr) {
+    struct Rows {
+      const uint8_t *frame;
+      size_t stride;
+      int next;
+    } rows{this->frame_, static_cast<size_t>(this->frame_w_) * 3, 0};
+    this->resample(
+        [](void *ctx, uint8_t *row) {
+          auto *r = static_cast<Rows *>(ctx);
+          memcpy(row, r->frame + static_cast<size_t>(r->next++) * r->stride, r->stride);
+        },
+        &rows, this->frame_w_, this->frame_h_, this->fit_window(this->frame_w_, this->frame_h_), scratch);
+    free(scratch);
+  } else {
+    ESP_LOGW(TAG, "No memory to resample PNG");
+  }
+  this->free_frame_();
+}
+
+void PngDecoder::free_frame_() {
+  if (this->frame_ != nullptr) {
+    this->frame_allocator_.deallocate(this->frame_, static_cast<size_t>(this->frame_w_) * this->frame_h_ * 3);
+    this->frame_ = nullptr;
   }
 }
 
@@ -63,6 +146,7 @@ PngDecoder::PngDecoder(OnlineImage *image) : ImageDecoder(image) {
 }
 
 PngDecoder::~PngDecoder() {
+  this->free_frame_();
   if (this->pngle_) {
     pngle_reset(this->pngle_);
     this->allocator_.deallocate(this->pngle_, PNGLE_T_SIZE);
@@ -78,6 +162,7 @@ int PngDecoder::prepare(size_t download_size) {
   pngle_set_user_data(this->pngle_, this);
   pngle_set_init_callback(this->pngle_, init_callback);
   pngle_set_draw_callback(this->pngle_, draw_callback);
+  pngle_set_done_callback(this->pngle_, done_callback);
   return 0;
 }
 

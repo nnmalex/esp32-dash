@@ -11,6 +11,10 @@ namespace online_image {
 
 /**
  * @brief Image decoder specialization for JPEG images.
+ *
+ * On chips with a JPEG codec (ESP32-P4) baseline JPEGs are decoded in
+ * hardware; anything it cannot handle (progressive, oversized, any driver
+ * error) falls back to libjpeg-turbo.
  */
 class JpegDecoder : public ImageDecoder {
  public:
@@ -26,13 +30,10 @@ class JpegDecoder : public ImageDecoder {
   int HOT decode(uint8_t *buffer, size_t size) override;
 
  protected:
-  static size_t resample_scratch_size(int src_w, int dst_w);
-  /// Window of the decoded image (in IDCT-output pixels) that gets resampled.
-  struct Window {
-    int x, y, w, h;
-  };
-  void decode_resampled_(jpeg_decompress_struct *cinfo, uint8_t *scratch, int dst_w, int dst_h, Window win,
-                         bool big_endian);
+  /// Hardware decode into the image buffer. False (with nothing to clean up)
+  /// when the hardware cannot take this image, so the caller falls back.
+  bool decode_hw_(const uint8_t *buffer, size_t size);
+  int decode_sw_(uint8_t *buffer, size_t size);
 };
 
 }  // namespace online_image
