@@ -13,8 +13,8 @@
 #           HIGH, LOW and PROB are empty when the integration omits them.
 #
 # render_forecast (forecast_view.yaml) and update_idle_hilo (weather_sensors.yaml)
-# run after each fetch. Auto-refresh: every 30 minutes except on the music view,
-# and on API connect.
+# run after each fetch. Auto-refresh: every 30 minutes, and on API connect.
+# The request runs on the http_worker task (calendar_json/http_worker.h).
 # =============================================================================
 
 globals:
@@ -30,8 +30,14 @@ globals:
     restore_value: false
     initial_value: '"mm"'
 
-  # millis() of the last successful fetch; lets the navbar skip a blocking
-  # refetch while the cache is warm.
+  # True while fetch_forecast's request is with the http_worker.
+  - id: wf_fetch_in_flight
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+
+  # millis() of the last successful fetch; lets the navbar skip a refetch
+  # while the cache is warm.
   - id: wf_last_fetch_ms
     type: uint32_t
     restore_value: false
@@ -41,15 +47,13 @@ globals:
 script:
   # ---------------------------------------------------------------------------
   # maybe_fetch_forecast
-  # The interactive entry point: the delay lets the page transition finish
-  # drawing before the blocking fetch stalls the loop, and mode: restart means
-  # repeated navbar taps coalesce into one fetch. Callers render cached data
-  # first and come here for the refresh.
+  # The interactive entry point: fetches only when the cache is empty or more
+  # than 15 minutes old, and mode: restart coalesces repeated navbar taps.
+  # Callers render cached data first and come here for the refresh.
   # ---------------------------------------------------------------------------
   - id: maybe_fetch_forecast
     mode: restart
     then:
-      - delay: 300ms
       - if:
           condition:
             lambda: |-
@@ -60,13 +64,15 @@ script:
 
   # ---------------------------------------------------------------------------
   # fetch_forecast
-  # POSTs to HA forecast service and parses the daily forecast array.
-  # Populates wf_data_buf, then calls render_forecast.
+  # POSTs to HA's forecast service on the http_worker task (never blocking the
+  # main loop) and, back on the main loop, parses the daily forecast into
+  # wf_data_buf, then renders the forecast page and the idle high/low.
   # ---------------------------------------------------------------------------
   - id: fetch_forecast
-    mode: restart
+    mode: single
     then:
       - lambda: |-
+          if (id(wf_fetch_in_flight)) return;
           std::string entity = id(weather_entity_select).state;
           std::string token  = id(ha_token_global);
 
@@ -82,166 +88,145 @@ script:
           std::string url  = id(ha_base_url)
                            + "/api/services/weather/get_forecasts?return_response=true";
           std::string body = "{\"entity_id\": \"" + entity + "\", \"type\": \"daily\"}";
-
-          std::vector<esphome::http_request::Header> hdrs;
-          hdrs.push_back({"Authorization", "Bearer " + token});
-          hdrs.push_back({"Content-Type", "application/json"});
+          esp32_dash::HttpHeaders hdrs = {{"Authorization", "Bearer " + token},
+                                          {"Content-Type", "application/json"}};
 
           ESP_LOGI("forecast", "Fetching forecast for %s", entity.c_str());
-          auto container = id(http_req)->post(url, body, hdrs);
+          id(wf_fetch_in_flight) = id(http_worker)->request(url, body, hdrs,
+              [](const esp32_dash::HttpResponse &r) {
+                id(wf_fetch_in_flight) = false;
+                if (r.status != 200) {
+                  ESP_LOGW("forecast", "HTTP %d %s — keeping cached forecast", r.status, r.error.c_str());
+                  return;
+                }
 
-          if (!container || container->status_code != 200) {
-            int sc = container ? container->status_code : -1;
-            ESP_LOGW("forecast", "HTTP error %d", sc);
-            if (container) container->end();
-            return;
-          }
+                // HA wraps the forecast under service_response.<entity_id>.forecast
+                // when return_response=true. Unwrap two levels before looking for
+                // the "forecast" key, since extract_array_field only matches depth 1.
+                std::string forecast_arr;
+                std::string svc_resp;
+                bool found = false;
+                if (esp32_dash::calendar_json::extract_object_field(r.body, "service_response", svc_resp)) {
+                  size_t inner = 1;
+                  while (inner < svc_resp.size() && svc_resp[inner] != '{') inner++;
+                  if (inner < svc_resp.size()) {
+                    size_t inner_end = 0;
+                    if (esp32_dash::calendar_json::extract_object_span(svc_resp, inner, inner_end)) {
+                      std::string entity_obj(svc_resp, inner, inner_end - inner + 1);
+                      found = esp32_dash::calendar_json::extract_array_field(entity_obj, "forecast", forecast_arr);
+                    }
+                  }
+                }
+                if (!found) {
+                  // Fallback: response already at depth 1 (older HA or different wrapper).
+                  found = esp32_dash::calendar_json::extract_array_field(r.body, "forecast", forecast_arr);
+                }
+                if (!found) {
+                  ESP_LOGW("forecast", "No 'forecast' key in response — clearing display");
+                  id(wf_data_buf) = "";
+                  id(render_forecast).execute();
+                  return;
+                }
 
-          // Read full response body in 4 KB chunks (matching buffer_size_rx),
-          // off the heap rather than the loop task's stack.
-          std::string resp;
-          resp.reserve(container->content_length > 0
-                           ? (size_t) container->content_length + 1
-                           : 8192u);
-          std::vector<uint8_t> chunk(4096);
-          int n;
-          while ((n = container->read(chunk.data(), chunk.size())) > 0)
-            resp.append(reinterpret_cast<char*>(chunk.data()), n);
-          uint32_t http_ms = container->duration_ms;
-          container->end();
-          ESP_LOGI("forecast", "Fetch blocked the loop for %u ms", (unsigned) http_ms);
+                // Parse each day object from the array
+                std::string new_buf;
+                new_buf.reserve(1024);
+                int day_count = 0;
+                for (size_t pos = 0; pos < forecast_arr.size() && day_count < 7; pos++) {
+                  if (forecast_arr[pos] != '{') continue;
 
-          // HA wraps the forecast under service_response.<entity_id>.forecast
-          // when return_response=true. Unwrap two levels before looking for
-          // the "forecast" key, since extract_array_field only matches depth 1.
-          std::string forecast_arr;
-          std::string svc_resp;
-          bool found = false;
-          if (esp32_dash::calendar_json::extract_object_field(resp, "service_response", svc_resp)) {
-            size_t inner = 1;
-            while (inner < svc_resp.size() && svc_resp[inner] != '{') inner++;
-            if (inner < svc_resp.size()) {
-              size_t inner_end = 0;
-              if (esp32_dash::calendar_json::extract_object_span(svc_resp, inner, inner_end)) {
-                std::string entity_obj(svc_resp, inner, inner_end - inner + 1);
-                found = esp32_dash::calendar_json::extract_array_field(entity_obj, "forecast", forecast_arr);
-              }
-            }
-          }
-          if (!found) {
-            // Fallback: response already at depth 1 (older HA or different wrapper).
-            found = esp32_dash::calendar_json::extract_array_field(resp, "forecast", forecast_arr);
-          }
-          if (!found) {
-            ESP_LOGW("forecast", "No 'forecast' key in response — clearing display");
-            id(wf_data_buf) = "";
-            id(render_forecast).execute();
-            return;
-          }
+                  size_t end = 0;
+                  if (!esp32_dash::calendar_json::extract_object_span(forecast_arr, pos, end)) {
+                    break;
+                  }
 
-          // Parse each day object from the array
-          std::string new_buf;
-          new_buf.reserve(1024);
-          int day_count = 0;
-          for (size_t pos = 0; pos < forecast_arr.size() && day_count < 7; pos++) {
-            if (forecast_arr[pos] != '{') continue;
+                  std::string obj(forecast_arr, pos, end - pos + 1);
+                  pos = end;
 
-            size_t end = 0;
-            if (!esp32_dash::calendar_json::extract_object_span(forecast_arr, pos, end)) {
-              break;
-            }
+                  std::string dt;
+                  if (!esp32_dash::calendar_json::extract_string_field(obj, "datetime", dt)) continue;
+                  if (dt.size() < 10) continue;
 
-            std::string obj(forecast_arr, pos, end - pos + 1);
-            pos = end;
+                  // Parse YYYY-MM-DD → day-of-week via mktime
+                  int year     = atoi(dt.c_str());
+                  int month    = atoi(dt.c_str() + 5);
+                  int day_num  = atoi(dt.c_str() + 8);
 
-            std::string dt;
-            if (!esp32_dash::calendar_json::extract_string_field(obj, "datetime", dt)) continue;
-            if (dt.size() < 10) continue;
+                  struct tm tm_d = {};
+                  tm_d.tm_year = year - 1900;
+                  tm_d.tm_mon  = month - 1;
+                  tm_d.tm_mday = day_num;
+                  tm_d.tm_hour = 12;   // midday avoids DST edges shifting the date
+                  tm_d.tm_isdst = -1;  // let mktime resolve DST for this local date
+                  const char *day_names[] = {"SUN","MON","TUE","WED","THU","FRI","SAT"};
+                  const char *day_name = "---";
+                  if (mktime(&tm_d) != (time_t) -1 && tm_d.tm_wday >= 0 && tm_d.tm_wday < 7) {
+                    day_name = day_names[tm_d.tm_wday];
+                  }
 
-            // Parse YYYY-MM-DD → day-of-week via mktime
-            int year     = atoi(dt.c_str());
-            int month    = atoi(dt.c_str() + 5);
-            int day_num  = atoi(dt.c_str() + 8);
+                  // Missing values must stay missing: defaulting templow to 0 would
+                  // drag the chart's y-range down to zero and print a bogus "0°".
+                  float high = 0.0f;
+                  float low = 0.0f;
+                  float precip = 0.0f;
+                  float prob_f = 0.0f;
+                  bool has_high = esp32_dash::calendar_json::extract_number_field(obj, "temperature", high);
+                  bool has_low  = esp32_dash::calendar_json::extract_number_field(obj, "templow", low);
+                  esp32_dash::calendar_json::extract_number_field(obj, "precipitation", precip);
+                  bool has_prob = esp32_dash::calendar_json::extract_number_field(obj, "precipitation_probability", prob_f);
+                  int prob = (int)prob_f;
+                  if (prob < 0) prob = 0;
+                  if (prob > 100) prob = 100;
+                  if (precip < 0.0f) precip = 0.0f;
 
-            struct tm tm_d = {};
-            tm_d.tm_year = year - 1900;
-            tm_d.tm_mon  = month - 1;
-            tm_d.tm_mday = day_num;
-            tm_d.tm_hour = 12;   // midday avoids DST edges shifting the date
-            tm_d.tm_isdst = -1;  // let mktime resolve DST for this local date
-            const char *day_names[] = {"SUN","MON","TUE","WED","THU","FRI","SAT"};
-            const char *day_name = "---";
-            if (mktime(&tm_d) != (time_t) -1 && tm_d.tm_wday >= 0 && tm_d.tm_wday < 7) {
-              day_name = day_names[tm_d.tm_wday];
-            }
+                  std::string cond;
+                  esp32_dash::calendar_json::extract_string_field(obj, "condition", cond);
+                  if (cond.empty()) cond = "cloudy";
+                  for (char &c : cond) {
+                    if (c == '|' || c == '\n' || c == '\r') c = ' ';
+                  }
 
-            // Missing values must stay missing: defaulting templow to 0 would
-            // drag the chart's y-range down to zero and print a bogus "0°".
-            float high = 0.0f;
-            float low = 0.0f;
-            float precip = 0.0f;
-            float prob_f = 0.0f;
-            bool has_high = esp32_dash::calendar_json::extract_number_field(obj, "temperature", high);
-            bool has_low  = esp32_dash::calendar_json::extract_number_field(obj, "templow", low);
-            esp32_dash::calendar_json::extract_number_field(obj, "precipitation", precip);
-            bool has_prob = esp32_dash::calendar_json::extract_number_field(obj, "precipitation_probability", prob_f);
-            int prob = (int)prob_f;
-            if (prob < 0) prob = 0;
-            if (prob > 100) prob = 100;
-            if (precip < 0.0f) precip = 0.0f;
+                  // "DAYNAME|DAYNUM|HIGH|LOW|PRECIP|PROB|COND\n"
+                  // HIGH/LOW are left empty when the integration did not supply them.
+                  char nums[64];
+                  snprintf(nums, sizeof(nums), "|%d|", day_num);
+                  new_buf += day_name;
+                  new_buf += nums;
+                  if (has_high) {
+                    snprintf(nums, sizeof(nums), "%.1f", high);
+                    new_buf += nums;
+                  }
+                  new_buf += '|';
+                  if (has_low) {
+                    snprintf(nums, sizeof(nums), "%.1f", low);
+                    new_buf += nums;
+                  }
+                  // PROB is left empty when the integration does not report it, so the
+                  // view can omit it rather than claim "0%".
+                  snprintf(nums, sizeof(nums), "|%.2f|", precip);
+                  new_buf += nums;
+                  if (has_prob) new_buf += std::to_string(prob);
+                  new_buf += '|';
+                  new_buf += cond;
+                  new_buf += '\n';
+                  day_count++;
+                }
 
-            std::string cond;
-            esp32_dash::calendar_json::extract_string_field(obj, "condition", cond);
-            if (cond.empty()) cond = "cloudy";
-            for (char &c : cond) {
-              if (c == '|' || c == '\n' || c == '\r') c = ' ';
-            }
-
-            // "DAYNAME|DAYNUM|HIGH|LOW|PRECIP|PROB|COND\n"
-            // HIGH/LOW are left empty when the integration did not supply them.
-            char nums[64];
-            snprintf(nums, sizeof(nums), "|%d|", day_num);
-            new_buf += day_name;
-            new_buf += nums;
-            if (has_high) {
-              snprintf(nums, sizeof(nums), "%.1f", high);
-              new_buf += nums;
-            }
-            new_buf += '|';
-            if (has_low) {
-              snprintf(nums, sizeof(nums), "%.1f", low);
-              new_buf += nums;
-            }
-            // PROB is left empty when the integration does not report it, so the
-            // view can omit it rather than claim "0%".
-            snprintf(nums, sizeof(nums), "|%.2f|", precip);
-            new_buf += nums;
-            if (has_prob) new_buf += std::to_string(prob);
-            new_buf += '|';
-            new_buf += cond;
-            new_buf += '\n';
-            day_count++;
-          }
-
-          ESP_LOGI("forecast", "Parsed %d days", day_count);
-          id(wf_data_buf) = new_buf;
-          if (day_count > 0) id(wf_last_fetch_ms) = millis();
-          id(render_forecast).execute();
-      # Today's high/low on the idle weather card comes from the same data.
-      - script.execute: update_idle_hilo
-
+                ESP_LOGI("forecast", "Parsed %d days", day_count);
+                id(wf_data_buf) = new_buf;
+                if (day_count > 0) id(wf_last_fetch_ms) = millis();
+                id(render_forecast).execute();
+                // Today's high/low on the idle weather card comes from the same data.
+                id(update_idle_hilo).execute();
+              });
 
 interval:
-  # Background refresh. The idle page shows today's high/low from this data,
-  # so it runs on every view except music — same rule as the calendar fetch:
-  # nothing on the music page uses it, and the fetch blocks the loop.
+  # Background refresh, on every view (the idle page shows today's high/low
+  # from this data). The fetch runs on the http_worker task, so it costs the
+  # main loop nothing.
   - interval: 30min
     then:
-      - if:
-          condition:
-            lambda: 'return id(current_view) != 1;'
-          then:
-            - script.execute: fetch_forecast
+      - script.execute: fetch_forecast
 
 
 # Seed the cache on (re)connect so the idle high/low appears without first

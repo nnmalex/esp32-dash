@@ -15,10 +15,21 @@
 #
 # Data is fetched via HA REST API by fetch_calendar_data (calendar_sensors.yaml)
 # and stored in cal_events_buf as pipe-delimited lines:
-#   CAL_IDX|TITLE|START_ISO|END_ISO|ALLDAY\n
+#   CAL_IDX|TITLE|START_ISO|END_ISO|ALLDAY|LOCATION|DESCRIPTION\n
+# Tapping an event block, an all-day chip or an idle agenda item opens the
+# details card (show_event_details below).
 # =============================================================================
 
 globals:
+  # Buffer line behind each week-grid event block / all-day chip, for the
+  # details card (see agenda_slot_line in calendar_sensors.yaml).
+  - id: cal_ev_line
+    type: std::array<std::string, 30>
+    initial_value: 'std::array<std::string, 30>{}'
+  - id: cal_ad_line
+    type: std::array<std::string, 5>
+    initial_value: 'std::array<std::string, 5>{}'
+
   - id: cal_view_offset   # day offset: -1=yesterday first, 0=today first, +1/+2
     type: int
     initial_value: '0'
@@ -164,6 +175,7 @@ script:
             int  end_min;
             bool cont;   // continues from the previous day: no start time to show
             bool past;
+            int  line;   // index into lines: its buffer line, for the details card
           };
           EvData col_events[5][6];
           int  col_ev_count[5] = {0, 0, 0, 0, 0};
@@ -171,8 +183,11 @@ script:
           int  ad_count[5]     = {0, 0, 0, 0, 0};
           char ad_title[5][64];
           uint32_t ad_color[5];
+          int  ad_line[5]      = {-1, -1, -1, -1, -1};
+          std::vector<std::string> lines;   // every parsed line, referenced by index
 
-          // Parse cal_events_buf line by line: CAL_IDX|TITLE|START_ISO|END_ISO|ALLDAY
+          // Parse cal_events_buf line by line:
+          //   CAL_IDX|TITLE|START_ISO|END_ISO|ALLDAY|LOCATION|DESCRIPTION
           const std::string &buf = id(cal_events_buf);
           size_t pos = 0;
 
@@ -182,6 +197,8 @@ script:
             std::string line = buf.substr(pos, nl - pos);
             pos = nl + 1;
             if (line.empty()) continue;
+            const int line_idx = static_cast<int>(lines.size());
+            lines.push_back(line);
 
             // Split on '|'
             auto fi = [&](size_t from) -> size_t { return line.find('|', from); };
@@ -198,7 +215,7 @@ script:
             std::string title     = line.substr(p0 + 1, p1 - p0 - 1);
             std::string start_iso = line.substr(p1 + 1, p2 - p1 - 1);
             std::string end_iso   = line.substr(p2 + 1, p3 - p2 - 1);
-            int is_allday = atoi(line.substr(p3 + 1).c_str());
+            int is_allday = atoi(line.substr(p3 + 1).c_str());  // atoi stops at the next '|'
 
             if (start_iso.length() < 10) continue;
             if (start_iso.length() >= 11 && start_iso[10] == 'T') start_iso[10] = ' ';
@@ -215,6 +232,7 @@ script:
                 if (ad_count[d]++ == 0) {
                   snprintf(ad_title[d], sizeof(ad_title[d]), "%s", title.c_str());
                   ad_color[d] = color;
+                  ad_line[d] = line_idx;
                 }
               }
               continue;
@@ -247,6 +265,7 @@ script:
               e.end_min   = end_min;
               e.cont      = sc < 0;
               e.past      = past;
+              e.line      = line_idx;
               col_ev_count[d]++;
             }
           }
@@ -281,6 +300,7 @@ script:
                 : std::string(more) + " more";
             lv_label_set_text(ad[d], text.c_str());
             lv_obj_set_style_bg_color(ad[d], lv_color_hex(ad_count[d] ? ad_color[d] : 0x3A3A3AU), 0);
+            id(cal_ad_line)[d] = ad_line[d] >= 0 ? lines[ad_line[d]] : std::string();
             lv_obj_clear_flag(ad[d], LV_OBJ_FLAG_HIDDEN);
           }
 
@@ -342,6 +362,7 @@ script:
               else
                 snprintf(text, sizeof(text), "%02d:%02d %s", e.start_min / 60, e.start_min % 60, e.title);
               lv_label_set_text(ev_ttl[idx], text);
+              id(cal_ev_line)[idx] = lines[e.line];
               lv_label_set_long_mode(ev_ttl[idx], LV_LABEL_LONG_WRAP);
               lv_obj_set_size(ev_ttl[idx], sub_w - 8, std::max(height - 4, 14));
               lv_obj_clear_flag(ev[idx], LV_OBJ_FLAG_HIDDEN);
@@ -349,6 +370,60 @@ script:
           }
 
       - script.execute: position_cal_now_line
+
+  # ---------------------------------------------------------------------------
+  # show_event_details
+  # Full-screen card for one event: title, when, calendar, location and
+  # description. Opened by tapping a week-grid block, an all-day chip or an idle
+  # agenda item (hooked up in lvgl on_boot below) with that widget's buffer
+  # line. Closes on tap, or after a minute.
+  # ---------------------------------------------------------------------------
+  - id: show_event_details
+    parameters:
+      line: std::string
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: |-
+              namespace cj = esp32_dash::calendar_json;
+              cj::EventLine e;
+              if (line.empty() || !cj::parse_event_line(line, e)) return false;
+
+              const uint32_t CAL_COLORS[3] = {0x4A90E2U, 0x5BA55AU, 0xE2914AU};
+              uint32_t color = (e.cal_idx >= 0 && e.cal_idx < 3) ? CAL_COLORS[e.cal_idx] : 0x888888U;
+              lv_obj_set_style_border_color(id(ev_detail_card), lv_color_hex(color), 0);
+              lv_obj_set_style_text_color(id(ev_detail_when), lv_color_hex(color), 0);
+
+              lv_label_set_text(id(ev_detail_title), e.title.c_str());
+              lv_label_set_text(id(ev_detail_when), cj::format_event_when(e).c_str());
+
+              // Calendar name from its entity id: "calendar.family_shared" -> "Family shared".
+              esphome::text::Text *sel[3] = {
+                id(calendar_entity_select_0), id(calendar_entity_select_1), id(calendar_entity_select_2)
+              };
+              std::string cal = (e.cal_idx >= 0 && e.cal_idx < 3) ? sel[e.cal_idx]->state : std::string();
+              if (cal.rfind("calendar.", 0) == 0) cal = cal.substr(9);
+              for (char &c : cal) if (c == '_') c = ' ';
+              if (!cal.empty()) cal[0] = toupper((unsigned char) cal[0]);
+              lv_label_set_text(id(ev_detail_cal), cal.c_str());
+
+              auto row = [](lv_obj_t *row_obj, lv_obj_t *label, const std::string &text) {
+                lv_label_set_text(label, text.c_str());
+                if (text.empty()) lv_obj_add_flag(row_obj, LV_OBJ_FLAG_HIDDEN);
+                else lv_obj_clear_flag(row_obj, LV_OBJ_FLAG_HIDDEN);
+              };
+              row(id(ev_detail_cal_row), id(ev_detail_cal), cal);
+              row(id(ev_detail_loc_row), id(ev_detail_loc), e.location);
+              row(id(ev_detail_desc_row), id(ev_detail_desc), e.description);
+
+              lv_obj_move_foreground(id(ev_detail_overlay));
+              lv_obj_clear_flag(id(ev_detail_overlay), LV_OBJ_FLAG_HIDDEN);
+              return true;
+          then:
+            - script.execute: backlight_wake_timeout
+            - delay: 60s
+            - lvgl.widget.hide: ev_detail_overlay
 
   # ---------------------------------------------------------------------------
   # position_cal_now_line
@@ -432,6 +507,46 @@ lvgl:
             lv_draw_label(layer, &lbl, &txt);
           }
         }, LV_EVENT_DRAW_MAIN_END, nullptr);
+
+    # Taps on event widgets open the details card; user_data is the slot index.
+    # The details overlay itself moves to lv_layer_top() so it covers the nav bar.
+    - lambda: |-
+        lv_obj_set_parent(id(ev_detail_overlay), lv_layer_top());
+
+        lv_obj_t *blocks[30] = {
+          id(cal_ev_00),id(cal_ev_01),id(cal_ev_02),id(cal_ev_03),id(cal_ev_04),id(cal_ev_05),
+          id(cal_ev_06),id(cal_ev_07),id(cal_ev_08),id(cal_ev_09),id(cal_ev_10),id(cal_ev_11),
+          id(cal_ev_12),id(cal_ev_13),id(cal_ev_14),id(cal_ev_15),id(cal_ev_16),id(cal_ev_17),
+          id(cal_ev_18),id(cal_ev_19),id(cal_ev_20),id(cal_ev_21),id(cal_ev_22),id(cal_ev_23),
+          id(cal_ev_24),id(cal_ev_25),id(cal_ev_26),id(cal_ev_27),id(cal_ev_28),id(cal_ev_29)
+        };
+        for (int i = 0; i < 30; i++)
+          lv_obj_add_event_cb(blocks[i], [](lv_event_t *e) {
+            int i = (int) (intptr_t) lv_event_get_user_data(e);
+            id(show_event_details).execute(id(cal_ev_line)[i]);
+          }, LV_EVENT_CLICKED, (void *) (intptr_t) i);
+
+        lv_obj_t *chips[5] = { id(cal_ad_0), id(cal_ad_1), id(cal_ad_2), id(cal_ad_3), id(cal_ad_4) };
+        for (int i = 0; i < 5; i++) {
+          lv_obj_add_flag(chips[i], LV_OBJ_FLAG_CLICKABLE);  // labels are not by default
+          lv_obj_add_event_cb(chips[i], [](lv_event_t *e) {
+            int i = (int) (intptr_t) lv_event_get_user_data(e);
+            id(show_event_details).execute(id(cal_ad_line)[i]);
+          }, LV_EVENT_CLICKED, (void *) (intptr_t) i);
+        }
+
+        lv_obj_t *slots[5] = { id(idle_agenda_slot_0), id(idle_agenda_slot_1), id(idle_agenda_slot_2),
+                               id(idle_agenda_slot_3), id(idle_agenda_slot_4) };
+        lv_obj_t *accents[5] = { id(idle_agenda_accent_0), id(idle_agenda_accent_1), id(idle_agenda_accent_2),
+                                 id(idle_agenda_accent_3), id(idle_agenda_accent_4) };
+        for (int i = 0; i < 5; i++) {
+          // The accent bar is an obj (clickable by default) and would swallow taps on it.
+          lv_obj_remove_flag(accents[i], LV_OBJ_FLAG_CLICKABLE);
+          lv_obj_add_event_cb(slots[i], [](lv_event_t *e) {
+            int i = (int) (intptr_t) lv_event_get_user_data(e);
+            id(show_event_details).execute(id(agenda_slot_line)[i]);
+          }, LV_EVENT_CLICKED, (void *) (intptr_t) i);
+        }
 
   pages:
     - id: calendar_page
@@ -1546,3 +1661,142 @@ lvgl:
             text_color: 0x555555
             text_align: center
             hidden: true
+
+        # ---------------------------------------------------------------
+        # Event details card — reparented to lv_layer_top() on boot and
+        # filled by show_event_details. Tap anywhere to close.
+        # ---------------------------------------------------------------
+        - obj:
+            id: ev_detail_overlay
+            x: 0
+            y: 0
+            width: 1280
+            height: 800
+            bg_color: 0x000000
+            bg_opa: 70%
+            border_width: 0
+            radius: 0
+            pad_all: 0
+            scrollable: false
+            hidden: true
+            on_click:
+              - script.stop: show_event_details
+              - lvgl.widget.hide: ev_detail_overlay
+            widgets:
+              - obj:
+                  id: ev_detail_card
+                  align: CENTER
+                  width: 760
+                  height: SIZE_CONTENT
+                  bg_color: 0x1E1E1E
+                  bg_opa: 100%
+                  border_width: 6       # calendar-coloured bar on the left edge
+                  border_side: LEFT
+                  border_color: 0x4A90E2
+                  radius: 16
+                  pad_left: 40
+                  pad_right: 40
+                  pad_top: 32
+                  pad_bottom: 32
+                  scrollable: false
+                  clickable: false
+                  layout:
+                    type: flex
+                    flex_flow: COLUMN
+                    pad_row: 14
+                  widgets:
+                    - label:
+                        id: ev_detail_title
+                        width: 100%
+                        text: ""
+                        text_font: roboto_light40_font
+                        text_color: 0xFFFFFF
+                        long_mode: wrap
+                    - label:
+                        id: ev_detail_when
+                        width: 100%
+                        text: ""
+                        text_font: roboto_light30_font
+                        text_color: 0x4A90E2
+                    # Icon + text rows, hidden when empty
+                    - obj:
+                        id: ev_detail_cal_row
+                        width: 100%
+                        height: SIZE_CONTENT
+                        bg_opa: 0%
+                        border_width: 0
+                        pad_all: 0
+                        pad_top: 6
+                        scrollable: false
+                        clickable: false
+                        layout:
+                          type: flex
+                          flex_flow: ROW
+                          flex_align_cross: START
+                          pad_column: 14
+                        widgets:
+                          - label:
+                              text: "\U000F0B67"
+                              text_font: icon_font
+                              text_color: 0x777777
+                          - label:
+                              id: ev_detail_cal
+                              flex_grow: 1
+                              text: ""
+                              text_font: roboto_light26_font
+                              text_color: 0xBBBBBB
+                              pad_top: 6
+                    - obj:
+                        id: ev_detail_loc_row
+                        width: 100%
+                        height: SIZE_CONTENT
+                        bg_opa: 0%
+                        border_width: 0
+                        pad_all: 0
+                        scrollable: false
+                        clickable: false
+                        layout:
+                          type: flex
+                          flex_flow: ROW
+                          flex_align_cross: START
+                          pad_column: 14
+                        widgets:
+                          - label:
+                              text: "\U000F07D9"
+                              text_font: icon_font
+                              text_color: 0x777777
+                          - label:
+                              id: ev_detail_loc
+                              flex_grow: 1
+                              text: ""
+                              text_font: roboto_light26_font
+                              text_color: 0xBBBBBB
+                              long_mode: wrap
+                              pad_top: 6
+                    - obj:
+                        id: ev_detail_desc_row
+                        width: 100%
+                        height: SIZE_CONTENT
+                        bg_opa: 0%
+                        border_width: 0
+                        pad_all: 0
+                        scrollable: false
+                        clickable: false
+                        layout:
+                          type: flex
+                          flex_flow: ROW
+                          flex_align_cross: START
+                          pad_column: 14
+                        widgets:
+                          - label:
+                              text: "\U000F09A8"
+                              text_font: icon_font
+                              text_color: 0x777777
+                          - label:
+                              id: ev_detail_desc
+                              flex_grow: 1
+                              text: ""
+                              text_font: roboto_light26_font
+                              text_color: 0x999999
+                              long_mode: wrap
+                              pad_top: 6

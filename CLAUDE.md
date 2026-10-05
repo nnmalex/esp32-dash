@@ -45,9 +45,12 @@ guition-esp32-p4-jc8012p4a1/
   theme/
     button.yaml         # LVGL style definitions
 components/
-  online_image/         # custom C++ component: downloads & decodes album art
-  calendar_json/        # header-only JSON parser + date helpers (calendar, forecast);
-                        # weather_icons.h: condition → MDI glyph map
+  online_image/         # custom C++ component: downloads & decodes album art / weather bg.
+                        # JPEG: P4 hardware decoder, libjpeg-turbo fallback; one shared
+                        # bilinear resampler (ImageDecoder::resample) for JPEG and PNG
+  calendar_json/        # shared C++ for calendar + forecast: JSON parser, event-line and
+                        # date helpers (calendar_json.h), weather_icons.h, and
+                        # http_worker.* (background HTTP, see "Background HTTP")
   gsl3680/              # vendored touch driver (see its README.md)
   libjpeg-turbo-esp32/  # JPEG decode library (CMake IDF component)
 builds/
@@ -121,8 +124,13 @@ Four LVGL pages defined across two files (`device/lvgl.yaml` + `device/navbar.ya
 
 - **`music_page`** (1280×800) — existing media player UI
   - Left 800px: album art panel (`album_art_background_widget`). `online_image`
-    decodes art straight to the 740×740 box (`resize: 740x740`, bilinear resample
-    in `jpeg_image.cpp`) and the widget draws it 1:1, centred. Do not reintroduce
+    decodes art straight to the 740×740 box (`resize: 740x740`) and the widget
+    draws it 1:1, centred. Baseline JPEGs decode on the P4's hardware JPEG codec
+    (`decode_hw_`, RGB565 little-endian, MCU-padded stride); progressive or
+    greyscale JPEGs, sources over 2048², or any driver error fall back to
+    libjpeg-turbo. Both, and PNGs up to 1600² (buffered as RGB888, resampled in
+    pngle's done callback), go through `ImageDecoder::resample` (bilinear,
+    streamed, handles `fit: cover` crops). Do not reintroduce
     an LVGL zoom/scale on it: a transformed image is re-rendered on every redraw,
     and the progress bar over it redraws every second
   - Right 480px: track info (title, artist, time, play/pause button)
@@ -138,7 +146,8 @@ Four LVGL pages defined across two files (`device/lvgl.yaml` + `device/navbar.ya
   - Header (y=0..60): 5 day-column labels (day name + date, month on the first column and on the 1st), highlighted today, chevron prev/next nav (offset -1..+2). Entering the view resets to today and scrolls the current time ~1/3 down (`scroll_calendar_to_now`); paging keeps the scroll position
   - All-day strip (y=60..84): one chip per column; multi-day all-day events appear in every column they cover; "+N" when a column has more than fits (extra all-day events or more than 6 timed)
   - Time grid (y=84..740, scrollable 656px): 44px/hour; 30 pre-allocated event blocks (6 per column) labelled with their start time, dimmed once ended, split at midnight when they span days; current-time red indicator. Hour lines/labels and column separators are painted by an `LV_EVENT_DRAW_MAIN_END` callback on `cal_grid_scroll` (registered in `lvgl: on_boot`), with one invisible spacer holding the 24 h scroll extent
-  - Data: fetched via HA REST API (`GET /api/calendars/<entity>?start=...&end=...`) by `fetch_calendar_data`, which loops over the 3 calendar slots in one script and fills the shared `cal_events_buf`; requires the `ha_token` substitution to be set
+  - Data: `fetch_calendar_data` (see "Background HTTP") fills the shared `cal_events_buf`, one line per event: `CAL_IDX|TITLE|START|END|ALLDAY|LOCATION|DESCRIPTION` (all-day END is the exclusive date; location/description capped at 120/320 bytes, UTF-8-safe). Parse lines with `calendar_json::parse_event_line`, not ad-hoc splitting — fields were appended after ALLDAY. Requires the `ha_token` substitution
+  - Event details: tapping a grid block, an all-day chip or an idle agenda item runs `show_event_details` with that widget's buffer line (`cal_ev_line` / `cal_ad_line` / `agenda_slot_line`, recorded at render time; taps hooked up in `calendar_view.yaml`'s `lvgl: on_boot`). The card (`ev_detail_overlay`, on `lv_layer_top()`) shows title, `format_event_when()` ("Mon 6 – Wed 8 Oct · All day"), calendar, location, description; tap or 60 s to close
   - Day boundaries use `esp32_dash::calendar_json::local_day/local_date` (mktime-based), never `timestamp + n*86400`, which is an hour off across DST
 - **`forecast_page`** — (Phase 5 complete) 7-day weather forecast
   - 7 columns (183 px wide each); column centres at 91+i×183
@@ -153,7 +162,7 @@ Four LVGL pages defined across two files (`device/lvgl.yaml` + `device/navbar.ya
 
 Navigation bar (`nav_bar`) defined in `device/navbar.yaml`, reparented to `lv_layer_top()` on boot so it floats above all pages. 60px bar at y=740, visible on all four views (every `show_*_view` script reveals it; it starts hidden only so it does not flash during boot/setup), four icon buttons: Home, Music, Calendar, Forecast. `update_nav_highlight` (run by every `show_*_view`) brightens the current view's icon and shows its accent mark (`nav_*_mark`); the others are dimmed. `layout_nav_bar` narrows the buttons to 4×200px in the left 800px while `timer_bar` is visible, and restores 4×320px otherwise.
 
-Timer overlay (`timer_bar`) defined in `device/timer_overlay.yaml`, reparented into `nav_bar` on boot and occupying its right 480px (x=800). It sits inside the nav bar rather than floating above it so it never covers page content; it is hidden when no timers are active. Shows soonest-expiring active timer name + MM:SS countdown + "+N" badge. Tapping dismisses until next HA `remaining` update. Subscribes to up to 3 `timer.*` entities (compile-time substitutions `timer_entity_1..3` or runtime via HA device settings). Remaining time is computed from the `finishes_at` attribute against the clock (`tmr_finishes_0..2`), so blocking HTTP fetches and reconnects do not make it drift; a local 1 s decrement is only the fallback before time sync. Time label turns red when < 60 s remaining. A paused timer is shown (greyed, "· Paused") when none is running. When a timer goes active → idle within a few seconds of its `finishes_at`, `show_timer_done` raises `tmr_done_overlay` (full-screen card on `lv_layer_top()`, wakes the backlight, tap or 10 min to dismiss); a cancel, or a reconnect long after it ended, does not.
+Timer overlay (`timer_bar`) defined in `device/timer_overlay.yaml`, reparented into `nav_bar` on boot and occupying its right 480px (x=800). It sits inside the nav bar rather than floating above it so it never covers page content; it is hidden when no timers are active. Shows soonest-expiring active timer name + MM:SS countdown + "+N" badge. Tapping dismisses until next HA `remaining` update. Subscribes to up to 3 `timer.*` entities (compile-time substitutions `timer_entity_1..3` or runtime via HA device settings). Remaining time is computed from the `finishes_at` attribute against the clock (`tmr_finishes_0..2`), so a stalled main loop or a reconnect does not make it drift; a local 1 s decrement is only the fallback before time sync. Time label turns red when < 60 s remaining. A paused timer is shown (greyed, "· Paused") when none is running. When a timer goes active → idle within a few seconds of its `finishes_at`, `show_timer_done` raises `tmr_done_overlay` (full-screen card on `lv_layer_top()`, wakes the backlight, tap or 10 min to dismiss); a cancel, or a reconnect long after it ended, does not.
 
 Global state flags in `device/device.yaml`:
 - `actions_prompt_acked` — user dismissed the "enable actions" prompt (NVS-backed)
@@ -272,71 +281,48 @@ from a clean checkout. CI skips its validation step while the file is absent (wi
 a warning) and starts enforcing it once the blob is committed. Either commit the
 blob or drop the `update:` block.
 
-## Known constraint: synchronous HTTP
+## Background HTTP: calendar and forecast fetches
 
-ESPHome's `http_request` is blocking — `->get()` / `->post()` and the response
-drain all run inline on the main loop, stalling LVGL for the duration. This
-affects `fetch_calendar_data` (1 request) and `fetch_forecast` (1). It cannot be
-made async without a custom component, so the code minimises how often it
-happens, and how long each one takes:
+ESPHome's `http_request` is synchronous — `->get()` / `->post()` and the body
+drain run inline on the main loop and stall LVGL and touch for the whole
+request, which for a calendar fetch can be seconds while HA waits on the
+upstream provider. So the calendar and forecast fetches do **not** use it.
+They go through `esp32_dash::HttpWorker` (`components/calendar_json/http_worker.*`,
+enabled by `calendar_json: fetcher: id: http_worker` in `device/device.yaml`):
 
-- **One request per calendar cycle.** `fetch_calendar_data` POSTs to
-  `/api/services/calendar/get_events?return_response=true` with every configured
-  entity in one `entity_id` list, so HA resolves all three server-side. Requires
-  HA ≥ 2024.2. HA rejects the whole call if any one entity id is unknown, so a
-  failed batch falls back to the old per-entity `GET /api/calendars/<entity>`
-  loop, where a bad entity only costs its own slot.
-- One fetch feeds both the week grid and the idle agenda, on a single 15-minute
-  interval, **skipped while `current_view == 1`** (music) — neither consumer is
-  on screen there. `show_idle_view` calls `maybe_fetch_calendar`, which catches
-  up whatever went stale.
-- The fetch window is fixed at day −1..+7, so calendar prev/next navigation
-  re-renders from cache and never refetches.
-- The forecast follows the same rule: 30-minute interval skipped on the music
-  view, plus `maybe_fetch_forecast` on API connect, because the idle page shows
-  today's high/low from `wf_data_buf` (`update_idle_hilo`).
-- **Interactive callers go through `maybe_fetch_calendar` /
-  `maybe_fetch_forecast`** (`calendar_sensors.yaml`, `forecast_sensors.yaml`),
-  never `fetch_*` directly. Those wrappers `delay: 300ms` so the stall lands
-  after the page transition has drawn, check staleness (5 min calendar, 15 min
-  forecast) before fetching at all, and are `mode: restart` so a flurry of
-  navbar taps coalesces into one fetch.
-- `buffer_size_rx: 4096` on `http_request` (default is 512), with matching 4 KB
-  read chunks off the heap. Every `read()` constructs a `WatchdogManager`, i.e. a
-  task-WDT reconfigure, so this cuts the per-response overhead ~8×. Response
-  strings are reserved from `content_length` where available.
-- `timeout` is deliberately left at the 4.5 s default: it applies per socket
-  operation, and most of a calendar fetch is HA waiting on the upstream provider
-  before sending headers, so lowering it would fail slow-but-valid fetches. Both
-  fetch scripts log `container->duration_ms` ("blocked the loop for N ms") so
-  this can be revisited with real numbers.
+- `id(http_worker)->request(url, body, headers, callback)` queues a GET (empty
+  body) or POST. A dedicated FreeRTOS task runs it with `esp_http_client`; the
+  finished job comes back through a queue that `HttpWorker::loop()` drains, so
+  **callbacks run on the main loop** and may touch LVGL, globals and scripts.
+  The worker task touches nothing but its job and the IDF client — keep it that
+  way (no `id()`, no LVGL, no logging from `run_()`).
+- TLS follows `http_request`'s `verify_ssl`, which also sets the shared sdkconfig
+  (certificate bundle / insecure mode), so keep the two `verify_ssl` values in
+  step (both use `${ha_verify_ssl}`). `online_image` still uses `http_request`;
+  it downloads in chunks across loop iterations and was never the problem.
+- It lives in `calendar_json` rather than its own component because that
+  component already ships from `main`: a brand-new component would fail CI and
+  end-user builds until merged (see `addon/music.yaml`'s note on refs).
+- `fetch_calendar_data`: one batched
+  `POST /api/services/calendar/get_events?return_response=true` for every
+  configured calendar (HA ≥ 2024.2). If HA rejects the batch (one unknown entity
+  fails the whole call) it falls back to one `GET /api/calendars/<entity>` per
+  calendar, all in flight at once, merged when the last answers. The cache is
+  only replaced when something succeeded. `cal_fetch_in_flight` drops overlapping
+  calls. Window is day −1..+7, so calendar paging never refetches.
+- `fetch_forecast`: one `POST /api/services/weather/get_forecasts`; parsing and
+  rendering run in the callback. `wf_fetch_in_flight` guards overlap.
+- Both refresh on every view (15 min calendar, 30 min forecast) and on API
+  connect; interactive callers go through `maybe_fetch_calendar` /
+  `maybe_fetch_forecast`, which skip the request while the cache is fresh
+  (5 / 15 min).
 
-Keep new callers on the same principle: render from cache first, fetch only when
-the data is actually stale, and never fetch synchronously from a touch handler.
+### Alternative not taken: HA push
 
-### Future enhancement: replace REST polling with HA push
-
-The blocking fetches disappear entirely if HA pushes the data instead of the
-device pulling it. Sketch, not implemented:
-
-- HA-side template sensor holds the payload in an **attribute** (not the state —
-  state values are capped at 255 chars, attributes are not), rendered in the same
-  pipe-delimited format `cal_events_buf` / `wf_data_buf` already use.
-- Device subscribes with `subscribe_home_assistant_state` over the already-open,
-  non-blocking native API socket — the same mechanism `calendar_sensors.yaml`
-  and `weather_sensors.yaml` use for entity attributes today.
-- That removes `http_request`, the `ha_token` substitution, the JSON parsing, and
-  every main-loop stall; the device only renders. `calendar_json.h` stays for
-  the fallback path.
-- Cost is a config burden: users must add the template sensors to their HA
-  config. So it belongs as a *preferred* path with the REST fetch kept as the
-  fallback when the template sensor is absent, not as a straight replacement.
-
-The other option considered was a custom component with a FreeRTOS worker task
-doing the HTTP off the loop task and handing results back via `defer()`. It keeps
-the zero-config story but costs ~250 lines of C++ and careful thread discipline
-(no LVGL or global access from the worker). Push is the cheaper win if the HA-side
-setup is acceptable.
+HA could push the same payloads via template-sensor attributes over the native
+API instead of the device polling. It was rejected in favour of the worker
+because it needs extra HA configuration from every user; the worker keeps the
+zero-config `ha_token` setup.
 
 ## Gotchas
 

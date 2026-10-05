@@ -63,6 +63,9 @@ font:
       - "\U000F0141"  # mdi-chevron-left (calendar prev)
       - "\U000F0142"  # mdi-chevron-right (calendar next)
       - "\U000F046D"  # mdi-ruler (distance device_class)
+      - "\U000F0B67"  # mdi-calendar-outline (event details: calendar)
+      - "\U000F07D9"  # mdi-map-marker-outline (event details: location)
+      - "\U000F09A8"  # mdi-text (event details: description)
   - file: 'https://github.com/Templarian/MaterialDesign-Webfont/raw/v7.4.47/fonts/materialdesignicons-webfont.ttf'
     id: icon_font_large
     size: 50
