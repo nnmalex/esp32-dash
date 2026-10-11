@@ -183,8 +183,8 @@ lvgl:
         # Each tile is shown/hidden by subscribe_idle_sensor_N in weather_sensors.yaml.
         # Left column (x=0, w=390): tiles 0-4. Right column (x=400, w=390): tiles 5-9.
         # Tile height=80, spacing=100: y slots 240,340,440,540,640 per column. The
-        # y values below are only the initial layout — pack_idle_tiles restacks
-        # the visible tiles of each column from the top so hidden ones leave no gap.
+        # y values below are fixed per slot — pack_idle_tiles re-pins them, so a
+        # hidden tile leaves an empty slot rather than collapsing the ones below.
 
         # ---- Left column: tiles 0-4 (x=0, w=390) ----
 

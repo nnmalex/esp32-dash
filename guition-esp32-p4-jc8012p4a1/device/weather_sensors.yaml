@@ -1092,9 +1092,9 @@ script:
           t_state[slot]->publish_state(out);
 
   # ---------------------------------------------------------------------------
-  # pack_idle_tiles: stacks the visible tiles of each column from the top, so an
-  # unconfigured slot does not leave a gap. Called whenever a tile is shown or
-  # hidden.
+  # pack_idle_tiles: pins every tile to its fixed grid row (slot % 5), so an
+  # unconfigured slot stays a deliberate gap instead of collapsing the tiles
+  # below it. Called whenever a tile is shown or hidden.
   # ---------------------------------------------------------------------------
   - id: pack_idle_tiles
     mode: single
@@ -1104,12 +1104,8 @@ script:
                                   id(idle_sensor_tile_3), id(idle_sensor_tile_4), id(idle_sensor_tile_5),
                                   id(idle_sensor_tile_6), id(idle_sensor_tile_7), id(idle_sensor_tile_8),
                                   id(idle_sensor_tile_9) };
-          for (int col = 0; col < 2; col++) {
-            int row = 0;
-            for (int i = col * 5; i < col * 5 + 5; i++) {
-              if (lv_obj_has_flag(tiles[i], LV_OBJ_FLAG_HIDDEN)) continue;
-              lv_obj_set_y(tiles[i], 240 + row++ * 100);
-            }
+          for (int i = 0; i < 10; i++) {
+            lv_obj_set_y(tiles[i], 240 + (i % 5) * 100);
           }
 
   # ---------------------------------------------------------------------------
