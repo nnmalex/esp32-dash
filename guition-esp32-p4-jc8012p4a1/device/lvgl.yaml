@@ -178,13 +178,13 @@ lvgl:
                     flex_align_main: CENTER
                     flex_align_cross: CENTER
                     flex_align_track: CENTER
-                    pad_column: 64
+                    pad_column: 48
                   widgets:
                     - button:
                         id: media_prev_button
-                        width: 96px
-                        height: 96px
-                        radius: 48
+                        width: 72px
+                        height: 72px
+                        radius: 36
                         styles: control_round
                         widgets:
                           - label:
@@ -203,9 +203,9 @@ lvgl:
 
                     - button:
                         id: media_play_pause_button
-                        width: 96px
-                        height: 96px
-                        radius: 48
+                        width: 72px
+                        height: 72px
+                        radius: 36
                         styles: control_round
                         widgets:
                           - label:
