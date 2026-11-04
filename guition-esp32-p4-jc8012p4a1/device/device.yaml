@@ -29,6 +29,13 @@ esp32:
 
 
 esphome:
+  # Record failed heap allocations from as early as possible, so an
+  # out-of-memory abort shows what was being allocated in the next boot's log
+  # (components/calendar_json/alloc_diag.h; reported on API connect below).
+  on_boot:
+    - priority: 1000
+      then:
+        - lambda: 'esp32_dash::alloc_diag::install();'
   name: ${name}
   friendly_name: ${friendly_name}
   # 2026.7.0 is the floor: `image:` entries use `platform: file`, which does not
@@ -101,6 +108,9 @@ api:
         }
     - lvgl.widget.hide: ha_setup_prompt
     - script.execute: subscribe_media_player
+    # Any API client, including the ESPHome dashboard's log viewer, which then
+    # shows it next to ESPHome's own crash report.
+    - lambda: 'esp32_dash::alloc_diag::log_report();'
   on_client_disconnected:
     - lvgl.widget.hide: setup_prompt
     - if:

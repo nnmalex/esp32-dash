@@ -145,6 +145,9 @@ async def to_code(config):
     cg.add_global(
         cg.RawStatement('#include "esphome/components/calendar_json/http_worker.h"')
     )
+    cg.add_global(
+        cg.RawStatement('#include "esphome/components/calendar_json/alloc_diag.h"')
+    )
 
     if fetcher := config.get(CONF_FETCHER):
         var = cg.new_Pvariable(fetcher[CONF_ID])

@@ -24,8 +24,8 @@ globals:
 
 esphome:
   on_boot:
-    priority: -100
-    then:
+    - priority: -100
+      then:
       - lambda: |-
           // Build ha_base_url from compile-time substitutions.
           // on_client_connected overwrites this with the live client IP for
