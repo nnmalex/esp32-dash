@@ -169,7 +169,9 @@ class SettingsPage : public esphome::Component, public AsyncWebHandler {
   std::string validate_(const Field &field, std::string &value) const;
 
   // main loop
-  std::string build_state_json_() const;
+  /// Built in PSRAM: with ~80 fields it is 20 KB+, and internal RAM is scarce
+  /// (see CLAUDE.md, "Large buffers must go to PSRAM explicitly").
+  std::shared_ptr<const PsramString> build_state_json_() const;
   void apply_(const Field &field, const std::string &value);
   void start_entity_fetch_();
   void set_entities_error_(const std::string &msg);
@@ -187,7 +189,7 @@ class SettingsPage : public esphome::Component, public AsyncWebHandler {
   // State snapshot: the httpd task asks, loop() builds it and signals.
   std::atomic<bool> state_wanted_{false};
   SemaphoreHandle_t state_ready_{nullptr};
-  std::string state_json_;
+  std::shared_ptr<const PsramString> state_json_;  ///< latest snapshot, immutable once published
 
   // Writes waiting for the main loop: (field index, validated value).
   std::vector<std::pair<size_t, std::string>> pending_;

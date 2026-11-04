@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Fix: panel restarting after updating to the 8-thermostat climate screen
+
+The update from the previous entry could crash the panel within a minute of
+starting. The panel then went back to the firmware it had before by itself.
+Two likely causes are addressed: the main task now has twice the working
+memory (stack), and the settings page no longer copies its (now much larger)
+list of settings through the panel's scarce internal memory. The panel also
+logs its free memory at start-up and when it connects to Home Assistant, to
+make any further problem easier to track down.
+
 ### Climate screen: 8 thermostats, buttons per thermostat
 
 - Up to eight thermostats. One to four share a single row; five to eight use

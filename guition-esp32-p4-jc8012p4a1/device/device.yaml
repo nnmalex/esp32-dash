@@ -20,6 +20,12 @@ esp32:
       CONFIG_HTTPD_MAX_URI_LEN: "128"
     advanced:
       enable_idf_experimental_features: true
+      # The loop task runs every lambda, LVGL setup and rendering. The 8 KB
+      # default leaves little headroom since the climate page builds 8 cards
+      # and 30 buttons on boot (an Abort within a minute of first boot was
+      # seen with the 8-thermostat build), and a stack overflow here aborts
+      # with no hint of the cause. Costs 8 KB of internal RAM.
+      loop_task_stack_size: 16384
 
 
 esphome:
