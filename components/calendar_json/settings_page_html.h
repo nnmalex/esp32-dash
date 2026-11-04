@@ -251,7 +251,7 @@ async function loadEntities(force) {
       const r = await fetch(url, { cache: "no-store" });
       const j = await r.json();
       if (j.entities && j.entities.length) {
-        entities = j.entities;
+        entities = j.entities.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
         byId.clear();
         entities.forEach((e) => byId.set(e[0], e));
         fillLists();
