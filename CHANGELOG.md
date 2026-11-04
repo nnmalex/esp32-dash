@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### Climate screen: 8 thermostats, buttons per thermostat
+
+- Up to eight thermostats. One to four share a single row; five to eight use
+  two rows of smaller cards. Only the ones you set are shown.
+- Each thermostat card can have up to three buttons of its own, alongside the
+  six-button row along the bottom. Each thermostat has its own section on the
+  settings page.
+
+### Fix: settings page entity suggestions
+
+- Entity fields now list matching entities as soon as you click into them and
+  match the friendly name as well as the id, in every browser. They used the
+  browser's built-in suggestion list before, which some browsers show only
+  while typing, and only for the start of the entity id.
+- An entity list that Home Assistant cut off part-way is reported as an error
+  instead of being shown as if complete (with everything after the cut
+  missing).
+
 ### New: climate screen
 
 A fifth tab shows up to four thermostats from Home Assistant — current and

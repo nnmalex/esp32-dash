@@ -76,8 +76,8 @@ script:
     then:
       - lambda: |-
           id(current_view) = 4;
-          for (int i = 0; i < 4; i++) id(render_climate_card).execute(i);
-          for (int i = 0; i < 6; i++) id(render_climate_button).execute(i);
+          for (int i = 0; i < 8; i++) id(render_climate_card).execute(i);
+          for (int i = 0; i < 30; i++) id(render_climate_button).execute(i);
       - script.execute: update_nav_highlight
       - lvgl.page.show: climate_page
       - lvgl.widget.show: nav_bar

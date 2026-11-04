@@ -71,6 +71,9 @@ class EntityListScanner {
   bool feed(const char *data, size_t len);
   size_t count() const { return this->count_; }
   bool truncated() const { return this->truncated_; }
+  /// True once the top-level array has closed, i.e. the whole body was seen. A
+  /// body cut short (connection dropped mid-transfer) leaves this false.
+  bool complete() const { return this->complete_; }
   /// The collected entries without the enclosing brackets.
   PsramString &output() { return this->out_; }
 
@@ -98,6 +101,7 @@ class EntityListScanner {
   PsramString out_;
   size_t count_{0};
   bool truncated_{false};
+  bool complete_{false};
 };
 
 /// Device-hosted settings page (http://<device>/).

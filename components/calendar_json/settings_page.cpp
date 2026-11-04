@@ -565,6 +565,13 @@ void SettingsPage::start_entity_fetch_() {
           this->set_entities_error_("Home Assistant answered HTTP " + std::to_string(r.status));
           return;
         }
+        // A list that stops part-way would look fine on the page but silently
+        // lack every entity HA sends after the cut. Keep the previous list.
+        if (!scanner->complete()) {
+          this->set_entities_error_("Home Assistant's entity list arrived incomplete (" +
+                                    std::to_string(scanner->count()) + " entities read), try Refresh");
+          return;
+        }
         auto list = std::make_shared<PsramString>();
         PsramString &out = scanner->output();
         list->reserve(out.size() + 2);
@@ -720,6 +727,8 @@ void EntityListScanner::on_char_(char c) {
       if (c == '}' && this->depth_ == 2)
         this->emit_();
       this->depth_--;
+      if (this->depth_ == 0)
+        this->complete_ = true;
       this->expect_key_ = false;  // a value just ended; ',' re-arms the key
       break;
     case ':':
