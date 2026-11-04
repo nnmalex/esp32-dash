@@ -5,6 +5,7 @@
 # widget (visible on ALL views including music).
 # idle_page is defined in device/idle_view.yaml (Phase 3).
 # calendar_page is defined in device/calendar_view.yaml (Phase 4).
+# climate_page is defined in device/climate_view.yaml.
 #
 # The nav_bar widget is defined here and moved to lv_layer_top() in on_boot so
 # it floats above all pages. The active view is marked by update_nav_highlight;
@@ -15,7 +16,7 @@
 # =============================================================================
 
 globals:
-  - id: current_view    # 0=idle 1=music 2=calendar 3=forecast
+  - id: current_view    # 0=idle 1=music 2=calendar 3=forecast 4=climate
     type: int
     initial_value: '0'
 
@@ -68,24 +69,39 @@ script:
       - lvgl.widget.show: nav_bar
       - script.execute: maybe_fetch_forecast
 
+  # Thermostat state is pushed by HA (climate_sensors.yaml), so there is
+  # nothing to fetch: re-render from the cached state and show.
+  - id: show_climate_view
+    mode: single
+    then:
+      - lambda: |-
+          id(current_view) = 4;
+          for (int i = 0; i < 4; i++) id(render_climate_card).execute(i);
+          for (int i = 0; i < 6; i++) id(render_climate_button).execute(i);
+      - script.execute: update_nav_highlight
+      - lvgl.page.show: climate_page
+      - lvgl.widget.show: nav_bar
+
   # Marks the current view's nav button: bright icon plus an accent bar along
   # the top edge; the other icons are dimmed.
   - id: update_nav_highlight
     mode: single
     then:
       - lambda: |-
-          lv_obj_t *icons[4] = {id(nav_home_icon), id(nav_music_icon),
-                                id(nav_calendar_icon), id(nav_forecast_icon)};
-          lv_obj_t *marks[4] = {id(nav_home_mark), id(nav_music_mark),
-                                id(nav_calendar_mark), id(nav_forecast_mark)};
-          for (int i = 0; i < 4; i++) {
+          lv_obj_t *icons[5] = {id(nav_home_icon), id(nav_music_icon),
+                                id(nav_calendar_icon), id(nav_forecast_icon),
+                                id(nav_climate_icon)};
+          lv_obj_t *marks[5] = {id(nav_home_mark), id(nav_music_mark),
+                                id(nav_calendar_mark), id(nav_forecast_mark),
+                                id(nav_climate_mark)};
+          for (int i = 0; i < 5; i++) {
             bool active = (i == id(current_view));
             lv_obj_set_style_text_color(icons[i], lv_color_hex(active ? 0xFFFFFF : 0x7A7A7A), 0);
             if (active) lv_obj_clear_flag(marks[i], LV_OBJ_FLAG_HIDDEN);
             else lv_obj_add_flag(marks[i], LV_OBJ_FLAG_HIDDEN);
           }
 
-  # Splits the nav bar while a timer is showing: the four buttons share the
+  # Splits the nav bar while a timer is showing: the five buttons share the
   # left 800 px and timer_bar (timer_overlay.yaml) takes the right 480 px —
   # the same split the idle and music pages use. Full width otherwise.
   - id: layout_nav_bar
@@ -93,10 +109,11 @@ script:
     then:
       - lambda: |-
           bool timer = !lv_obj_has_flag(id(timer_bar), LV_OBJ_FLAG_HIDDEN);
-          const int w = timer ? 200 : 320;
-          lv_obj_t *btns[4] = {id(nav_home_btn), id(nav_music_btn),
-                               id(nav_calendar_btn), id(nav_forecast_btn)};
-          for (int i = 0; i < 4; i++) {
+          const int w = timer ? 160 : 256;
+          lv_obj_t *btns[5] = {id(nav_home_btn), id(nav_music_btn),
+                               id(nav_calendar_btn), id(nav_forecast_btn),
+                               id(nav_climate_btn)};
+          for (int i = 0; i < 5; i++) {
             lv_obj_set_x(btns[i], i * w);
             lv_obj_set_width(btns[i], w);
           }
@@ -188,7 +205,7 @@ lvgl:
                   id: nav_home_btn
                   x: 0
                   y: 0
-                  width: 320
+                  width: 256
                   height: 60
                   bg_color: 0x1A1A1A
                   bg_opa: 0%
@@ -220,9 +237,9 @@ lvgl:
               # ---- Music ----
               - button:
                   id: nav_music_btn
-                  x: 320
+                  x: 256
                   y: 0
-                  width: 320
+                  width: 256
                   height: 60
                   bg_color: 0x1A1A1A
                   bg_opa: 0%
@@ -254,9 +271,9 @@ lvgl:
               # ---- Calendar ----
               - button:
                   id: nav_calendar_btn
-                  x: 640
+                  x: 512
                   y: 0
-                  width: 320
+                  width: 256
                   height: 60
                   bg_color: 0x1A1A1A
                   bg_opa: 0%
@@ -288,9 +305,9 @@ lvgl:
               # ---- Forecast ----
               - button:
                   id: nav_forecast_btn
-                  x: 960
+                  x: 768
                   y: 0
-                  width: 320
+                  width: 256
                   height: 60
                   bg_color: 0x1A1A1A
                   bg_opa: 0%
@@ -309,6 +326,40 @@ lvgl:
                         align: CENTER
                     - obj:
                         id: nav_forecast_mark
+                        align: TOP_MID
+                        width: 48
+                        height: 3
+                        bg_color: 0x6CB4F0
+                        bg_opa: 100%
+                        border_width: 0
+                        radius: 0
+                        clickable: false
+                        hidden: true
+
+              # ---- Climate ----
+              - button:
+                  id: nav_climate_btn
+                  x: 1024
+                  y: 0
+                  width: 256
+                  height: 60
+                  bg_color: 0x1A1A1A
+                  bg_opa: 0%
+                  border_width: 0
+                  radius: 0
+                  shadow_width: 0
+                  pad_all: 0
+                  on_click:
+                    - script.execute: show_climate_view
+                  widgets:
+                    - label:
+                        id: nav_climate_icon
+                        text: $icon_climate
+                        text_font: icon_font
+                        text_color: 0x7A7A7A
+                        align: CENTER
+                    - obj:
+                        id: nav_climate_mark
                         align: TOP_MID
                         width: 48
                         height: 3

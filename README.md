@@ -62,6 +62,12 @@ substitutions:
   # calendar_entity_2: "calendar.family"
   # calendar_entity_3: "calendar.work"
 
+  # ── Climate screen (up to 4 thermostats + up to 6 buttons) ───────────────
+  # climate_entity_1: "climate.living_room"
+  # climate_entity_2: "climate.bedroom"
+  # climate_button_1: "scene.movie_night"
+  # climate_button_2: "switch.towel_rail"
+
   # ── NTP time server ────────────────────────────────────────────────────────
   # ntp_server: "time.cloudflare.com"   # default; change to your preferred NTP server
 
@@ -85,7 +91,7 @@ The panel serves its own settings page at `http://<name>.local/` (`http://esp32-
 
 Settings are no longer exposed to Home Assistant as device configuration entities, so HA's device page only shows the panel's status sensors and the Accent Color light.
 
-- **Entity fields** (media player, weather, sensor tiles, calendars, timers) offer the entities your Home Assistant has, with their friendly names. The panel fetches this list from HA when the page opens, using `ha_token`. Without a token you can still type entity ids in.
+- **Entity fields** (media player, weather, sensor tiles, calendars, timers, thermostats, climate buttons) offer the entities your Home Assistant has, with their friendly names. The panel fetches this list from HA when the page opens, using `ha_token`. Without a token you can still type entity ids in.
 - **Other settings** (brightness, night hours, timezone, playback options, timeouts) are regular inputs.
 - Changes save as you make them and apply immediately. They are stored on the panel and survive reboots and firmware updates.
 
@@ -133,6 +139,24 @@ The left panel displays a JPEG image that matches the current weather condition.
 3. Uncomment `weather_bg_path` in your ESPHome config (see the installation snippet above).
 
 Leave `weather_bg_path` commented out (default) to skip background images and show a plain dark panel instead.
+
+## Climate screen
+
+The fifth tab (thermostat icon) shows a card for each configured thermostat, plus an optional row of buttons underneath. Set them on the [settings page](#settings-page) under **Climate** and **Climate buttons** (or seed them with the `climate_entity_1..4` / `climate_button_1..6` substitutions).
+
+Cards and buttons share the width by how many are set: one thermostat gets the full width, four get a quarter each. The button row is hidden when no button is set.
+
+Each thermostat card shows, all read from Home Assistant:
+
+- the name, what it is doing now (Heating, Idle, Off…) and the active preset
+- the current temperature
+- the target temperature with **−** / **+** (in the thermostat's own step, within its min/max). Taps are collected and sent once you stop tapping; the value shows blue until HA confirms it. A thermostat in heat/cool mode shows its range instead.
+- a **power** button (when the thermostat has an *off* mode; turning it back on restores the last mode) and a button for each HVAC mode it supports (heat, cool, auto…)
+- a button for each preset it supports (Eco, Boost…). Tapping the active preset returns to *none*, so Boost works as an on/off toggle.
+
+Buttons in the row act by the entity's domain: `button` / `input_button` are pressed, `scene` / `script` run, `automation` is triggered, `lock` locks or unlocks, and anything else (light, switch, fan, cover…) toggles. Buttons for entities that are on are highlighted. The icon is the entity's own icon when it is one the panel knows, otherwise one for its domain.
+
+Thermostat and button taps are Home Assistant actions, like the music controls, so **Allow the device to perform Home Assistant actions** must be enabled in the device's options in HA.
 
 ## Firmware updates
 

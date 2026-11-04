@@ -43,6 +43,8 @@ guition-esp32-p4-jc8012p4a1/
     forecast_view.yaml  # forecast_page widgets, render_forecast
     forecast_sensors.yaml     # fetch_forecast, wf_data_buf
     timer_overlay.yaml  # timer_bar, shown in the right 480px of the nav bar
+    climate_view.yaml   # climate_page: thermostat cards + button row (built in C++ on boot)
+    climate_sensors.yaml      # thermostat/button subscriptions, climate HA action scripts
   theme/
     button.yaml         # LVGL style definitions
 components/
@@ -122,7 +124,7 @@ wants `wifi_ssid` / `wifi_password`).
 
 ## Architecture: LVGL state machine
 
-Four LVGL pages defined across two files (`device/lvgl.yaml` + `device/navbar.yaml`):
+Five LVGL pages defined across several files (`device/lvgl.yaml` + `device/navbar.yaml`):
 
 - **`music_page`** (1280×800) — existing media player UI
   - Left 800px: album art panel (`album_art_background_widget`). `online_image`
@@ -162,7 +164,13 @@ Four LVGL pages defined across two files (`device/lvgl.yaml` + `device/navbar.ya
   - Key scripts: `fetch_forecast`, `render_forecast`
   - Globals: `wf_data_buf` (pipe-delimited lines), `wf_today_col`, `wf_last_fetch_ms`
 
-Navigation bar (`nav_bar`) defined in `device/navbar.yaml`, reparented to `lv_layer_top()` on boot so it floats above all pages. 60px bar at y=740, visible on all four views (every `show_*_view` script reveals it; it starts hidden only so it does not flash during boot/setup), four icon buttons: Home, Music, Calendar, Forecast. `update_nav_highlight` (run by every `show_*_view`) brightens the current view's icon and shows its accent mark (`nav_*_mark`); the others are dimmed. `layout_nav_bar` narrows the buttons to 4×200px in the left 800px while `timer_bar` is visible, and restores 4×320px otherwise.
+- **`climate_page`** — thermostat cards + optional button row
+  - `clim_root` (flex column, 24 px margins) holds `clim_cards` (flex row) and `clim_buttons` (112 px flex row, hidden when no button is set). Up to 4 cards and 6 buttons, all built in C++ in `climate_view.yaml`'s `lvgl: on_boot` (chip counts depend on what HA reports) and stored in `clim_*` widget-pointer globals. Unused slots are hidden and LVGL flex skips hidden children, so the configured ones share the width equally. `layout_climate_page` shows/hides slots and the `clim_empty` message
+  - Card: name + `hvac_action` icon, status ("Heating · Boost"), current temp, TARGET with −/+ (range text in heat_cool), mode chips (power + up to 6 `hvac_modes`, icons) and preset chips (up to 6 `preset_modes`, text). `render_climate_card(slot)` / `render_climate_button(slot)` redraw from state
+  - Data (`climate_sensors.yaml`): settings `climate_entity_select_0..3` / `climate_button_select_0..5`; per-attribute subscriptions with the gen-counter + `*_subbed` pattern. HA sends attributes as Python `str()`: lists arrive as reprs (`[<HVACMode.OFF: 'off'>, ...]`), parsed by taking quoted tokens; `None` → NAN
+  - Actions go over the native API (`homeassistant.action`, needs "allow actions" in HA): `climate_set_temperature` / `_hvac_mode` / `_preset_mode`, `ha_entity_action` (button row; action picked by domain). −/+ only move `clim_pending`; `climate_pending_tick` (200 ms interval, only while something is pending) sends once taps stop for 1.2 s and drops it when HA confirms or after 10 s. The power chip uses `set_hvac_mode` (off / last on-mode), not `climate.turn_on`, which not every integration supports
+
+Navigation bar (`nav_bar`) defined in `device/navbar.yaml`, reparented to `lv_layer_top()` on boot so it floats above all pages. 60px bar at y=740, visible on all five views (every `show_*_view` script reveals it; it starts hidden only so it does not flash during boot/setup), five icon buttons: Home, Music, Calendar, Forecast, Climate. `update_nav_highlight` (run by every `show_*_view`) brightens the current view's icon and shows its accent mark (`nav_*_mark`); the others are dimmed. `layout_nav_bar` narrows the buttons to 5×160px in the left 800px while `timer_bar` is visible, and restores 5×256px otherwise.
 
 Timer overlay (`timer_bar`) defined in `device/timer_overlay.yaml`, reparented into `nav_bar` on boot and occupying its right 480px (x=800). It sits inside the nav bar rather than floating above it so it never covers page content; it is hidden when no timers are active. Shows soonest-expiring active timer name + MM:SS countdown + "+N" badge. Tapping dismisses until next HA `remaining` update. Subscribes to up to 3 `timer.*` entities (compile-time substitutions `timer_entity_1..3` or runtime via the device settings page). Remaining time is computed from the `finishes_at` attribute against the clock (`tmr_finishes_0..2`), so a stalled main loop or a reconnect does not make it drift; a local 1 s decrement is only the fallback before time sync. Time label turns red when < 60 s remaining. A paused timer is shown (greyed, "· Paused") when none is running. When a timer goes active → idle within a few seconds of its `finishes_at`, `show_timer_done` raises `tmr_done_overlay` (full-screen card on `lv_layer_top()`, wakes the backlight, tap or 10 min to dismiss); a cancel, or a reconnect long after it ended, does not.
 
@@ -172,9 +180,9 @@ Global state flags in `device/device.yaml`:
 - `touch_x_start/y_start/x_end/y_end` — swipe gesture tracking
 
 Global state in `device/navbar.yaml`:
-- `current_view` (int) — 0=idle, 1=music, 2=calendar, 3=forecast
+- `current_view` (int) — 0=idle, 1=music, 2=calendar, 3=forecast, 4=climate
 
-View-switching scripts in `device/navbar.yaml`: `show_idle_view`, `show_music_view`, `show_calendar_view`, `show_forecast_view`.
+View-switching scripts in `device/navbar.yaml`: `show_idle_view`, `show_music_view`, `show_calendar_view`, `show_forecast_view`, `show_climate_view`.
 
 Auto-switching driven by `sensors.yaml`:
 - `"playing"` + `current_view == 0` → `show_music_view`
@@ -401,3 +409,5 @@ zero-config `ha_token` setup.
 | `weather_bg_path` | `""` | HA `/local/` path for condition background images |
 | `idle_sensor_1..10` | `""` | Up to 10 arbitrary HA entities for sensor tiles (5 left + 5 right column) |
 | `calendar_entity_1..3` | `""` | Up to 3 `calendar.*` entities for the agenda panel |
+| `climate_entity_1..4` | `""` | Up to 4 `climate.*` entities for the climate page cards |
+| `climate_button_1..6` | `""` | Up to 6 entities for the climate page button row |

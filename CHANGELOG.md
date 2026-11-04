@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### New: climate screen
+
+A fifth tab shows up to four thermostats from Home Assistant — current and
+target temperature with −/+, an on/off button, the HVAC modes and presets the
+thermostat supports (e.g. Boost) — plus an optional row of up to six buttons
+for any entity (scenes, scripts, lights, switches…). Everything is chosen on
+the device settings page; cards and buttons share the width by how many are
+configured.
+
 ### Fix: builds failed on ESPHome 2026.6+ (vendored gsl3680)
 
 Compilation failed with:
