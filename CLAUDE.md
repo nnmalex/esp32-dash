@@ -413,17 +413,19 @@ zero-config `ha_token` setup.
   largest block / minimum) after building its widgets and on HA connect, as a
   baseline for diagnosing the next out-of-memory abort.
 - **Diagnosing a boot crash.** A crash report from a *different* build (always
-  the case after an OTA rollback, which `safe_mode` does when a new build dies
-  within a minute) prints raw `bt` addresses that nothing decodes. To get a
-  decoded trace without shell access to the build machine, set
-  `esp32: framework: advanced: enable_ota_rollback: false` in the device's own
-  YAML, install, and open the dashboard log viewer: the crashed build reboots
-  as itself, and ESPHome's log viewer decodes its report (`PC:` / `BT` lines)
-  against the ELF it just built. After repeated crashes `safe_mode` boots into
-  safe mode, which still serves logs and OTA. `alloc_diag.h`
-  (`calendar_json`) records the last failed heap allocation (size, caps, free /
-  largest block) in `.noinit` RAM and logs it on API connect, which says what
-  ran out when the abort was a failed allocation.
+  the case after an OTA rollback, which happens when a new build resets before
+  `safe_mode` confirms it, ~1 min) prints raw `bt` addresses that nothing
+  decodes. `enable_ota_rollback: false` in the new build does **not** stop
+  that rollback: the old firmware performing the OTA marks the image
+  pending-verify, and the bootloader (flashed with rollback on) reverts it.
+  Instead set the substitution `diag_keep_build: "true"` in the device YAML:
+  the build marks itself valid at the start of boot
+  (`alloc_diag::keep_this_build()`), reboots as itself after a crash, and the
+  dashboard log viewer decodes its report (`PC:` / `BT` lines) against the ELF
+  it just built. After 10 failed boots `safe_mode` takes over, which still
+  serves logs and OTA. `alloc_diag.h` (`calendar_json`) also records the last
+  failed heap allocation (size, caps, free / largest block) in `.noinit` RAM
+  and logs it on API connect, which says what ran out when the abort was a failed allocation.
 - **Check MDI codepoints against the font, not memory.** Several glyphs were
   wrong for a long time (pressure showed `format-wrap-tight`, "windy-variant" a
   globe). Verify with the 7.4.47 CSS

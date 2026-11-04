@@ -22,6 +22,7 @@
 
 #include "esp_attr.h"
 #include "esp_heap_caps.h"
+#include "esp_ota_ops.h"
 #include "esphome/core/log.h"
 
 namespace esp32_dash {
@@ -37,6 +38,7 @@ struct Record {
 };
 
 static constexpr uint32_t MAGIC = 0xA110CD1A;
+static bool s_kept = false;  ///< keep_this_build() ran and succeeded
 
 // Not zeroed at startup, so a soft reset (abort, panic, esp_restart) keeps them.
 static __NOINIT_ATTR Record s_current;   ///< this boot, written by the callback
@@ -63,6 +65,17 @@ inline void install() {
   heap_caps_register_failed_alloc_callback(on_failed_alloc);
 }
 
+/// Marks the running build valid straight away, so the bootloader does not
+/// roll it back if it then crashes. Only for diagnosing a build that dies
+/// before safe_mode would confirm it (substitution `diag_keep_build`): the
+/// build then reboots as itself, so ESPHome's crash report comes from the same
+/// build and the dashboard log viewer can decode it. A build that keeps
+/// crashing ends up in safe mode after 10 boots, which still accepts OTA.
+inline void keep_this_build() {
+  esp_err_t err = esp_ota_mark_app_valid_cancel_rollback();
+  s_kept = err == ESP_OK;
+}
+
 inline void log_one(const char *when, const Record &r) {
   if (r.magic != MAGIC || r.fails == 0)
     return;
@@ -78,6 +91,8 @@ inline void log_one(const char *when, const Record &r) {
 /// If install() did not run this boot (safe mode), s_current still holds the
 /// record of the boot that crashed.
 inline void log_report() {
+  if (s_kept)
+    ESP_LOGW("alloc_diag", "diag_keep_build is on: this build will not be rolled back. Remove it once diagnosed.");
   log_one("Previous boot", s_previous);
   log_one("This boot (or the crashed boot, in safe mode)", s_current);
   ESP_LOGI("alloc_diag", "Internal heap now: %u free, %u largest block, %u minimum since boot",
