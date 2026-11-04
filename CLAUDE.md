@@ -286,9 +286,13 @@ under `calendar_json: settings:`.
   `unit_of_measurement`). The page is generic; no HTML changes needed.
 - Entity pickers (`text:` fields) are filled from HA's `GET /api/states`, fetched
   through `HttpWorker` with `ha_token` when the page asks
-  (`/settings/entities`, cached 5 min, `?refresh=1` forces it) and parsed on the
-  main loop into `[id, friendly_name, unit]`. HA rejects the template API for
-  non-admin tokens, which is why the full state list is used.
+  (`/settings/entities`, cached 5 min, `?refresh=1` forces it). HA rejects the
+  template API for non-admin tokens, which is why the full state list is used.
+  That body is the whole state machine (megabytes), so it is never buffered:
+  `EntityListScanner` consumes it chunk by chunk on the worker task (an
+  `HttpBodySink`) and writes `[id, friendly_name, unit]` JSON into a
+  `PsramString`, which the endpoint sends with `httpd_resp_send_chunk` straight
+  from PSRAM. The browser sorts it.
 - Threading: `handleRequest()` runs on the httpd task and touches only the
   immutable field table. State snapshots are built in `loop()` on request (the
   handler waits on a semaphore), writes are validated on the httpd task, then
@@ -373,6 +377,15 @@ zero-config `ha_token` setup.
   those columns with it when adding a zone. `ha_time` keeps `timezone: UTC`
   explicitly: without it 2026.9 defines `USE_HOMEASSISTANT_TIMEZONE` and HA's
   zone overwrites the selector after every time sync.
+- **Large buffers must go to PSRAM explicitly.** `psram:` here sets
+  `CONFIG_SPIRAM_USE_CAPS_ALLOC`, so `new` / `malloc` / `std::string` only ever
+  use internal RAM (a few hundred KB free), and with exceptions disabled a
+  failed allocation is a `__cxa_throw` → abort, i.e. a reboot. The first settings
+  page buffered `/api/states` in a `std::string` and crashed on a real HA. Use
+  `esp32_dash::PsramString` / `PsramAllocator` (settings_page.h) or
+  `heap_caps_malloc(..., MALLOC_CAP_SPIRAM)` for anything sized by external
+  data; `HttpWorker` refuses buffered bodies over `HTTP_MAX_BUFFERED_BODY`
+  (256 KB) with an error rather than growing without bound.
 - **Check MDI codepoints against the font, not memory.** Several glyphs were
   wrong for a long time (pressure showed `format-wrap-tight`, "windy-variant" a
   globe). Verify with the 7.4.47 CSS

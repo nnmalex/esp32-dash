@@ -11,6 +11,9 @@
 #include <utility>
 #include <vector>
 
+#include <memory>
+
+#include <esp_heap_caps.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
@@ -33,6 +36,69 @@
 #include "http_worker.h"
 
 namespace esp32_dash {
+
+/// std allocator that places memory in PSRAM. This build uses
+/// CONFIG_SPIRAM_USE_CAPS_ALLOC, so plain new/malloc only ever use internal RAM,
+/// and a failed allocation aborts (no exceptions). Large buffers go here.
+template<typename T> struct PsramAllocator {
+  using value_type = T;
+  PsramAllocator() = default;
+  template<typename U> PsramAllocator(const PsramAllocator<U> &) {}
+  T *allocate(size_t n) {
+    void *p = heap_caps_malloc(n * sizeof(T), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (p == nullptr)
+      p = heap_caps_malloc(n * sizeof(T), MALLOC_CAP_8BIT);
+    if (p == nullptr)
+      abort();  // what std::allocator would do here without exceptions, made explicit
+    return static_cast<T *>(p);
+  }
+  void deallocate(T *p, size_t) { heap_caps_free(p); }
+  template<typename U> bool operator==(const PsramAllocator<U> &) const { return true; }
+  template<typename U> bool operator!=(const PsramAllocator<U> &) const { return false; }
+};
+using PsramString = std::basic_string<char, std::char_traits<char>, PsramAllocator<char>>;
+
+/// Streaming scanner for HA's GET /api/states. Picks entity_id and the
+/// friendly_name / unit_of_measurement attributes out of each top-level object
+/// as the bytes arrive, so the multi-megabyte body is never held in memory, and
+/// appends `["id","name","unit"],...` (JSON, unsorted) to a PSRAM string.
+/// Runs on the HttpWorker task; owned by a shared_ptr the done callback reads.
+class EntityListScanner {
+ public:
+  /// Stop collecting past this many bytes of output (a sane upper bound).
+  static constexpr size_t MAX_OUTPUT = 4 * 1024 * 1024;
+
+  bool feed(const char *data, size_t len);
+  size_t count() const { return this->count_; }
+  bool truncated() const { return this->truncated_; }
+  /// The collected entries without the enclosing brackets.
+  PsramString &output() { return this->out_; }
+
+ protected:
+  void on_string_end_();
+  void on_char_(char c);
+  void emit_();
+
+  static constexpr size_t MAX_DEPTH = 32;
+  static constexpr size_t MAX_TOKEN = 255;
+
+  char stack_[MAX_DEPTH];  // '{' or '['
+  size_t depth_{0};
+  bool expect_key_{false};  // inside an object, before ':'
+
+  bool in_string_{false};
+  bool string_is_key_{false};
+  uint8_t escape_{0};  // 0 none, 1 after a backslash, 2..5 reading the 4 hex digits of a u-escape
+  uint32_t hex_{0};
+  uint32_t high_surrogate_{0};
+  std::string token_;  // capped at MAX_TOKEN bytes
+
+  std::string key2_, key3_;  // current key in the entity object / one level below
+  std::string id_, name_, unit_;
+  PsramString out_;
+  size_t count_{0};
+  bool truncated_{false};
+};
 
 /// Device-hosted settings page (http://<device>/).
 ///
@@ -102,7 +168,7 @@ class SettingsPage : public esphome::Component, public AsyncWebHandler {
   std::string build_state_json_() const;
   void apply_(const Field &field, const std::string &value);
   void start_entity_fetch_();
-  void parse_entities_(const HttpResponse &response);
+  void set_entities_error_(const std::string &msg);
 
   esphome::web_server_base::WebServerBase *base_;
   HttpWorker *fetcher_{nullptr};
@@ -122,14 +188,14 @@ class SettingsPage : public esphome::Component, public AsyncWebHandler {
   // Writes waiting for the main loop: (field index, validated value).
   std::vector<std::pair<size_t, std::string>> pending_;
 
-  // HA entity list.
+  // HA entity list. The array lives in PSRAM and is replaced, never modified,
+  // so the httpd task can send it after dropping the lock.
   std::atomic<bool> fetch_wanted_{false};
   bool fetch_in_flight_{false};  ///< main loop only
-  std::string entities_json_{"[]"};
-  std::string entities_status_{"idle"};  ///< idle | loading | ok | error
+  std::shared_ptr<const PsramString> entities_;  ///< JSON array; null until the first fetch
+  std::string entities_status_{"idle"};          ///< idle | loading | ok | error
   std::string entities_error_;
   uint32_t entities_fetched_ms_{0};
-  bool entities_have_data_{false};
 };
 
 }  // namespace esp32_dash

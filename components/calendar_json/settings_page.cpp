@@ -15,7 +15,6 @@
 #include "esphome/components/captive_portal/captive_portal.h"
 #endif
 
-#include "calendar_json.h"
 #include "settings_page_html.h"
 
 namespace esp32_dash {
@@ -31,7 +30,7 @@ static constexpr TickType_t STATE_WAIT = pdMS_TO_TICKS(3000);
 // helpers
 // ---------------------------------------------------------------------------
 
-static void json_escape(std::string &out, const char *s, size_t len) {
+template<typename S> static void json_escape(S &out, const char *s, size_t len) {
   out.push_back('"');
   for (size_t i = 0; i < len; i++) {
     unsigned char c = static_cast<unsigned char>(s[i]);
@@ -63,8 +62,8 @@ static void json_escape(std::string &out, const char *s, size_t len) {
   }
   out.push_back('"');
 }
-static void json_escape(std::string &out, const std::string &s) { json_escape(out, s.data(), s.size()); }
-static void json_escape(std::string &out, const char *s) { json_escape(out, s ? s : "", s ? strlen(s) : 0); }
+template<typename S> static void json_escape(S &out, const std::string &s) { json_escape(out, s.data(), s.size()); }
+template<typename S> static void json_escape(S &out, const char *s) { json_escape(out, s ? s : "", s ? strlen(s) : 0); }
 
 static void json_number(std::string &out, float v) {
   if (!std::isfinite(v)) {
@@ -280,7 +279,8 @@ void SettingsPage::send_state_(AsyncWebServerRequest *request) {
 
 void SettingsPage::send_entities_(AsyncWebServerRequest *request) {
   const bool force = request->hasArg("refresh");
-  std::string json = "{\"status\":";
+  std::string head = "{\"status\":";
+  std::shared_ptr<const PsramString> list;
   {
     std::lock_guard<std::mutex> guard(this->lock_);
     // Fetch on first use and when the list has aged out. After a failure only an
@@ -294,18 +294,29 @@ void SettingsPage::send_entities_(AsyncWebServerRequest *request) {
       this->entities_status_ = "loading";
       this->fetch_wanted_ = true;
     }
-    json_escape(json, this->entities_status_);
-    json += ",\"error\":";
-    json_escape(json, this->entities_error_);
-    json += ",\"age\":";
-    json += this->entities_have_data_ ? std::to_string((esphome::millis() - this->entities_fetched_ms_) / 1000) : "null";
-    json += ",\"entities\":";
-    json += this->entities_json_;
+    json_escape(head, this->entities_status_);
+    head += ",\"error\":";
+    json_escape(head, this->entities_error_);
+    head += ",\"entities\":";
+    list = this->entities_;  // immutable once published; sent below without the lock
   }
-  json += "}";
-  auto *response = request->beginResponse(200, "application/json", json);
-  response->addHeader("Cache-Control", "no-store");
-  request->send(response);
+
+  // Chunked straight from the PSRAM buffer: the list can be hundreds of KB, more
+  // than is safe to copy into internal RAM for an AsyncWebServerResponse.
+  httpd_req_t *r = *request;
+  httpd_resp_set_type(r, "application/json");
+  httpd_resp_set_hdr(r, "Cache-Control", "no-store");
+  if (httpd_resp_send_chunk(r, head.data(), head.size()) != ESP_OK)
+    return;
+  if (list && !list->empty()) {
+    if (httpd_resp_send_chunk(r, list->data(), list->size()) != ESP_OK)
+      return;
+  } else if (httpd_resp_send_chunk(r, "[]", 2) != ESP_OK) {
+    return;
+  }
+  if (httpd_resp_send_chunk(r, "}", 1) != ESP_OK)
+    return;
+  httpd_resp_send_chunk(r, nullptr, 0);
 }
 
 void SettingsPage::handle_set_(AsyncWebServerRequest *request) {
@@ -510,121 +521,255 @@ std::string SettingsPage::build_state_json_() const {
   return out;
 }
 
+void SettingsPage::set_entities_error_(const std::string &msg) {
+  ESP_LOGW(TAG, "Entity list: %s", msg.c_str());
+  std::lock_guard<std::mutex> guard(this->lock_);
+  this->entities_status_ = "error";
+  this->entities_error_ = msg;
+}
+
 void SettingsPage::start_entity_fetch_() {
   const std::string token = this->token_ ? this->token_() : std::string();
   const std::string base = this->base_url_ ? this->base_url_() : std::string();
-  const char *err = nullptr;
   if (this->fetcher_ == nullptr) {
-    err = "No HTTP fetcher configured";
-  } else if (token.empty()) {
-    err = "No ha_token set: entity lists need a Home Assistant long-lived access token";
-  } else if (base.empty()) {
-    err = "Home Assistant address is not known yet";
-  }
-  if (err != nullptr) {
-    std::lock_guard<std::mutex> guard(this->lock_);
-    this->entities_status_ = "error";
-    this->entities_error_ = err;
+    this->set_entities_error_("No HTTP fetcher configured");
     return;
   }
+  if (token.empty()) {
+    this->set_entities_error_("No ha_token set: entity lists need a Home Assistant long-lived access token");
+    return;
+  }
+  if (base.empty()) {
+    this->set_entities_error_("Home Assistant address is not known yet");
+    return;
+  }
+
+  // /api/states is the whole HA state machine, often megabytes: it is scanned
+  // as it streams in (on the worker task) and never buffered.
+  auto scanner = std::make_shared<EntityListScanner>();
+  const uint32_t start = esphome::millis();
   this->fetch_in_flight_ = true;
-  bool queued = this->fetcher_->request(base + "/api/states", "", {{"Authorization", "Bearer " + token}},
-                                        [this](const HttpResponse &r) {
-                                          this->fetch_in_flight_ = false;
-                                          this->parse_entities_(r);
-                                        });
+  bool queued = this->fetcher_->request(
+      base + "/api/states", "", {{"Authorization", "Bearer " + token}},
+      [this, scanner, start](const HttpResponse &r) {
+        this->fetch_in_flight_ = false;
+        if (!r.error.empty()) {
+          this->set_entities_error_("Could not reach Home Assistant: " + r.error);
+          return;
+        }
+        if (r.status == 401) {
+          this->set_entities_error_("Home Assistant rejected the ha_token (HTTP 401)");
+          return;
+        }
+        if (r.status != 200) {
+          this->set_entities_error_("Home Assistant answered HTTP " + std::to_string(r.status));
+          return;
+        }
+        auto list = std::make_shared<PsramString>();
+        PsramString &out = scanner->output();
+        list->reserve(out.size() + 2);
+        list->push_back('[');
+        list->append(out);
+        list->push_back(']');
+        out = PsramString();  // free the scanner's copy now
+        ESP_LOGI(TAG, "Entity list: %u entities, %u bytes, %u ms%s", (unsigned) scanner->count(),
+                 (unsigned) list->size(), (unsigned) (esphome::millis() - start),
+                 scanner->truncated() ? " (truncated)" : "");
+        std::lock_guard<std::mutex> guard(this->lock_);
+        this->entities_ = std::move(list);
+        this->entities_status_ = "ok";
+        this->entities_error_.clear();
+        this->entities_fetched_ms_ = esphome::millis();
+      },
+      [scanner](const char *data, size_t len) { return scanner->feed(data, len); });
   if (!queued) {
     this->fetch_in_flight_ = false;
-    std::lock_guard<std::mutex> guard(this->lock_);
-    this->entities_status_ = "error";
-    this->entities_error_ = "HTTP worker busy, try again";
+    this->set_entities_error_("HTTP worker busy, try again");
   }
 }
 
-void SettingsPage::parse_entities_(const HttpResponse &r) {
-  namespace cj = calendar_json;
-  auto fail = [this](const std::string &msg) {
-    ESP_LOGW(TAG, "Entity list: %s", msg.c_str());
-    std::lock_guard<std::mutex> guard(this->lock_);
-    this->entities_status_ = "error";
-    this->entities_error_ = msg;
-  };
-  if (!r.error.empty()) {
-    fail("Could not reach Home Assistant: " + r.error);
-    return;
+// ---------------------------------------------------------------------------
+// EntityListScanner (HttpWorker task)
+// ---------------------------------------------------------------------------
+
+bool EntityListScanner::feed(const char *data, size_t len) {
+  for (size_t i = 0; i < len; i++)
+    this->on_char_(data[i]);
+  return true;  // keep reading even when truncated, so the connection ends cleanly
+}
+
+static void append_utf8_capped(std::string &out, uint32_t cp, size_t cap) {
+  char buf[4];
+  size_t n;
+  if (cp < 0x80) {
+    buf[0] = static_cast<char>(cp);
+    n = 1;
+  } else if (cp < 0x800) {
+    buf[0] = static_cast<char>(0xC0 | (cp >> 6));
+    buf[1] = static_cast<char>(0x80 | (cp & 0x3F));
+    n = 2;
+  } else if (cp < 0x10000) {
+    buf[0] = static_cast<char>(0xE0 | (cp >> 12));
+    buf[1] = static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+    buf[2] = static_cast<char>(0x80 | (cp & 0x3F));
+    n = 3;
+  } else {
+    buf[0] = static_cast<char>(0xF0 | (cp >> 18));
+    buf[1] = static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
+    buf[2] = static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+    buf[3] = static_cast<char>(0x80 | (cp & 0x3F));
+    n = 4;
   }
-  if (r.status == 401) {
-    fail("Home Assistant rejected the ha_token (HTTP 401)");
-    return;
-  }
-  if (r.status != 200) {
-    fail("Home Assistant answered HTTP " + std::to_string(r.status));
+  if (out.size() + n <= cap)
+    out.append(buf, n);
+}
+
+void EntityListScanner::on_char_(char c) {
+  if (this->in_string_) {
+    if (this->escape_ == 1) {
+      this->escape_ = 0;
+      char d = c;
+      switch (c) {
+        case 'n':
+        case 'r':
+        case 't':
+        case 'b':
+        case 'f':
+          d = ' ';
+          break;
+        case 'u':
+          this->escape_ = 2;
+          this->hex_ = 0;
+          return;
+        default:
+          break;  // \" \\ \/ map to themselves
+      }
+      if (this->token_.size() < MAX_TOKEN)
+        this->token_.push_back(d);
+      return;
+    }
+    if (this->escape_ >= 2) {
+      uint32_t v;
+      if (c >= '0' && c <= '9') {
+        v = c - '0';
+      } else if (c >= 'a' && c <= 'f') {
+        v = c - 'a' + 10;
+      } else if (c >= 'A' && c <= 'F') {
+        v = c - 'A' + 10;
+      } else {
+        v = 0;
+      }
+      this->hex_ = (this->hex_ << 4) | v;
+      if (++this->escape_ < 6)
+        return;
+      this->escape_ = 0;
+      uint32_t cp = this->hex_;
+      if (cp >= 0xD800 && cp < 0xDC00) {
+        this->high_surrogate_ = cp;
+        return;
+      }
+      if (cp >= 0xDC00 && cp < 0xE000 && this->high_surrogate_ != 0) {
+        cp = 0x10000 + ((this->high_surrogate_ - 0xD800) << 10) + (cp - 0xDC00);
+      } else if (cp < 0x20) {
+        cp = ' ';
+      }
+      this->high_surrogate_ = 0;
+      append_utf8_capped(this->token_, cp, MAX_TOKEN);
+      return;
+    }
+    if (c == '\\') {
+      this->escape_ = 1;
+    } else if (c == '"') {
+      this->in_string_ = false;
+      this->on_string_end_();
+    } else if (this->token_.size() < MAX_TOKEN) {
+      this->token_.push_back(c);
+    }
     return;
   }
 
-  const uint32_t start = esphome::millis();
-  struct Entry {
-    std::string id, name, unit;
-  };
-  std::vector<Entry> entries;
-  const std::string &body = r.body;
-  size_t pos = 0;
-  cj::skip_ws(body, pos);
-  if (pos >= body.size() || body[pos] != '[') {
-    fail("Unexpected response from /api/states");
-    return;
-  }
-  pos++;
-  std::string obj, attrs;
-  while (pos < body.size()) {
-    cj::skip_ws(body, pos);
-    if (pos < body.size() && body[pos] == ',') {
-      pos++;
-      continue;
-    }
-    if (pos >= body.size() || body[pos] != '{')
-      break;  // ']' or garbage
-    size_t end = 0;
-    if (!cj::extract_object_span(body, pos, end))
+  switch (c) {
+    case '"':
+      this->in_string_ = true;
+      this->string_is_key_ = this->depth_ > 0 && this->depth_ <= MAX_DEPTH &&
+                             this->stack_[this->depth_ - 1] == '{' && this->expect_key_;
+      this->token_.clear();
+      this->high_surrogate_ = 0;
       break;
-    obj.assign(body, pos, end - pos + 1);
-    pos = end + 1;
+    case '{':
+    case '[':
+      if (this->depth_ < MAX_DEPTH) {
+        this->stack_[this->depth_] = c;
+      }
+      this->depth_++;
+      this->expect_key_ = c == '{';
+      if (c == '{' && this->depth_ == 2) {
+        // A new entity object in the top-level array.
+        this->key2_.clear();
+        this->id_.clear();
+        this->name_.clear();
+        this->unit_.clear();
+      } else if (c == '{' && this->depth_ == 3) {
+        this->key3_.clear();
+      }
+      break;
+    case '}':
+    case ']':
+      if (this->depth_ == 0)
+        break;
+      if (c == '}' && this->depth_ == 2)
+        this->emit_();
+      this->depth_--;
+      this->expect_key_ = false;  // a value just ended; ',' re-arms the key
+      break;
+    case ':':
+      this->expect_key_ = false;
+      break;
+    case ',':
+      this->expect_key_ = this->depth_ > 0 && this->depth_ <= MAX_DEPTH && this->stack_[this->depth_ - 1] == '{';
+      break;
+    default:
+      break;  // whitespace, numbers, true/false/null
+  }
+}
 
-    Entry e;
-    if (!cj::extract_string_field(obj, "entity_id", e.id) || e.id.empty())
-      continue;
-    if (cj::extract_object_field(obj, "attributes", attrs)) {
-      cj::extract_string_field(attrs, "friendly_name", e.name);
-      cj::extract_string_field(attrs, "unit_of_measurement", e.unit);
+void EntityListScanner::on_string_end_() {
+  if (this->string_is_key_) {
+    if (this->depth_ == 2) {
+      this->key2_ = this->token_;
+    } else if (this->depth_ == 3) {
+      this->key3_ = this->token_;
     }
-    entries.push_back(std::move(e));
+    return;
   }
-  std::sort(entries.begin(), entries.end(), [](const Entry &a, const Entry &b) { return a.id < b.id; });
-
-  std::string json;
-  json.reserve(entries.size() * 64 + 2);
-  json += '[';
-  for (size_t i = 0; i < entries.size(); i++) {
-    if (i)
-      json += ',';
-    json += '[';
-    json_escape(json, entries[i].id);
-    json += ',';
-    json_escape(json, entries[i].name);
-    json += ',';
-    json_escape(json, entries[i].unit);
-    json += ']';
+  if (this->depth_ == 2 && this->key2_ == "entity_id") {
+    this->id_ = this->token_;
+  } else if (this->depth_ == 3 && this->key2_ == "attributes") {
+    if (this->key3_ == "friendly_name") {
+      this->name_ = this->token_;
+    } else if (this->key3_ == "unit_of_measurement") {
+      this->unit_ = this->token_;
+    }
   }
-  json += ']';
+}
 
-  ESP_LOGI(TAG, "Entity list: %u entities from %u bytes, parsed in %u ms", (unsigned) entries.size(),
-           (unsigned) body.size(), (unsigned) (esphome::millis() - start));
-  std::lock_guard<std::mutex> guard(this->lock_);
-  this->entities_json_ = std::move(json);
-  this->entities_status_ = "ok";
-  this->entities_error_.clear();
-  this->entities_fetched_ms_ = esphome::millis();
-  this->entities_have_data_ = true;
+void EntityListScanner::emit_() {
+  if (this->id_.empty() || this->truncated_)
+    return;
+  if (this->out_.size() + this->id_.size() + this->name_.size() + this->unit_.size() + 64 > MAX_OUTPUT) {
+    this->truncated_ = true;
+    return;
+  }
+  if (this->count_ > 0)
+    this->out_.push_back(',');
+  this->out_.push_back('[');
+  json_escape(this->out_, this->id_);
+  this->out_.push_back(',');
+  json_escape(this->out_, this->name_);
+  this->out_.push_back(',');
+  json_escape(this->out_, this->unit_);
+  this->out_.push_back(']');
+  this->count_++;
 }
 
 }  // namespace esp32_dash

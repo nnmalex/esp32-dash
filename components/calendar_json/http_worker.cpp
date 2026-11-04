@@ -28,10 +28,11 @@ void HttpWorker::setup() {
   }
 }
 
-bool HttpWorker::request(std::string url, std::string body, HttpHeaders headers, HttpCallback done) {
+bool HttpWorker::request(std::string url, std::string body, HttpHeaders headers, HttpCallback done,
+                         HttpBodySink sink) {
   if (this->todo_ == nullptr)
     return false;
-  auto *job = new Job{std::move(url), std::move(body), std::move(headers), std::move(done), {}};
+  auto *job = new Job{std::move(url), std::move(body), std::move(headers), std::move(done), std::move(sink), {}};
   if (xQueueSend(this->todo_, &job, 0) != pdTRUE) {
     ESP_LOGW(TAG, "Queue full, dropping request to %s", job->url.c_str());
     delete job;
@@ -115,7 +116,7 @@ void HttpWorker::run_(Job *job) const {
       break;
     }
     r.status = esp_http_client_get_status_code(client);
-    if (length > 0)
+    if (!job->sink && length > 0 && static_cast<size_t>(length) <= HTTP_MAX_BUFFERED_BODY)
       r.body.reserve(static_cast<size_t>(length));
 
     std::vector<char> chunk(READ_CHUNK);
@@ -127,6 +128,19 @@ void HttpWorker::run_(Job *job) const {
       }
       if (n == 0)
         break;  // end of body (also for chunked transfer encoding)
+      if (job->sink) {
+        if (!job->sink(chunk.data(), static_cast<size_t>(n))) {
+          r.error = "aborted by body consumer";
+          break;
+        }
+        continue;
+      }
+      if (r.body.size() + static_cast<size_t>(n) > HTTP_MAX_BUFFERED_BODY) {
+        r.error = "response too large";
+        r.body.clear();
+        r.body.shrink_to_fit();
+        break;
+      }
       r.body.append(chunk.data(), n);
     }
   } while (false);
