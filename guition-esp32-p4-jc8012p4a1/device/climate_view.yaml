@@ -415,6 +415,7 @@ lvgl:
   on_boot:
     # Build the eight thermostat cards and thirty buttons (hidden), then lay out.
     - lambda: |-
+        esp32_dash::alloc_diag::stage("lvgl on_boot: building climate widgets");
         const lv_font_t *f_icon  = id(icon_font)->get_lv_font();
         const lv_font_t *f_name  = id(roboto_light30_font)->get_lv_font();
         const lv_font_t *f_small = id(roboto_light26_font)->get_lv_font();
@@ -611,6 +612,7 @@ lvgl:
 
         id(layout_climate_page).execute();  // also renders the cards
         for (int i = 0; i < 30; i++) id(render_climate_button).execute(i);
+        esp32_dash::alloc_diag::stage("lvgl on_boot: climate widgets built");
         // Internal RAM is the scarce heap on this board (see CLAUDE.md); a
         // baseline here makes a later out-of-memory abort diagnosable.
         ESP_LOGI("climate", "Widgets built. Internal heap: %u free, %u largest block, %u minimum",
