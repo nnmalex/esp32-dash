@@ -1,7 +1,7 @@
 # =============================================================================
 # CLOCK TIMEZONE
 # =============================================================================
-# Lets the user pick their timezone from a city list on the HA device page.
+# Lets the user pick their timezone from a city list on the device settings page.
 # The chosen zone is applied at runtime (see apply_timezone) so the clock and
 # every other .now() / localtime() call returns correct local time — regardless
 # of what timezone the firmware was compiled under.
@@ -30,7 +30,7 @@ select:
     name: "Clock: Timezone"
     id: clock_timezone
     icon: "mdi:map-clock"
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     optimistic: true
     restore_value: true
     initial_option: "UTC"

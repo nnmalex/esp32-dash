@@ -1,0 +1,176 @@
+# =============================================================================
+# DEVICE SETTINGS PAGE — http://<device>.local/
+# =============================================================================
+# Every user setting (entities, brightness, timezone, ...) is edited on a page
+# the panel serves itself, instead of being exposed to Home Assistant as config
+# entities. The settings are still the same template text / number / select /
+# switch entities, declared `internal: true` in their own files: they keep
+# their NVS storage and their on_value / set_action triggers, and this page
+# drives them through the same calls HA used to make.
+#
+# Entity pickers are filled from HA's /api/states, fetched on demand by the
+# panel through the background HTTP worker with the `ha_token` substitution
+# (without a token, entity ids can still be typed in).
+#
+# The page is open to anyone on the LAN unless settings_username is set, in
+# which case the browser asks for these credentials (HTTP basic auth, sent in
+# clear over plain http — it keeps out casual visitors, not an attacker on the
+# network).
+#
+# To add a setting: declare the entity with `internal: true`, then list it
+# below. Field order is page order; `group` makes the sections.
+# =============================================================================
+
+substitutions:
+  settings_username: ""
+  settings_password: ""
+
+calendar_json:
+  settings:
+    id: settings_page
+    fetcher: http_worker
+    base_url: !lambda 'return id(ha_base_url);'
+    token: !lambda 'return id(ha_token_global);'
+    title: "${friendly_name}"
+    username: "${settings_username}"
+    password: "${settings_password}"
+    fields:
+      - text: media_player_entity
+        group: "Music"
+        label: "Media player"
+        domain: [media_player]
+      - switch: show_remaining_time
+        group: "Music"
+        label: "Show remaining time"
+        help: "Count down to the end of the track instead of showing its length."
+      - switch: show_progress_bar
+        group: "Music"
+        label: "Show progress bar"
+      - number: view_return_timeout
+        group: "Music"
+        label: "Return after inactivity"
+        help: "Go back to the music page (playing) or home page (not playing) after this long without a touch. 0 turns it off."
+        unit_of_measurement: "s"
+      - text: weather_entity_select
+        group: "Weather"
+        label: "Weather"
+        domain: [weather]
+      - text: local_temp_entity_select
+        group: "Weather"
+        label: "Temperature sensor"
+        help: "Shown instead of the weather entity's temperature."
+        domain: [sensor]
+      - text: feels_like_entity_select
+        group: "Weather"
+        label: "Feels-like sensor"
+        help: "Shown under the temperature when it differs."
+        domain: [sensor]
+      - text: idle_sensor_entity_0
+        group: "Sensor tiles"
+        label: "Tile 1 (left)"
+        help: "Any entity. Empty hides the tile."
+      - number: idle_sensor_prec_0
+        group: "Sensor tiles"
+        label: "Tile 1 precision"
+      - text: idle_sensor_entity_1
+        group: "Sensor tiles"
+        label: "Tile 2 (left)"
+      - number: idle_sensor_prec_1
+        group: "Sensor tiles"
+        label: "Tile 2 precision"
+      - text: idle_sensor_entity_2
+        group: "Sensor tiles"
+        label: "Tile 3 (left)"
+      - number: idle_sensor_prec_2
+        group: "Sensor tiles"
+        label: "Tile 3 precision"
+      - text: idle_sensor_entity_3
+        group: "Sensor tiles"
+        label: "Tile 4 (left)"
+      - number: idle_sensor_prec_3
+        group: "Sensor tiles"
+        label: "Tile 4 precision"
+      - text: idle_sensor_entity_4
+        group: "Sensor tiles"
+        label: "Tile 5 (left)"
+      - number: idle_sensor_prec_4
+        group: "Sensor tiles"
+        label: "Tile 5 precision"
+      - text: idle_sensor_entity_5
+        group: "Sensor tiles"
+        label: "Tile 6 (right)"
+      - number: idle_sensor_prec_5
+        group: "Sensor tiles"
+        label: "Tile 6 precision"
+      - text: idle_sensor_entity_6
+        group: "Sensor tiles"
+        label: "Tile 7 (right)"
+      - number: idle_sensor_prec_6
+        group: "Sensor tiles"
+        label: "Tile 7 precision"
+      - text: idle_sensor_entity_7
+        group: "Sensor tiles"
+        label: "Tile 8 (right)"
+      - number: idle_sensor_prec_7
+        group: "Sensor tiles"
+        label: "Tile 8 precision"
+      - text: idle_sensor_entity_8
+        group: "Sensor tiles"
+        label: "Tile 9 (right)"
+      - number: idle_sensor_prec_8
+        group: "Sensor tiles"
+        label: "Tile 9 precision"
+      - text: idle_sensor_entity_9
+        group: "Sensor tiles"
+        label: "Tile 10 (right)"
+      - number: idle_sensor_prec_9
+        group: "Sensor tiles"
+        label: "Tile 10 precision"
+      - text: calendar_entity_select_0
+        group: "Calendar"
+        label: "Calendar 1"
+        domain: [calendar]
+      - text: calendar_entity_select_1
+        group: "Calendar"
+        label: "Calendar 2"
+        domain: [calendar]
+      - text: calendar_entity_select_2
+        group: "Calendar"
+        label: "Calendar 3"
+        domain: [calendar]
+      - number: agenda_lookback
+        group: "Calendar"
+        label: "Keep ended events"
+        help: "How long finished events stay (greyed out) in the home page agenda."
+        unit_of_measurement: "min"
+      - text: timer_entity_select_0
+        group: "Timers"
+        label: "Timer 1"
+        domain: [timer]
+      - text: timer_entity_select_1
+        group: "Timers"
+        label: "Timer 2"
+        domain: [timer]
+      - text: timer_entity_select_2
+        group: "Timers"
+        label: "Timer 3"
+        domain: [timer]
+      - number: backlight_day_active_brightness
+        group: "Display"
+        label: "Day brightness"
+        unit_of_measurement: "%"
+      - number: backlight_night_active_brightness
+        group: "Display"
+        label: "Night brightness"
+        unit_of_measurement: "%"
+      - number: night_start_hour
+        group: "Display"
+        label: "Night starts at"
+        unit_of_measurement: "h"
+      - number: night_end_hour
+        group: "Display"
+        label: "Night ends at"
+        unit_of_measurement: "h"
+      - select: clock_timezone
+        group: "Display"
+        label: "Timezone"

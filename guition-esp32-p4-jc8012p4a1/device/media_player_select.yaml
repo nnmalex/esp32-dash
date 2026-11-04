@@ -1,8 +1,9 @@
 # =============================================================================
 # MEDIA PLAYER SELECTOR
 # =============================================================================
-# Runtime entity selection — set the media player from the HA device page
-# instead of hardcoding in YAML substitutions. Persists across reboots.
+# Runtime entity selection — set the media player on the device settings page
+# (device/web_settings.yaml) instead of hardcoding in YAML substitutions.
+# Persists across reboots.
 #
 # On entity change: resets UI state, bumps a generation counter to discard
 # stale callbacks from previous subscriptions, then dynamically subscribes
@@ -25,7 +26,7 @@ text:
   - platform: template
     name: "Media Player"
     id: media_player_entity
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:cast-audio"
     mode: text
     optimistic: true

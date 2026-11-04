@@ -125,13 +125,13 @@ globals:
 
 
 # -----------------------------------------------------------------------------
-# Entity selector text entities (NVS-persisted, visible in device settings)
+# Entity selector text entities (NVS-persisted, edited on the settings page)
 # -----------------------------------------------------------------------------
 text:
   - platform: template
     name: "Calendar 1 Entity"
     id: calendar_entity_select_0
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:calendar"
     mode: text
     optimistic: true
@@ -145,7 +145,7 @@ text:
   - platform: template
     name: "Calendar 2 Entity"
     id: calendar_entity_select_1
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:calendar"
     mode: text
     optimistic: true
@@ -159,7 +159,7 @@ text:
   - platform: template
     name: "Calendar 3 Entity"
     id: calendar_entity_select_2
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:calendar"
     mode: text
     optimistic: true
@@ -178,7 +178,7 @@ number:
   - platform: template
     name: "Agenda: Past Event Lookback"
     id: agenda_lookback
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:history"
     min_value: 0
     max_value: 720

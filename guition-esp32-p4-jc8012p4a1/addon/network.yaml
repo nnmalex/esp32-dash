@@ -48,6 +48,9 @@ esphome:
             lv_label_set_text(id(ha_setup_instructions), ha_text.c_str());
             std::string actions_text = "In Home Assistant, go to\nSettings > Devices > ESPHome\nFind '" + name + "' and enable\n'Allow the device to perform\nHome Assistant actions'";
             lv_label_set_text(id(actions_instructions), actions_text.c_str());
+            // Settings live on the device's own web page, not in HA.
+            std::string setup_text = "Open http://" + name + ".local\nin a browser and choose\nthe media player";
+            lv_label_set_text(id(setup_instructions), setup_text.c_str());
         - delay: 10s
         - lambda: 'id(boot_grace_period) = false;'
         - lvgl.widget.hide: loading_screen

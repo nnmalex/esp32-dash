@@ -46,7 +46,7 @@ number:
     restore_value: true
     unit_of_measurement: "%"
     icon: "mdi:brightness-7"
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     set_action:
       # set_action runs before the value is stored; publish so the script sees it
       - lambda: 'id(backlight_day_active_brightness)->publish_state(x);'
@@ -63,7 +63,7 @@ number:
     restore_value: true
     unit_of_measurement: "%"
     icon: "mdi:brightness-4"
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     set_action:
       # set_action runs before the value is stored; publish so the script sees it
       - lambda: 'id(backlight_night_active_brightness)->publish_state(x);'
@@ -80,7 +80,7 @@ number:
     restore_value: true
     unit_of_measurement: "h"
     icon: "mdi:weather-night"
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     set_action:
       # set_action runs before the value is stored; publish so the script sees it
       - lambda: 'id(night_start_hour)->publish_state(x);'
@@ -97,7 +97,7 @@ number:
     restore_value: true
     unit_of_measurement: "h"
     icon: "mdi:weather-sunny"
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     set_action:
       # set_action runs before the value is stored; publish so the script sees it
       - lambda: 'id(night_end_hour)->publish_state(x);'

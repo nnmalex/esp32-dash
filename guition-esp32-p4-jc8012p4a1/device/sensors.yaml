@@ -373,7 +373,7 @@ number:
     restore_value: true
     unit_of_measurement: "s"
     icon: "mdi:timer-outline"
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
 
 switch:
   - platform: template
@@ -382,7 +382,7 @@ switch:
     optimistic: true
     restore_mode: RESTORE_DEFAULT_ON
     icon: "mdi:timer-sand"
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
 
   - platform: template
     name: "Playback: Show Progress Bar"
@@ -390,4 +390,4 @@ switch:
     optimistic: true
     restore_mode: RESTORE_DEFAULT_ON
     icon: "mdi:progress-clock"
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
