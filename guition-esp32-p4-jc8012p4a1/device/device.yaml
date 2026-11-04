@@ -10,6 +10,14 @@
 # =============================================================================
 
 
+substitutions:
+  # Set to "true" in the device YAML only to diagnose a build that crashes
+  # within a minute of booting: it marks itself valid at once, so the
+  # bootloader does not roll it back and its own crash report (decodable by the
+  # dashboard log viewer) is shown. It may then boot-loop until safe_mode takes
+  # over after 10 boots; safe mode still accepts OTA. Turn it off again after.
+  diag_keep_build: "false"
+
 esp32:
   variant: ESP32P4
   flash_size: 16MB
@@ -35,7 +43,10 @@ esphome:
   on_boot:
     - priority: 1000
       then:
-        - lambda: 'esp32_dash::alloc_diag::install();'
+        - lambda: |-
+            esp32_dash::alloc_diag::install();
+            // Diagnostics only (see the substitution below).
+            if (${diag_keep_build}) esp32_dash::alloc_diag::keep_this_build();
   name: ${name}
   friendly_name: ${friendly_name}
   # 2026.7.0 is the floor: `image:` entries use `platform: file`, which does not
