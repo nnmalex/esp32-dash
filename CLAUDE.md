@@ -312,7 +312,8 @@ under `calendar_json: settings:`.
   flags an early close via `esp_http_client_is_complete_data_received()`.
 - Threading: `handleRequest()` runs on the httpd task and touches only the
   immutable field table. State snapshots are built in `loop()` on request (the
-  handler waits on a semaphore), writes are validated on the httpd task, then
+  handler waits on a semaphore) into a `PsramString` (20 KB+ with ~80 fields)
+  and sent chunked from PSRAM, never copied into an `std::string`, writes are validated on the httpd task, then
   queued and applied in `loop()`. Keep entity access on the main loop.
 - Endpoints: `GET /settings/state`, `GET /settings/entities`,
   `POST /settings/set` (form `key`, `value`; `key` is the entity's YAML id).
@@ -403,6 +404,14 @@ zero-config `ha_token` setup.
   `heap_caps_malloc(..., MALLOC_CAP_SPIRAM)` for anything sized by external
   data; `HttpWorker` refuses buffered bodies over `HTTP_MAX_BUFFERED_BODY`
   (256 KB) with an error rather than growing without bound.
+- **The loop task stack is 16 KB** (`esp32: framework: advanced:
+  loop_task_stack_size` in `device/device.yaml`), up from ESPHome's 8 KB
+  default. Every lambda, LVGL setup and rendering run on it, and the climate
+  page builds ~400 LVGL objects on boot. The 8-thermostat build aborted within
+  a minute of its first boot with the default (cause not decoded: the backtrace
+  needs that build's ELF). `climate_view.yaml` logs the internal heap (free /
+  largest block / minimum) after building its widgets and on HA connect, as a
+  baseline for diagnosing the next out-of-memory abort.
 - **Check MDI codepoints against the font, not memory.** Several glyphs were
   wrong for a long time (pressure showed `format-wrap-tight`, "windy-variant" a
   globe). Verify with the 7.4.47 CSS

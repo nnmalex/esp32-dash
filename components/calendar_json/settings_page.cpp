@@ -65,7 +65,7 @@ template<typename S> static void json_escape(S &out, const char *s, size_t len) 
 template<typename S> static void json_escape(S &out, const std::string &s) { json_escape(out, s.data(), s.size()); }
 template<typename S> static void json_escape(S &out, const char *s) { json_escape(out, s ? s : "", s ? strlen(s) : 0); }
 
-static void json_number(std::string &out, float v) {
+template<typename S> static void json_number(S &out, float v) {
   if (!std::isfinite(v)) {
     out += "null";
     return;
@@ -173,7 +173,7 @@ void SettingsPage::loop() {
     this->apply_(this->fields_[p.first], p.second);
 
   if (this->state_wanted_.exchange(false)) {
-    std::string json = this->build_state_json_();
+    auto json = this->build_state_json_();
     {
       std::lock_guard<std::mutex> guard(this->lock_);
       this->state_json_ = std::move(json);
@@ -267,14 +267,23 @@ void SettingsPage::send_state_(AsyncWebServerRequest *request) {
     request->send(503, "application/json", "{\"error\":\"device busy, try again\"}");
     return;
   }
-  std::string json;
+  std::shared_ptr<const PsramString> json;
   {
     std::lock_guard<std::mutex> guard(this->lock_);
-    json = this->state_json_;
+    json = this->state_json_;  // immutable once published; sent below without the lock
   }
-  auto *response = request->beginResponse(200, "application/json", json);
-  response->addHeader("Cache-Control", "no-store");
-  request->send(response);
+  // Chunked straight from PSRAM, like the entity list: copying 20 KB+ into an
+  // AsyncWebServerResponse would put it in internal RAM.
+  httpd_req_t *r = *request;
+  httpd_resp_set_type(r, "application/json");
+  httpd_resp_set_hdr(r, "Cache-Control", "no-store");
+  if (json && !json->empty()) {
+    if (httpd_resp_send_chunk(r, json->data(), json->size()) != ESP_OK)
+      return;
+  } else if (httpd_resp_send_chunk(r, "{}", 2) != ESP_OK) {
+    return;
+  }
+  httpd_resp_send_chunk(r, nullptr, 0);
 }
 
 void SettingsPage::send_entities_(AsyncWebServerRequest *request) {
@@ -441,9 +450,10 @@ void SettingsPage::apply_(const Field &field, const std::string &value) {
   }
 }
 
-std::string SettingsPage::build_state_json_() const {
-  std::string out;
-  out.reserve(4096);
+std::shared_ptr<const PsramString> SettingsPage::build_state_json_() const {
+  auto json = std::make_shared<PsramString>();
+  PsramString &out = *json;
+  out.reserve(32 * 1024);
   out += "{\"title\":";
   json_escape(out, this->title_);
   out += ",\"token\":";
@@ -518,7 +528,7 @@ std::string SettingsPage::build_state_json_() const {
     out += '}';
   }
   out += "]}";
-  return out;
+  return json;
 }
 
 void SettingsPage::set_entities_error_(const std::string &msg) {
