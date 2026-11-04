@@ -66,6 +66,70 @@ font:
       - "\U000F0B67"  # mdi-calendar-outline (event details: calendar)
       - "\U000F07D9"  # mdi-map-marker-outline (event details: location)
       - "\U000F09A8"  # mdi-text (event details: description)
+      # Climate view (device/climate_view.yaml, climate_sensors.yaml)
+      - "\U000F0393"  # mdi-thermostat (nav, climate card)
+      - "\U000F0238"  # mdi-fire (heat)
+      - "\U000F0717"  # mdi-snowflake (cool)
+      - "\U000F1A79"  # mdi-sun-snowflake-variant (heat_cool)
+      - "\U000F1B17"  # mdi-thermostat-auto (auto)
+      - "\U000F0210"  # mdi-fan (fan_only)
+      - "\U000F0374"  # mdi-minus (target −)
+      - "\U000F0415"  # mdi-plus (target +)
+      - "\U000F0335"  # mdi-lightbulb
+      - "\U000F0336"  # mdi-lightbulb-outline
+      - "\U000F06E8"  # mdi-lightbulb-on
+      - "\U000F0E4F"  # mdi-lightbulb-off
+      - "\U000F1253"  # mdi-lightbulb-group
+      - "\U000F0769"  # mdi-ceiling-light
+      - "\U000F06B5"  # mdi-lamp
+      - "\U000F08DD"  # mdi-floor-lamp
+      - "\U000F1051"  # mdi-led-strip-variant
+      - "\U000F081D"  # mdi-fan-off
+      - "\U000F0902"  # mdi-power-off
+      - "\U000F06A5"  # mdi-power-plug
+      - "\U000F07E7"  # mdi-power-socket-eu
+      - "\U000F0502"  # mdi-television
+      - "\U000F07F4"  # mdi-television-classic
+      - "\U000F04C3"  # mdi-speaker
+      - "\U000F0381"  # mdi-movie
+      - "\U000F0176"  # mdi-coffee
+      - "\U000F05FA"  # mdi-kettle
+      - "\U000F070D"  # mdi-robot-vacuum
+      - "\U000F06A9"  # mdi-robot (automation)
+      - "\U000F072A"  # mdi-washing-machine
+      - "\U000F0AAC"  # mdi-dishwasher
+      - "\U000F06D9"  # mdi-garage
+      - "\U000F06DA"  # mdi-garage-open
+      - "\U000F0299"  # mdi-gate
+      - "\U000F081A"  # mdi-door
+      - "\U000F081C"  # mdi-door-open
+      - "\U000F033E"  # mdi-lock
+      - "\U000F033F"  # mdi-lock-open
+      - "\U000F111C"  # mdi-window-shutter (cover)
+      - "\U000F00AC"  # mdi-blinds
+      - "\U000F03D8"  # mdi-palette (scene)
+      - "\U000F0BC2"  # mdi-script-text (script)
+      - "\U000F12A8"  # mdi-gesture-tap-button (button)
+      - "\U000F0741"  # mdi-gesture-tap (fallback)
+      - "\U000F0F9B"  # mdi-home-export-outline
+      - "\U000F04B2"  # mdi-sleep
+      - "\U000F009A"  # mdi-bell
+      - "\U000F078F"  # mdi-alarm-light
+      - "\U000F0F92"  # mdi-water-boiler
+      - "\U000F0438"  # mdi-radiator
+      - "\U000F1A45"  # mdi-heat-wave
+      - "\U000F001B"  # mdi-air-conditioner
+      - "\U000F0D44"  # mdi-air-purifier
+      - "\U000F09A0"  # mdi-shower
+      - "\U000F02E3"  # mdi-bed
+      - "\U000F04B9"  # mdi-sofa
+      - "\U000F0A70"  # mdi-silverware-fork-knife
+      - "\U000F010B"  # mdi-car
+      - "\U000F1A25"  # mdi-toggle-switch-variant (switch)
+      - "\U000F040C"  # mdi-play-circle
+      - "\U000F012C"  # mdi-check
+      - "\U000F14DE"  # mdi-rocket-launch
+      - "\U000F032A"  # mdi-leaf
   - file: 'https://github.com/Templarian/MaterialDesign-Webfont/raw/v7.4.47/fonts/materialdesignicons-webfont.ttf'
     id: icon_font_large
     size: 50
@@ -105,3 +169,4 @@ substitutions:
   icon_heart:         "\U000F02D1"
   icon_heart_outline: "\U000F02D5"
   icon_timer:         "\U000F051B"
+  icon_climate:       "\U000F0393"

@@ -155,6 +155,48 @@ calendar_json:
         group: "Timers"
         label: "Timer 3"
         domain: [timer]
+      - text: climate_entity_select_0
+        group: "Climate"
+        label: "Thermostat 1"
+        help: "Each thermostat gets a card on the climate page. Empty hides it."
+        domain: [climate]
+      - text: climate_entity_select_1
+        group: "Climate"
+        label: "Thermostat 2"
+        domain: [climate]
+      - text: climate_entity_select_2
+        group: "Climate"
+        label: "Thermostat 3"
+        domain: [climate]
+      - text: climate_entity_select_3
+        group: "Climate"
+        label: "Thermostat 4"
+        domain: [climate]
+      - text: climate_button_select_0
+        group: "Climate buttons"
+        label: "Button 1"
+        help: "Optional row of buttons under the thermostats. Lights, switches and fans toggle; buttons, scenes and scripts run. Empty hides the button."
+        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
+      - text: climate_button_select_1
+        group: "Climate buttons"
+        label: "Button 2"
+        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
+      - text: climate_button_select_2
+        group: "Climate buttons"
+        label: "Button 3"
+        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
+      - text: climate_button_select_3
+        group: "Climate buttons"
+        label: "Button 4"
+        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
+      - text: climate_button_select_4
+        group: "Climate buttons"
+        label: "Button 5"
+        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
+      - text: climate_button_select_5
+        group: "Climate buttons"
+        label: "Button 6"
+        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
       - number: backlight_day_active_brightness
         group: "Display"
         label: "Day brightness"

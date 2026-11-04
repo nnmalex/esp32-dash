@@ -3,7 +3,7 @@
 # =============================================================================
 # When any configured timer.* entity is active, timer_bar fills the right-hand
 # 480 px of the nav bar (the same split as the idle and music pages) and the
-# four nav buttons narrow to share the left 800 px. It shows the soonest-
+# five nav buttons narrow to share the left 800 px. It shows the soonest-
 # expiring timer's name and time remaining, plus a "+N" badge when several are
 # running. It lives inside the nav bar rather than floating above it, so it
 # never covers page content such as the music progress bar.

@@ -1,0 +1,581 @@
+# =============================================================================
+# CLIMATE VIEW — thermostat cards + optional button row
+# =============================================================================
+# Layout (1280×740, nav bar at y=740), all flex, 24 px margins:
+#
+#   clim_cards    one card per configured thermostat (up to 4), sharing the
+#                 width equally: 1 card = full width, 4 cards = 4 × ~293 px.
+#                 Unused slots are hidden, and LVGL flex skips hidden children,
+#                 so the remaining cards widen to fill the row.
+#   clim_buttons  optional row of up to 6 entity buttons (112 px high), hidden
+#                 when none is configured. Buttons share the width the same way.
+#
+# Card, top to bottom:
+#   name ........................ hvac_action icon (fire / snowflake / ...)
+#   status   "Heating · Boost"
+#   current temperature (70 px)
+#   TARGET   [−]  22.5°  [+]      (range "20–24°" in heat_cool, no +/−)
+#   mode row  [power] [heat] [cool] [auto] ...   (icons, from hvac_modes)
+#   preset row  Normal  Eco  Boost ...           (text, from preset_modes)
+#
+# Cards and buttons are built in C++ on boot (their chip count depends on what
+# HA reports, so they cannot be fixed YAML widgets). Pointers go into the
+# clim_* widget globals below; render_climate_card / render_climate_button
+# fill them from the state in climate_sensors.yaml.
+#
+# Data: climate_sensors.yaml. Taps call HA actions through scripts there.
+# =============================================================================
+
+globals:
+  # ---- Card widgets, per thermostat slot -------------------------------------
+  - id: clim_card
+    type: std::array<lv_obj_t *, 4>
+    initial_value: 'std::array<lv_obj_t *, 4>{}'
+  - id: clim_name_lbl
+    type: std::array<lv_obj_t *, 4>
+    initial_value: 'std::array<lv_obj_t *, 4>{}'
+  - id: clim_icon_lbl
+    type: std::array<lv_obj_t *, 4>
+    initial_value: 'std::array<lv_obj_t *, 4>{}'
+  - id: clim_status_lbl
+    type: std::array<lv_obj_t *, 4>
+    initial_value: 'std::array<lv_obj_t *, 4>{}'
+  - id: clim_cur_lbl
+    type: std::array<lv_obj_t *, 4>
+    initial_value: 'std::array<lv_obj_t *, 4>{}'
+  - id: clim_tgt_caption
+    type: std::array<lv_obj_t *, 4>
+    initial_value: 'std::array<lv_obj_t *, 4>{}'
+  - id: clim_tgt_row
+    type: std::array<lv_obj_t *, 4>
+    initial_value: 'std::array<lv_obj_t *, 4>{}'
+  - id: clim_tgt_lbl
+    type: std::array<lv_obj_t *, 4>
+    initial_value: 'std::array<lv_obj_t *, 4>{}'
+  - id: clim_minus_btn
+    type: std::array<lv_obj_t *, 4>
+    initial_value: 'std::array<lv_obj_t *, 4>{}'
+  - id: clim_plus_btn
+    type: std::array<lv_obj_t *, 4>
+    initial_value: 'std::array<lv_obj_t *, 4>{}'
+  - id: clim_mode_box
+    type: std::array<lv_obj_t *, 4>
+    initial_value: 'std::array<lv_obj_t *, 4>{}'
+  - id: clim_preset_box
+    type: std::array<lv_obj_t *, 4>
+    initial_value: 'std::array<lv_obj_t *, 4>{}'
+  # Mode chips: [0] = power, [1..6] = clim_modes[0..5]. Icon label = child 0.
+  - id: clim_mode_chips
+    type: std::array<std::array<lv_obj_t *, 7>, 4>
+    initial_value: 'std::array<std::array<lv_obj_t *, 7>, 4>{}'
+  # Preset chips: clim_presets[0..5]. Text label = child 0.
+  - id: clim_preset_chips
+    type: std::array<std::array<lv_obj_t *, 6>, 4>
+    initial_value: 'std::array<std::array<lv_obj_t *, 6>, 4>{}'
+
+  # ---- Button row widgets ---------------------------------------------------
+  - id: clim_btn
+    type: std::array<lv_obj_t *, 6>
+    initial_value: 'std::array<lv_obj_t *, 6>{}'
+  - id: clim_btn_icon_lbl
+    type: std::array<lv_obj_t *, 6>
+    initial_value: 'std::array<lv_obj_t *, 6>{}'
+  - id: clim_btn_name_lbl
+    type: std::array<lv_obj_t *, 6>
+    initial_value: 'std::array<lv_obj_t *, 6>{}'
+
+
+script:
+  # ---------------------------------------------------------------------------
+  # layout_climate_page: shows the cards and buttons that are configured, and
+  # the empty-state message when there is nothing to show.
+  # ---------------------------------------------------------------------------
+  - id: layout_climate_page
+    mode: single
+    then:
+      - lambda: |-
+          if (id(clim_card)[0] == nullptr) return;  // widgets not built yet
+          int cards = 0, buttons = 0;
+          for (int i = 0; i < 4; i++) {
+            bool on = !id(clim_entity)[i].empty();
+            cards += on;
+            if (on) lv_obj_clear_flag(id(clim_card)[i], LV_OBJ_FLAG_HIDDEN);
+            else lv_obj_add_flag(id(clim_card)[i], LV_OBJ_FLAG_HIDDEN);
+          }
+          for (int i = 0; i < 6; i++) {
+            bool on = !id(clim_btn_entity)[i].empty();
+            buttons += on;
+            if (on) lv_obj_clear_flag(id(clim_btn)[i], LV_OBJ_FLAG_HIDDEN);
+            else lv_obj_add_flag(id(clim_btn)[i], LV_OBJ_FLAG_HIDDEN);
+          }
+          if (buttons > 0) lv_obj_clear_flag(id(clim_buttons), LV_OBJ_FLAG_HIDDEN);
+          else lv_obj_add_flag(id(clim_buttons), LV_OBJ_FLAG_HIDDEN);
+
+          if (cards > 0) {
+            lv_obj_add_flag(id(clim_empty), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            std::string host = App.get_name();
+            std::string msg = "No thermostats configured\n\nAdd them on the settings page:\nhttp://"
+                + host + ".local";
+            lv_label_set_text(id(clim_empty), msg.c_str());
+            lv_obj_clear_flag(id(clim_empty), LV_OBJ_FLAG_HIDDEN);
+          }
+
+  # ---------------------------------------------------------------------------
+  # render_climate_card: fills thermostat card N from clim_* state.
+  # ---------------------------------------------------------------------------
+  - id: render_climate_card
+    parameters:
+      slot: int
+    mode: queued
+    max_runs: 8
+    then:
+      - lambda: |-
+          if (slot < 0 || slot > 3 || id(clim_card)[slot] == nullptr) return;
+          const std::string &entity = id(clim_entity)[slot];
+          if (entity.empty()) return;  // hidden by layout_climate_page
+
+          const std::string &st = id(clim_state)[slot];
+          const std::string &act = id(clim_action)[slot];
+          const std::string &preset = id(clim_preset)[slot];
+          const bool unavail = st.empty() || st == "unavailable" || st == "unknown";
+          const bool off = st == "off";
+
+          // Pretty names: "heat_cool" → "Heat/Cool", "fan_only" → "Fan",
+          // anything else (presets, unknown modes) → "Some preset".
+          auto pretty = [](const std::string &s) -> std::string {
+            static const char *const map[][2] = {
+              {"heat_cool", "Heat/Cool"}, {"fan_only", "Fan"}, {"none", "Normal"},
+              {"heating", "Heating"}, {"cooling", "Cooling"}, {"drying", "Drying"},
+              {"preheating", "Preheating"}, {"defrosting", "Defrosting"},
+            };
+            for (auto &m : map) if (s == m[0]) return m[1];
+            std::string out = s;
+            for (char &c : out) if (c == '_') c = ' ';
+            if (!out.empty()) out[0] = toupper((unsigned char) out[0]);
+            return out;
+          };
+          // Glyph + accent colour per hvac mode / action.
+          struct Look { const char *glyph; uint32_t color; };
+          auto look = [](const std::string &m) -> Look {
+            if (m == "heat" || m == "heating" || m == "preheating") return {"\U000F0238", 0xE8743B};  // fire
+            if (m == "cool" || m == "cooling" || m == "defrosting") return {"\U000F0717", 0x3A86D4};  // snowflake
+            if (m == "heat_cool") return {"\U000F1A79", 0x8E6AD8};                // sun-snowflake-variant
+            if (m == "auto") return {"\U000F1B17", 0x5BA55A};                     // thermostat-auto
+            if (m == "dry" || m == "drying") return {"\U000F058E", 0x3AA6A6};     // water-percent
+            if (m == "fan_only" || m == "fan") return {"\U000F0210", 0x7A8A9A};   // fan
+            if (m == "off") return {"\U000F0425", 0x555555};                      // power
+            return {"\U000F0393", 0x888888};                                      // thermostat
+          };
+          // Temperatures: one decimal unless the thermostat steps in whole
+          // degrees and the value is whole.
+          float step = id(clim_step)[slot];
+          auto fmt = [step](float v) -> std::string {
+            if (std::isnan(v)) return "\xe2\x80\x94";  // —
+            char b[16];
+            bool whole = !std::isnan(step) && step >= 1.0f && fabsf(v - roundf(v)) < 0.05f;
+            snprintf(b, sizeof(b), whole ? "%.0f\xc2\xb0" : "%.1f\xc2\xb0", v);
+            return b;
+          };
+
+          // ---- Header: name + action icon --------------------------------
+          std::string name = id(clim_name)[slot];
+          if (name.empty()) {
+            name = entity.substr(entity.find('.') + 1);
+            for (char &c : name) if (c == '_') c = ' ';
+            if (!name.empty()) name[0] = toupper((unsigned char) name[0]);
+          }
+          lv_label_set_text(id(clim_name_lbl)[slot], name.c_str());
+
+          // Running: the action's look. Idle or no action reported: the mode's
+          // icon, greyed.
+          bool running = !unavail && !off && !act.empty() && act != "idle" && act != "off";
+          Look hdr = look(off ? std::string("off") : running ? act : st);
+          lv_label_set_text(id(clim_icon_lbl)[slot], hdr.glyph);
+          lv_obj_set_style_text_color(id(clim_icon_lbl)[slot],
+              lv_color_hex(running ? hdr.color : 0x666666), 0);
+
+          // ---- Status line -------------------------------------------------
+          std::string status;
+          if (unavail) status = st.empty() ? "Waiting for Home Assistant\xe2\x80\xa6" : "Unavailable";
+          else if (off) status = "Off";
+          else status = pretty(act.empty() ? st : act);
+          if (!unavail && !off && !preset.empty() && preset != "none")
+            status += " \xc2\xb7 " + pretty(preset);
+          lv_label_set_text(id(clim_status_lbl)[slot], status.c_str());
+          lv_obj_set_style_text_color(id(clim_status_lbl)[slot],
+              lv_color_hex(running ? hdr.color : 0x888888), 0);
+
+          // ---- Current temperature -----------------------------------------
+          lv_label_set_text(id(clim_cur_lbl)[slot], fmt(id(clim_cur)[slot]).c_str());
+
+          // ---- Target ------------------------------------------------------
+          float pending = id(clim_pending)[slot];
+          float target = std::isnan(pending) ? id(clim_target)[slot] : pending;
+          float lo = id(clim_low)[slot], hi = id(clim_high)[slot];
+          bool single = !std::isnan(target);
+          bool range = !single && !std::isnan(lo) && !std::isnan(hi);
+          lv_obj_t *cap = id(clim_tgt_caption)[slot], *row = id(clim_tgt_row)[slot];
+          if (!single && !range) {
+            lv_obj_add_flag(cap, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(row, LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_clear_flag(cap, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_clear_flag(row, LV_OBJ_FLAG_HIDDEN);
+            std::string t = single ? fmt(target) : fmt(lo) + "\xe2\x80\x93" + fmt(hi);
+            lv_label_set_text(id(clim_tgt_lbl)[slot], t.c_str());
+            // Blue while a +/− change is waiting to be confirmed by HA.
+            lv_obj_set_style_text_color(id(clim_tgt_lbl)[slot],
+                lv_color_hex(!std::isnan(pending) ? 0x6CB4F0 : off ? 0x777777 : 0xEEEEEE), 0);
+            for (lv_obj_t *b : {id(clim_minus_btn)[slot], id(clim_plus_btn)[slot]}) {
+              if (single && !unavail) lv_obj_clear_flag(b, LV_OBJ_FLAG_HIDDEN);
+              else lv_obj_add_flag(b, LV_OBJ_FLAG_HIDDEN);
+            }
+          }
+
+          // ---- Mode chips: power + up to 6 hvac modes ----------------------
+          const auto &modes = id(clim_modes)[slot];
+          auto &mchips = id(clim_mode_chips)[slot];
+          int shown = 0;
+          for (int i = 0; i < 7; i++) {
+            lv_obj_t *chip = mchips[i];
+            bool visible, active;
+            Look lk{"", 0};
+            if (i == 0) {
+              visible = id(clim_has_off)[slot];
+              active = !off && !unavail;
+              lk = {"\U000F0425", 0x5BA55A};  // power, green when on
+            } else {
+              visible = i - 1 < (int) modes.size();
+              active = visible && st == modes[i - 1];
+              if (visible) lk = look(modes[i - 1]);
+            }
+            if (!visible) { lv_obj_add_flag(chip, LV_OBJ_FLAG_HIDDEN); continue; }
+            shown++;
+            lv_obj_clear_flag(chip, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_t *icon = lv_obj_get_child(chip, 0);
+            lv_label_set_text(icon, lk.glyph);
+            lv_obj_set_style_bg_color(chip, lv_color_hex(active ? lk.color : 0x2A2A2A), 0);
+            lv_obj_set_style_text_color(icon, lv_color_hex(active ? 0xFFFFFF : 0x999999), 0);
+          }
+          if (shown) lv_obj_clear_flag(id(clim_mode_box)[slot], LV_OBJ_FLAG_HIDDEN);
+          else lv_obj_add_flag(id(clim_mode_box)[slot], LV_OBJ_FLAG_HIDDEN);
+
+          // ---- Preset chips ------------------------------------------------
+          const auto &presets = id(clim_presets)[slot];
+          auto &pchips = id(clim_preset_chips)[slot];
+          for (int i = 0; i < 6; i++) {
+            lv_obj_t *chip = pchips[i];
+            if (i >= (int) presets.size()) { lv_obj_add_flag(chip, LV_OBJ_FLAG_HIDDEN); continue; }
+            lv_obj_clear_flag(chip, LV_OBJ_FLAG_HIDDEN);
+            bool active = presets[i] == preset && !unavail;
+            lv_label_set_text(lv_obj_get_child(chip, 0), pretty(presets[i]).c_str());
+            lv_obj_set_style_bg_color(chip, lv_color_hex(active ? 0x6CB4F0 : 0x2A2A2A), 0);
+            lv_obj_set_style_text_color(chip, lv_color_hex(active ? 0x111111 : 0xBBBBBB), 0);
+          }
+          if (!presets.empty()) lv_obj_clear_flag(id(clim_preset_box)[slot], LV_OBJ_FLAG_HIDDEN);
+          else lv_obj_add_flag(id(clim_preset_box)[slot], LV_OBJ_FLAG_HIDDEN);
+
+          lv_obj_set_style_opa(id(clim_card)[slot], unavail && !st.empty() ? LV_OPA_50 : LV_OPA_COVER, 0);
+
+  # ---------------------------------------------------------------------------
+  # render_climate_button: fills button N (icon, name, on/off highlight).
+  # ---------------------------------------------------------------------------
+  - id: render_climate_button
+    parameters:
+      slot: int
+    mode: queued
+    max_runs: 8
+    then:
+      - lambda: |-
+          if (slot < 0 || slot > 5 || id(clim_btn)[slot] == nullptr) return;
+          const std::string &entity = id(clim_btn_entity)[slot];
+          if (entity.empty()) return;
+          const std::string domain = entity.substr(0, entity.find('.'));
+          const std::string &st = id(clim_btn_state)[slot];
+
+          std::string name = id(clim_btn_name)[slot];
+          if (name.empty()) {
+            name = entity.substr(entity.find('.') + 1);
+            for (char &c : name) if (c == '_') c = ' ';
+            if (!name.empty()) name[0] = toupper((unsigned char) name[0]);
+          }
+          lv_label_set_text(id(clim_btn_name_lbl)[slot], name.c_str());
+
+          const char *ic = id(clim_btn_icon_attr)[slot];
+          if (ic == nullptr) {
+            static const char *const by_domain[][2] = {
+              {"light", "\U000F0335"},        {"switch", "\U000F1A25"},
+              {"input_boolean", "\U000F1A25"}, {"fan", "\U000F0210"},
+              {"scene", "\U000F03D8"},        {"script", "\U000F0BC2"},
+              {"automation", "\U000F06A9"},   {"button", "\U000F12A8"},
+              {"input_button", "\U000F12A8"}, {"lock", "\U000F033E"},
+              {"cover", "\U000F111C"},        {"climate", "\U000F0393"},
+              {"media_player", "\U000F075A"},
+            };
+            ic = "\U000F0741";  // gesture-tap
+            for (auto &m : by_domain) if (domain == m[0]) { ic = m[1]; break; }
+          }
+          lv_label_set_text(id(clim_btn_icon_lbl)[slot], ic);
+
+          // Highlight entities that are "on"; stateless ones (button, scene,
+          // script) report a timestamp or "scening" and never light up.
+          bool on = st == "on" || st == "open" || st == "unlocked" || st == "playing"
+                 || st == "heat" || st == "cool" || st == "heat_cool" || st == "auto";
+          bool unavail = st == "unavailable" || st == "unknown";
+          lv_obj_set_style_bg_color(id(clim_btn)[slot], lv_color_hex(on ? 0x3A321C : 0x1C1C1C), 0);
+          lv_obj_set_style_text_color(id(clim_btn_icon_lbl)[slot], lv_color_hex(on ? 0xFFC107 : 0xBBBBBB), 0);
+          lv_obj_set_style_opa(id(clim_btn)[slot], unavail ? LV_OPA_40 : LV_OPA_COVER, 0);
+
+
+lvgl:
+  on_boot:
+    # Build the four thermostat cards and six buttons (hidden), then lay out.
+    - lambda: |-
+        const lv_font_t *f_icon  = id(icon_font)->get_lv_font();
+        const lv_font_t *f_name  = id(roboto_light30_font)->get_lv_font();
+        const lv_font_t *f_small = id(roboto_light26_font)->get_lv_font();
+        const lv_font_t *f_cap   = id(roboto19_font)->get_lv_font();
+        const lv_font_t *f_big   = id(roboto_light70_font)->get_lv_font();
+        const lv_font_t *f_tgt   = id(roboto_light40_font)->get_lv_font();
+
+        // A bare container: no theme styles, not clickable or scrollable.
+        auto box = [](lv_obj_t *parent) {
+          lv_obj_t *o = lv_obj_create(parent);
+          lv_obj_remove_style_all(o);
+          lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
+          lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
+          return o;
+        };
+        auto label = [](lv_obj_t *parent, const lv_font_t *font, uint32_t color) {
+          lv_obj_t *l = lv_label_create(parent);
+          lv_obj_set_style_text_font(l, font, 0);
+          lv_obj_set_style_text_color(l, lv_color_hex(color), 0);
+          lv_label_set_text(l, "");
+          return l;
+        };
+        // A tappable pill/round button: flat fill, lighter while pressed.
+        auto button = [](lv_obj_t *parent, int32_t w, int32_t h, int32_t radius) {
+          lv_obj_t *b = lv_button_create(parent);
+          lv_obj_remove_style_all(b);
+          lv_obj_set_size(b, w, h);
+          lv_obj_set_style_radius(b, radius, 0);
+          lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+          lv_obj_set_style_bg_color(b, lv_color_hex(0x2A2A2A), 0);
+          lv_obj_set_style_bg_color(b, lv_color_hex(0x444444), LV_STATE_PRESSED);
+          lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+          return b;
+        };
+        auto flex = [](lv_obj_t *o, lv_flex_flow_t flow, lv_flex_align_t main,
+                       lv_flex_align_t cross, int32_t gap) {
+          lv_obj_set_layout(o, LV_LAYOUT_FLEX);
+          lv_obj_set_flex_flow(o, flow);
+          lv_obj_set_flex_align(o, main, cross, cross);
+          lv_obj_set_style_pad_row(o, gap, 0);
+          lv_obj_set_style_pad_column(o, gap, 0);
+        };
+
+        for (int s = 0; s < 4; s++) {
+          lv_obj_t *card = box(id(clim_cards));
+          lv_obj_set_height(card, lv_pct(100));
+          lv_obj_set_flex_grow(card, 1);
+          lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
+          lv_obj_set_style_bg_color(card, lv_color_hex(0x1C1C1C), 0);
+          lv_obj_set_style_radius(card, 20, 0);
+          lv_obj_set_style_pad_all(card, 20, 0);
+          flex(card, LV_FLEX_FLOW_COLUMN, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, 10);
+          // With four cards and many modes the content can outgrow the card:
+          // let it scroll vertically rather than clip.
+          lv_obj_add_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+          lv_obj_set_scroll_dir(card, LV_DIR_VER);
+          lv_obj_set_scrollbar_mode(card, LV_SCROLLBAR_MODE_OFF);
+          lv_obj_add_flag(card, LV_OBJ_FLAG_HIDDEN);
+          id(clim_card)[s] = card;
+
+          // Header: name (ellipsised) + action icon
+          lv_obj_t *hdr = box(card);
+          lv_obj_set_size(hdr, lv_pct(100), LV_SIZE_CONTENT);
+          flex(hdr, LV_FLEX_FLOW_ROW, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, 8);
+          lv_obj_t *name = label(hdr, f_name, 0xEEEEEE);
+          lv_obj_set_flex_grow(name, 1);
+          lv_obj_set_height(name, 36);
+          lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
+          id(clim_name_lbl)[s] = name;
+          id(clim_icon_lbl)[s] = label(hdr, f_icon, 0x666666);
+
+          lv_obj_t *status = label(card, f_small, 0x888888);
+          lv_obj_set_width(status, lv_pct(100));
+          lv_label_set_long_mode(status, LV_LABEL_LONG_DOT);
+          lv_obj_set_height(status, 32);
+          id(clim_status_lbl)[s] = status;
+
+          id(clim_cur_lbl)[s] = label(card, f_big, 0xFFFFFF);
+
+          // Pushes the target and buttons to the bottom of the card.
+          lv_obj_t *spacer = box(card);
+          lv_obj_set_width(spacer, 1);
+          lv_obj_set_flex_grow(spacer, 1);
+
+          lv_obj_t *cap = label(card, f_cap, 0x777777);
+          lv_label_set_text(cap, "TARGET");
+          id(clim_tgt_caption)[s] = cap;
+
+          lv_obj_t *row = box(card);
+          lv_obj_set_size(row, lv_pct(100), 64);
+          flex(row, LV_FLEX_FLOW_ROW, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, 8);
+          id(clim_tgt_row)[s] = row;
+          lv_obj_t *minus = button(row, 64, 64, 32);
+          lv_obj_t *ml = label(minus, f_icon, 0xFFFFFF);
+          lv_label_set_text(ml, "\U000F0374");  // minus
+          lv_obj_center(ml);
+          id(clim_minus_btn)[s] = minus;
+          lv_obj_t *tgt = label(row, f_tgt, 0xEEEEEE);
+          id(clim_tgt_lbl)[s] = tgt;
+          lv_obj_t *plus = button(row, 64, 64, 32);
+          lv_obj_t *pl = label(plus, f_icon, 0xFFFFFF);
+          lv_label_set_text(pl, "\U000F0415");  // plus
+          lv_obj_center(pl);
+          id(clim_plus_btn)[s] = plus;
+          lv_obj_add_event_cb(minus, [](lv_event_t *e) {
+            id(climate_adjust_target).execute((int) (intptr_t) lv_event_get_user_data(e), -1);
+          }, LV_EVENT_CLICKED, (void *) (intptr_t) s);
+          lv_obj_add_event_cb(plus, [](lv_event_t *e) {
+            id(climate_adjust_target).execute((int) (intptr_t) lv_event_get_user_data(e), 1);
+          }, LV_EVENT_CLICKED, (void *) (intptr_t) s);
+
+          // Mode chips (icons). user_data = slot * 8 + chip index.
+          lv_obj_t *modes = box(card);
+          lv_obj_set_size(modes, lv_pct(100), LV_SIZE_CONTENT);
+          flex(modes, LV_FLEX_FLOW_ROW_WRAP, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, 8);
+          lv_obj_set_style_pad_top(modes, 6, 0);
+          id(clim_mode_box)[s] = modes;
+          for (int i = 0; i < 7; i++) {
+            lv_obj_t *chip = button(modes, 58, 52, 26);
+            lv_obj_t *ic = label(chip, f_icon, 0x999999);
+            lv_obj_center(ic);
+            lv_obj_add_flag(chip, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_event_cb(chip, [](lv_event_t *e) {
+              int v = (int) (intptr_t) lv_event_get_user_data(e);
+              id(climate_mode_pressed).execute(v / 8, v % 8);
+            }, LV_EVENT_CLICKED, (void *) (intptr_t) (s * 8 + i));
+            id(clim_mode_chips)[s][i] = chip;
+          }
+
+          // Preset chips (text).
+          lv_obj_t *presets = box(card);
+          lv_obj_set_size(presets, lv_pct(100), LV_SIZE_CONTENT);
+          flex(presets, LV_FLEX_FLOW_ROW_WRAP, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, 8);
+          id(clim_preset_box)[s] = presets;
+          for (int i = 0; i < 6; i++) {
+            lv_obj_t *chip = button(presets, LV_SIZE_CONTENT, 48, 24);
+            lv_obj_set_style_pad_hor(chip, 18, 0);
+            lv_obj_t *t = label(chip, f_small, 0xBBBBBB);
+            lv_obj_center(t);
+            // Labels inherit the chip's text colour (set in render), so drop
+            // the explicit one label() gave it.
+            lv_obj_remove_local_style_prop(t, LV_STYLE_TEXT_COLOR, 0);
+            lv_obj_add_flag(chip, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_event_cb(chip, [](lv_event_t *e) {
+              int v = (int) (intptr_t) lv_event_get_user_data(e);
+              id(climate_preset_pressed).execute(v / 8, v % 8);
+            }, LV_EVENT_CLICKED, (void *) (intptr_t) (s * 8 + i));
+            id(clim_preset_chips)[s][i] = chip;
+          }
+        }
+
+        // Button row: icon over name, sharing the width equally.
+        flex(id(clim_buttons), LV_FLEX_FLOW_ROW, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, 16);
+        for (int s = 0; s < 6; s++) {
+          lv_obj_t *b = button(id(clim_buttons), 1, lv_pct(100), 18);
+          lv_obj_set_flex_grow(b, 1);
+          lv_obj_set_style_bg_color(b, lv_color_hex(0x1C1C1C), 0);
+          lv_obj_set_style_bg_color(b, lv_color_hex(0x333333), LV_STATE_PRESSED);
+          lv_obj_set_style_pad_hor(b, 12, 0);
+          flex(b, LV_FLEX_FLOW_COLUMN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, 4);
+          id(clim_btn_icon_lbl)[s] = label(b, f_icon, 0xBBBBBB);
+          lv_obj_t *n = label(b, f_small, 0xDDDDDD);
+          lv_obj_set_width(n, lv_pct(100));
+          lv_obj_set_style_text_align(n, LV_TEXT_ALIGN_CENTER, 0);
+          lv_label_set_long_mode(n, LV_LABEL_LONG_DOT);
+          lv_obj_set_height(n, 32);
+          id(clim_btn_name_lbl)[s] = n;
+          lv_obj_add_flag(b, LV_OBJ_FLAG_HIDDEN);
+          lv_obj_add_event_cb(b, [](lv_event_t *e) {
+            id(climate_button_pressed).execute((int) (intptr_t) lv_event_get_user_data(e));
+          }, LV_EVENT_CLICKED, (void *) (intptr_t) s);
+          id(clim_btn)[s] = b;
+        }
+
+        id(layout_climate_page).execute();
+        for (int i = 0; i < 4; i++) id(render_climate_card).execute(i);
+        for (int i = 0; i < 6; i++) id(render_climate_button).execute(i);
+
+  pages:
+    - id: climate_page
+      scrollable: false
+      scrollbar_mode: "off"
+      width: 100%
+      height: 100%
+      bg_color: 0x111111
+      pad_all: 0
+      widgets:
+        # Everything above the nav bar (y 0..740).
+        - obj:
+            id: clim_root
+            x: 0
+            y: 0
+            width: 1280
+            height: 740
+            bg_opa: 0%
+            border_width: 0
+            radius: 0
+            pad_all: 24
+            scrollable: false
+            layout:
+              type: flex
+              flex_flow: COLUMN
+              flex_align_main: START
+              flex_align_cross: CENTER
+              flex_align_track: CENTER
+              pad_row: 20
+            widgets:
+              # Thermostat cards (built on boot) + empty-state message.
+              - obj:
+                  id: clim_cards
+                  width: 100%
+                  flex_grow: 1
+                  bg_opa: 0%
+                  border_width: 0
+                  radius: 0
+                  pad_all: 0
+                  scrollable: false
+                  layout:
+                    type: flex
+                    flex_flow: ROW
+                    flex_align_main: START
+                    flex_align_cross: CENTER
+                    flex_align_track: CENTER
+                    pad_column: 20
+                  widgets:
+                    - label:
+                        id: clim_empty
+                        flex_grow: 1
+                        text: ""
+                        text_font: roboto_light30_font
+                        text_color: 0x666666
+                        text_align: center
+                        hidden: true
+
+              # Optional entity buttons (built on boot), hidden when none.
+              - obj:
+                  id: clim_buttons
+                  width: 100%
+                  height: 112
+                  bg_opa: 0%
+                  border_width: 0
+                  radius: 0
+                  pad_all: 0
+                  scrollable: false
+                  hidden: true
+                  # Flex row (gap 16) is set on boot: ESPHome rejects a layout
+                  # on an obj with no YAML children.
