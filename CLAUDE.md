@@ -412,6 +412,18 @@ zero-config `ha_token` setup.
   needs that build's ELF). `climate_view.yaml` logs the internal heap (free /
   largest block / minimum) after building its widgets and on HA connect, as a
   baseline for diagnosing the next out-of-memory abort.
+- **Diagnosing a boot crash.** A crash report from a *different* build (always
+  the case after an OTA rollback, which `safe_mode` does when a new build dies
+  within a minute) prints raw `bt` addresses that nothing decodes. To get a
+  decoded trace without shell access to the build machine, set
+  `esp32: framework: advanced: enable_ota_rollback: false` in the device's own
+  YAML, install, and open the dashboard log viewer: the crashed build reboots
+  as itself, and ESPHome's log viewer decodes its report (`PC:` / `BT` lines)
+  against the ELF it just built. After repeated crashes `safe_mode` boots into
+  safe mode, which still serves logs and OTA. `alloc_diag.h`
+  (`calendar_json`) records the last failed heap allocation (size, caps, free /
+  largest block) in `.noinit` RAM and logs it on API connect, which says what
+  ran out when the abort was a failed allocation.
 - **Check MDI codepoints against the font, not memory.** Several glyphs were
   wrong for a long time (pressure showed `format-wrap-tight`, "windy-variant" a
   globe). Verify with the 7.4.47 CSS
