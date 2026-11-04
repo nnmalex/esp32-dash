@@ -688,10 +688,10 @@ script:
       - lambda: |-
           if (slot < 0 || slot >= 8) return;
           esphome::text::Text *const sel[8] = {
-            &id(climate_entity_select_0), &id(climate_entity_select_1),
-            &id(climate_entity_select_2), &id(climate_entity_select_3),
-            &id(climate_entity_select_4), &id(climate_entity_select_5),
-            &id(climate_entity_select_6), &id(climate_entity_select_7),
+            id(climate_entity_select_0), id(climate_entity_select_1),
+            id(climate_entity_select_2), id(climate_entity_select_3),
+            id(climate_entity_select_4), id(climate_entity_select_5),
+            id(climate_entity_select_6), id(climate_entity_select_7),
           };
           std::string entity = sel[slot]->state;
           if (!entity.empty() && entity.rfind("climate.", 0) != 0) {
@@ -830,16 +830,16 @@ script:
           if (slot < 0 || slot >= 30) return;
           // 0..5 bottom row, 6 + T*3 + J button J of thermostat T.
           esphome::text::Text *const sel[30] = {
-            &id(climate_button_select_0), &id(climate_button_select_1), &id(climate_button_select_2),
-            &id(climate_button_select_3), &id(climate_button_select_4), &id(climate_button_select_5),
-            &id(climate_card_button_select_0_0), &id(climate_card_button_select_0_1), &id(climate_card_button_select_0_2),
-            &id(climate_card_button_select_1_0), &id(climate_card_button_select_1_1), &id(climate_card_button_select_1_2),
-            &id(climate_card_button_select_2_0), &id(climate_card_button_select_2_1), &id(climate_card_button_select_2_2),
-            &id(climate_card_button_select_3_0), &id(climate_card_button_select_3_1), &id(climate_card_button_select_3_2),
-            &id(climate_card_button_select_4_0), &id(climate_card_button_select_4_1), &id(climate_card_button_select_4_2),
-            &id(climate_card_button_select_5_0), &id(climate_card_button_select_5_1), &id(climate_card_button_select_5_2),
-            &id(climate_card_button_select_6_0), &id(climate_card_button_select_6_1), &id(climate_card_button_select_6_2),
-            &id(climate_card_button_select_7_0), &id(climate_card_button_select_7_1), &id(climate_card_button_select_7_2),
+            id(climate_button_select_0), id(climate_button_select_1), id(climate_button_select_2),
+            id(climate_button_select_3), id(climate_button_select_4), id(climate_button_select_5),
+            id(climate_card_button_select_0_0), id(climate_card_button_select_0_1), id(climate_card_button_select_0_2),
+            id(climate_card_button_select_1_0), id(climate_card_button_select_1_1), id(climate_card_button_select_1_2),
+            id(climate_card_button_select_2_0), id(climate_card_button_select_2_1), id(climate_card_button_select_2_2),
+            id(climate_card_button_select_3_0), id(climate_card_button_select_3_1), id(climate_card_button_select_3_2),
+            id(climate_card_button_select_4_0), id(climate_card_button_select_4_1), id(climate_card_button_select_4_2),
+            id(climate_card_button_select_5_0), id(climate_card_button_select_5_1), id(climate_card_button_select_5_2),
+            id(climate_card_button_select_6_0), id(climate_card_button_select_6_1), id(climate_card_button_select_6_2),
+            id(climate_card_button_select_7_0), id(climate_card_button_select_7_1), id(climate_card_button_select_7_2),
           };
           std::string entity = sel[slot]->state;
           if (!entity.empty() && entity.find('.') == std::string::npos) {
