@@ -31,6 +31,7 @@ guition-esp32-p4-jc8012p4a1/
   device/
     device.yaml         # hardware config, globals, touch gestures, state machine
     ha_settings.yaml    # ha_base_url / ha_token_global from compile-time substitutions
+    web_settings.yaml   # device-hosted settings page: field list (see "Settings page")
     lvgl.yaml           # music_page widget definitions + overlays
     sensors.yaml        # template sensors, 1s playback interpolation
     media_player_select.yaml  # dynamic HA entity subscription
@@ -49,8 +50,9 @@ components/
                         # JPEG: P4 hardware decoder, libjpeg-turbo fallback; one shared
                         # bilinear resampler (ImageDecoder::resample) for JPEG and PNG
   calendar_json/        # shared C++ for calendar + forecast: JSON parser, event-line and
-                        # date helpers (calendar_json.h), weather_icons.h, and
-                        # http_worker.* (background HTTP, see "Background HTTP")
+                        # date helpers (calendar_json.h), weather_icons.h,
+                        # http_worker.* (background HTTP, see "Background HTTP") and
+                        # settings_page.* (device settings page, see "Settings page")
   gsl3680/              # vendored touch driver (see its README.md)
   libjpeg-turbo-esp32/  # JPEG decode library (CMake IDF component)
 builds/
@@ -162,7 +164,7 @@ Four LVGL pages defined across two files (`device/lvgl.yaml` + `device/navbar.ya
 
 Navigation bar (`nav_bar`) defined in `device/navbar.yaml`, reparented to `lv_layer_top()` on boot so it floats above all pages. 60px bar at y=740, visible on all four views (every `show_*_view` script reveals it; it starts hidden only so it does not flash during boot/setup), four icon buttons: Home, Music, Calendar, Forecast. `update_nav_highlight` (run by every `show_*_view`) brightens the current view's icon and shows its accent mark (`nav_*_mark`); the others are dimmed. `layout_nav_bar` narrows the buttons to 4×200px in the left 800px while `timer_bar` is visible, and restores 4×320px otherwise.
 
-Timer overlay (`timer_bar`) defined in `device/timer_overlay.yaml`, reparented into `nav_bar` on boot and occupying its right 480px (x=800). It sits inside the nav bar rather than floating above it so it never covers page content; it is hidden when no timers are active. Shows soonest-expiring active timer name + MM:SS countdown + "+N" badge. Tapping dismisses until next HA `remaining` update. Subscribes to up to 3 `timer.*` entities (compile-time substitutions `timer_entity_1..3` or runtime via HA device settings). Remaining time is computed from the `finishes_at` attribute against the clock (`tmr_finishes_0..2`), so a stalled main loop or a reconnect does not make it drift; a local 1 s decrement is only the fallback before time sync. Time label turns red when < 60 s remaining. A paused timer is shown (greyed, "· Paused") when none is running. When a timer goes active → idle within a few seconds of its `finishes_at`, `show_timer_done` raises `tmr_done_overlay` (full-screen card on `lv_layer_top()`, wakes the backlight, tap or 10 min to dismiss); a cancel, or a reconnect long after it ended, does not.
+Timer overlay (`timer_bar`) defined in `device/timer_overlay.yaml`, reparented into `nav_bar` on boot and occupying its right 480px (x=800). It sits inside the nav bar rather than floating above it so it never covers page content; it is hidden when no timers are active. Shows soonest-expiring active timer name + MM:SS countdown + "+N" badge. Tapping dismisses until next HA `remaining` update. Subscribes to up to 3 `timer.*` entities (compile-time substitutions `timer_entity_1..3` or runtime via the device settings page). Remaining time is computed from the `finishes_at` attribute against the clock (`tmr_finishes_0..2`), so a stalled main loop or a reconnect does not make it drift; a local 1 s decrement is only the fallback before time sync. Time label turns red when < 60 s remaining. A paused timer is shown (greyed, "· Paused") when none is running. When a timer goes active → idle within a few seconds of its `finishes_at`, `show_timer_done` raises `tmr_done_overlay` (full-screen card on `lv_layer_top()`, wakes the backlight, tap or 10 min to dismiss); a cancel, or a reconnect long after it ended, does not.
 
 Global state flags in `device/device.yaml`:
 - `actions_prompt_acked` — user dismissed the "enable actions" prompt (NVS-backed)
@@ -222,7 +224,7 @@ The left pane of the idle page displays a full-panel weather background image lo
    ```yaml
    local_temp_entity: "sensor.indoor_temperature"
    ```
-   When set, this sensor's value replaces the weather entity's temperature on the idle page. Can also be configured at runtime in HA device settings.
+   When set, this sensor's value replaces the weather entity's temperature on the idle page. Can also be configured at runtime on the device settings page.
 
 ## Creating GitHub releases
 
@@ -263,6 +265,43 @@ are not in the tree. Listed so they are not mistaken for regressions:
   `sensor.speaker_group` template sensor in HA) were removed. Nothing subscribes
   to `volume_level` or `group_members` any more, and the "Speakers: Auto-Close
   Timeout" number entity is gone.
+
+## Settings page
+
+User settings are **not** exposed to Home Assistant. The panel serves its own
+page at `http://<name>.local/` (`/` and `/settings`), implemented by
+`esp32_dash::SettingsPage` (`components/calendar_json/settings_page.*`, page
+markup in `settings_page_html.h`) and configured in `device/web_settings.yaml`
+under `calendar_json: settings:`.
+
+- The settings are still the template text / number / select / switch entities in
+  their own files, now `internal: true`. They keep NVS restore and their
+  `on_value` / `set_action` triggers; the page writes through `make_call()` /
+  `turn_on()` exactly as HA did. **Do not rename them**: the NVS key is a hash of
+  the entity name, so a rename silently resets that setting on every panel.
+- **Adding a setting:** declare the entity with `internal: true` (and the usual
+  `set_action` publish, see Gotchas), then add a field to
+  `device/web_settings.yaml` (`text:` / `number:` / `select:` / `switch:` plus
+  `group`, `label`, optional `help`, `domain` (entity pickers) and
+  `unit_of_measurement`). The page is generic; no HTML changes needed.
+- Entity pickers (`text:` fields) are filled from HA's `GET /api/states`, fetched
+  through `HttpWorker` with `ha_token` when the page asks
+  (`/settings/entities`, cached 5 min, `?refresh=1` forces it) and parsed on the
+  main loop into `[id, friendly_name, unit]`. HA rejects the template API for
+  non-admin tokens, which is why the full state list is used.
+- Threading: `handleRequest()` runs on the httpd task and touches only the
+  immutable field table. State snapshots are built in `loop()` on request (the
+  handler waits on a semaphore), writes are validated on the httpd task, then
+  queued and applied in `loop()`. Keep entity access on the main loop.
+- Endpoints: `GET /settings/state`, `GET /settings/entities`,
+  `POST /settings/set` (form `key`, `value`; `key` is the entity's YAML id).
+- It claims `/`, so do not add ESPHome's stock `web_server:` (both would want
+  the root, and it would show the remaining HA entities only). While the captive
+  portal is active (AP mode) the page yields every request to it.
+- Optional HTTP basic auth via `settings_username` / `settings_password`
+  substitutions (checked by the handler itself, not web_server's `auth:`).
+- The "Media Player" setup prompt shows `http://<App.get_name()>.local`
+  (set in `addon/network.yaml`).
 
 ## Background HTTP: calendar and forecast fetches
 

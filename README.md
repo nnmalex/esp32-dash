@@ -14,12 +14,16 @@ substitutions:
   friendly_name: "ESP32 Dash"
 
   # ── Network / HA connection ────────────────────────────────────────────────
-  # ha_host, ha_port, ha_protocol, and ha_token are configurable at runtime
-  # via the HA device settings page — no substitutions or recompile needed.
-  # Uncomment below only if you want to set initial values at compile time:
+  # Compile-time only. The token is needed for the calendar, the forecast and
+  # the entity lists on the settings page.
   # ha_host: "homeassistant.local"  # change if HA is on a different host
   # ha_port: "8123"
-  # ha_token: !secret ha_token      # long-lived token — or set via HA device settings
+  # ha_token: !secret ha_token      # long-lived access token
+
+  # ── Settings page login (optional) ─────────────────────────────────────────
+  # The settings page at http://<name>.local/ is open to your LAN unless set.
+  # settings_username: "admin"
+  # settings_password: !secret dash_settings_password
 
   # ── Display orientation ────────────────────────────────────────────────────
   # display_rotation: "270"         # 90 (default) or 270 (cable on left side)
@@ -31,6 +35,10 @@ substitutions:
 
   # ── Music screen ───────────────────────────────────────────────────────────
   # favourite_entity: "button.spotify_save_track"  # heart button (optional)
+
+  # ── Initial values for the settings page (optional) ─────────────────────────
+  # Everything below can be set on the settings page after flashing instead.
+  # These only seed the first boot; values saved on the page take precedence.
 
   # ── Home screen: weather ───────────────────────────────────────────────────
   # weather_entity: "weather.openweathermap"
@@ -69,7 +77,19 @@ packages:
     refresh: 1s
 ```
 
-After flashing, add the device in Home Assistant and set the **Media Player** entity from the device settings page.
+After flashing, add the device in Home Assistant (**Settings → Devices → ESPHome**), then open the device's settings page to pick your media player and everything else.
+
+## Settings page
+
+The panel serves its own settings page at `http://<name>.local/` (`http://esp32-dash.local/` for the snippet above; the device's IP address works too). The panel shows the address on its "Media Player" setup screen.
+
+Settings are no longer exposed to Home Assistant as device configuration entities, so HA's device page only shows the panel's status sensors and the Accent Color light.
+
+- **Entity fields** (media player, weather, sensor tiles, calendars, timers) offer the entities your Home Assistant has, with their friendly names. The panel fetches this list from HA when the page opens, using `ha_token`. Without a token you can still type entity ids in.
+- **Other settings** (brightness, night hours, timezone, playback options, timeouts) are regular inputs.
+- Changes save as you make them and apply immediately. They are stored on the panel and survive reboots and firmware updates.
+
+Set `settings_username` / `settings_password` to make the browser ask for a login. This is HTTP basic authentication over plain HTTP: it keeps casual visitors on your network out, but it isn't encryption.
 
 ## Music screen setup
 
@@ -85,7 +105,7 @@ The home (idle) screen has a left panel with a weather background and a right pa
 
 ### Weather & calendar entities
 
-Set these from the device's settings page in HA (or via substitutions):
+Set these on the device's [settings page](#settings-page) (or seed them with substitutions):
 
 | Setting | Description |
 |---|---|
@@ -116,15 +136,7 @@ Leave `weather_bg_path` commented out (default) to skip background images and sh
 
 ## Firmware updates
 
-The dashboard checks for updates automatically. Controls are on the HA device settings page:
-
-| Setting | Default | Description |
-|---|---|---|
-| **Auto Update** | On | Automatically install when a new version is found |
-| **Update Frequency** | Daily | How often to check — Hourly, Daily, or Weekly |
-| **Install Latest Firmware** | — | Button to trigger an immediate check and install |
-
-Updates are fetched from GitHub Pages (`nnmalex.github.io/esp32-dash/firmware/`) and built from the `main` branch on every push. A new version is published automatically — no action needed on your part.
+There is no automatic update check. Update by reinstalling from the ESPHome dashboard, which pulls the latest `main` (see `refresh: 1s` in the snippet above).
 
 ## Calendar week view
 
@@ -136,6 +148,6 @@ Events are fetched from the HA REST API, which requires a long-lived access toke
 
 1. In HA, go to your **Profile → Security → Long-lived access tokens** and create a token.
 
-2. On the HA device settings page for ESP32 Dash, paste the token into the **HA Token** field.
+2. Set it with the `ha_token` substitution in your config (`ha_token: !secret ha_token`, with the token in `secrets.yaml`) and reinstall.
 
-The token is stored in device flash (NVS) and takes effect immediately on the next fetch — no recompile needed. Alternatively, set it at compile time via the `ha_token` substitution in your config (`ha_token: !secret ha_token` in `secrets.yaml`).
+The same token lets the settings page list your Home Assistant entities.

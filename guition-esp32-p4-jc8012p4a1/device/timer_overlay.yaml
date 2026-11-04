@@ -24,8 +24,8 @@
 # Timer names are read from input_text.timer_name_<suffix> where the suffix
 # is the part of the timer entity ID after "timer." (e.g. timer.slot_1 → input_text.timer_name_slot_1).
 #
-# Entity selectors are also exposed as NVS-persisted text entities in HA device
-# settings, following the same pattern as calendar_entity_1..3.
+# Entity selectors are NVS-persisted internal text entities edited on the device
+# settings page (device/web_settings.yaml), like calendar_entity_1..3.
 # =============================================================================
 
 substitutions:
@@ -105,13 +105,13 @@ globals:
 
 
 # -----------------------------------------------------------------------------
-# Entity selector text entities (NVS-persisted, visible in device settings)
+# Entity selector text entities (NVS-persisted, edited on the settings page)
 # -----------------------------------------------------------------------------
 text:
   - platform: template
     name: "Timer 1 Entity"
     id: timer_entity_select_0
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:timer"
     mode: text
     optimistic: true
@@ -125,7 +125,7 @@ text:
   - platform: template
     name: "Timer 2 Entity"
     id: timer_entity_select_1
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:timer"
     mode: text
     optimistic: true
@@ -139,7 +139,7 @@ text:
   - platform: template
     name: "Timer 3 Entity"
     id: timer_entity_select_2
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:timer"
     mode: text
     optimistic: true

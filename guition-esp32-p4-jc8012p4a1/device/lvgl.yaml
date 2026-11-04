@@ -319,7 +319,9 @@ lvgl:
                         width: 700
                         text_align: center
                     - label:
-                        text: "Set the media player entity\nyou want to control in\ndevice settings"
+                        id: setup_instructions
+                        # Replaced at boot with the settings page address (addon/network.yaml)
+                        text: "Choose the media player on\nthe device settings page"
                         text_font: roboto30_font
                         text_color: 0x888888
                         width: 700

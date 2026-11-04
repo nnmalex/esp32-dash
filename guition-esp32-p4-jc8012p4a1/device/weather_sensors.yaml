@@ -183,13 +183,13 @@ globals:
 
 
 # -----------------------------------------------------------------------------
-# Entity selector text entities (NVS-persisted, visible in device settings)
+# Entity selector text entities (NVS-persisted, edited on the settings page)
 # -----------------------------------------------------------------------------
 text:
   - platform: template
     name: "Weather Entity"
     id: weather_entity_select
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:weather-partly-cloudy"
     mode: text
     optimistic: true
@@ -203,7 +203,7 @@ text:
   - platform: template
     name: "Local Temperature Sensor"
     id: local_temp_entity_select
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:thermometer"
     mode: text
     optimistic: true
@@ -217,7 +217,7 @@ text:
   - platform: template
     name: "Feels Like Sensor"
     id: feels_like_entity_select
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:thermometer-lines"
     mode: text
     optimistic: true
@@ -231,7 +231,7 @@ text:
   - platform: template
     name: "Sensor Tile: Slot 1"
     id: idle_sensor_entity_0
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:eye"
     mode: text
     optimistic: true
@@ -247,7 +247,7 @@ text:
   - platform: template
     name: "Sensor Tile: Slot 2"
     id: idle_sensor_entity_1
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:eye"
     mode: text
     optimistic: true
@@ -263,7 +263,7 @@ text:
   - platform: template
     name: "Sensor Tile: Slot 3"
     id: idle_sensor_entity_2
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:eye"
     mode: text
     optimistic: true
@@ -279,7 +279,7 @@ text:
   - platform: template
     name: "Sensor Tile: Slot 4"
     id: idle_sensor_entity_3
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:eye"
     mode: text
     optimistic: true
@@ -295,7 +295,7 @@ text:
   - platform: template
     name: "Sensor Tile: Slot 5"
     id: idle_sensor_entity_4
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:eye"
     mode: text
     optimistic: true
@@ -311,7 +311,7 @@ text:
   - platform: template
     name: "Sensor Tile: Slot 6"
     id: idle_sensor_entity_5
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:eye"
     mode: text
     optimistic: true
@@ -327,7 +327,7 @@ text:
   - platform: template
     name: "Sensor Tile: Slot 7"
     id: idle_sensor_entity_6
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:eye"
     mode: text
     optimistic: true
@@ -343,7 +343,7 @@ text:
   - platform: template
     name: "Sensor Tile: Slot 8"
     id: idle_sensor_entity_7
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:eye"
     mode: text
     optimistic: true
@@ -359,7 +359,7 @@ text:
   - platform: template
     name: "Sensor Tile: Slot 9"
     id: idle_sensor_entity_8
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:eye"
     mode: text
     optimistic: true
@@ -375,7 +375,7 @@ text:
   - platform: template
     name: "Sensor Tile: Slot 10"
     id: idle_sensor_entity_9
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:eye"
     mode: text
     optimistic: true
@@ -390,7 +390,7 @@ text:
 
 
 # -----------------------------------------------------------------------------
-# Precision controls — shown in HA device UI under Configuration.
+# Precision controls — edited on the device settings page.
 # -1 = show raw state string, 0+ = round to N decimal places.
 # Stored in NVS so the setting survives reboots.
 # -----------------------------------------------------------------------------
@@ -398,7 +398,7 @@ number:
   - platform: template
     name: "Sensor Tile 1: Precision"
     id: idle_sensor_prec_0
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:decimal"
     min_value: -1
     max_value: 5
@@ -416,7 +416,7 @@ number:
   - platform: template
     name: "Sensor Tile 2: Precision"
     id: idle_sensor_prec_1
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:decimal"
     min_value: -1
     max_value: 5
@@ -434,7 +434,7 @@ number:
   - platform: template
     name: "Sensor Tile 3: Precision"
     id: idle_sensor_prec_2
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:decimal"
     min_value: -1
     max_value: 5
@@ -452,7 +452,7 @@ number:
   - platform: template
     name: "Sensor Tile 4: Precision"
     id: idle_sensor_prec_3
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:decimal"
     min_value: -1
     max_value: 5
@@ -470,7 +470,7 @@ number:
   - platform: template
     name: "Sensor Tile 5: Precision"
     id: idle_sensor_prec_4
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:decimal"
     min_value: -1
     max_value: 5
@@ -488,7 +488,7 @@ number:
   - platform: template
     name: "Sensor Tile 6: Precision"
     id: idle_sensor_prec_5
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:decimal"
     min_value: -1
     max_value: 5
@@ -506,7 +506,7 @@ number:
   - platform: template
     name: "Sensor Tile 7: Precision"
     id: idle_sensor_prec_6
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:decimal"
     min_value: -1
     max_value: 5
@@ -524,7 +524,7 @@ number:
   - platform: template
     name: "Sensor Tile 8: Precision"
     id: idle_sensor_prec_7
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:decimal"
     min_value: -1
     max_value: 5
@@ -542,7 +542,7 @@ number:
   - platform: template
     name: "Sensor Tile 9: Precision"
     id: idle_sensor_prec_8
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:decimal"
     min_value: -1
     max_value: 5
@@ -560,7 +560,7 @@ number:
   - platform: template
     name: "Sensor Tile 10: Precision"
     id: idle_sensor_prec_9
-    entity_category: config
+    internal: true  # edited on the device settings page (device/web_settings.yaml)
     icon: "mdi:decimal"
     min_value: -1
     max_value: 5
