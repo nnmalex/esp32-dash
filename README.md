@@ -62,7 +62,7 @@ substitutions:
   # calendar_entity_2: "calendar.family"
   # calendar_entity_3: "calendar.work"
 
-  # ── Climate screen (up to 4 thermostats + up to 6 buttons) ───────────────
+  # ── Climate screen (up to 8 thermostats + up to 6 buttons) ───────────────
   # climate_entity_1: "climate.living_room"
   # climate_entity_2: "climate.bedroom"
   # climate_entity_1_switch_1: "switch.living_room_towel_rail"   # up to 3 per thermostat
@@ -143,9 +143,9 @@ Leave `weather_bg_path` commented out (default) to skip background images and sh
 
 ## Climate screen
 
-The fifth tab (thermostat icon) shows a card for each configured thermostat, plus an optional row of buttons underneath. Set them on the [settings page](#settings-page) under **Climate** and **Climate buttons** (or seed them with the `climate_entity_1..4` / `climate_entity_N_switch_1..3` / `climate_button_1..6` substitutions).
+The fifth tab (thermostat icon) shows a card for each configured thermostat, plus an optional row of buttons underneath. Set them on the [settings page](#settings-page) under **Climate** and **Climate buttons** (or seed them with the `climate_entity_1..8` / `climate_entity_N_switch_1..3` / `climate_button_1..6` substitutions).
 
-Cards and buttons share the width by how many are set: one thermostat gets the full width, four get a quarter each. The button row is hidden when no button is set.
+Only the thermostats you set get a card, and they share the space by how many there are: one thermostat gets the full width, four get a quarter each, and five to eight are laid out in two rows of smaller cards (e.g. 3+2, 4+4). The current temperature is centred on each card. The button row is hidden when no button is set.
 
 Each thermostat card shows, all read from Home Assistant:
 
