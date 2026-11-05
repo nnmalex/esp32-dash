@@ -4370,7 +4370,9 @@ static const struct fw_data GSLX680_FW[] = {
 
 };
 
-static unsigned int gsl_config_data_id[] = {
+// const: read only, and as const it stays in flash instead of taking 2 KB of
+// the low internal RAM ESP-IDF needs free at power-up (see CLAUDE.md, Gotchas).
+static const unsigned int gsl_config_data_id[] = {
 	0xccb69a,  
 	0x200,
 	0,0,

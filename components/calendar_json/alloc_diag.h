@@ -15,7 +15,20 @@
 //   log_report()  runs from api: on_client_connected (device/device.yaml), so
 //                 the dashboard log viewer shows it on connect: the internal
 //                 heap now / largest block / minimum since boot, PSRAM free,
-//                 and any failed allocation from this boot or the one before.
+//                 any failed allocation from this boot or the one before, and
+//                 (pre-v3 ESP32-P4) the startup heap headroom below.
+//
+// Startup heap (pre-v3 ESP32-P4 only). Until ESP-IDF's `main` task runs, the
+// only internal heap is the low region (below 0x4ff3afc0) minus static data
+// (.data/.bss, which holds every ESPHome entity and global). IDF's startup
+// allocations and then the 8 KB main task stack must fit in what is left; if
+// they do not, the panel aborts at power-up in app_startup.c
+// (`assert(res == pdTRUE)`), before ESPHome runs, and an OTA install is rolled
+// back. That is what the 8-thermostat builds (#63, #73) did.
+// The size of that startup heap is fixed at link time (LOW_DRAM_END minus
+// _heap_start_low); log_report() logs it against the size known to boot, and
+// CI (.github/scripts/check_startup_ram.py) fails a build that falls below it.
+// See CLAUDE.md, Gotchas.
 
 #include <cinttypes>
 #include <cstdint>
@@ -23,6 +36,7 @@
 #include "esp_attr.h"
 #include "esp_heap_caps.h"
 #include "esphome/core/log.h"
+#include "sdkconfig.h"
 
 namespace esp32_dash {
 namespace alloc_diag {
@@ -51,6 +65,18 @@ static void on_failed_alloc(size_t size, uint32_t caps, const char *function_nam
   s_current.free = heap_caps_get_free_size(caps);
   s_current.largest = heap_caps_get_largest_free_block(caps);
 }
+
+#if CONFIG_IDF_TARGET_ESP32P4 && CONFIG_ESP32P4_SELECTS_REV_LESS_V3
+#define ESP32_DASH_STARTUP_HEAP_REPORT 1
+/// End of the low internal RAM region on pre-v3 P4 (ROM stack start - 8 KB,
+/// APP_USABLE_DIRAM_END in esp-idf heap/port/esp32p4/memory_layout.c).
+static constexpr intptr_t LOW_DRAM_END = 0x4ff3afc0;
+/// Known boot / no-boot sizes of the startup heap (ESPHome 2026.10.2): the
+/// 4-thermostat build (#72) booted with 111488 bytes, the 8-thermostat build
+/// (#73) aborted at power-up with 107008.
+static constexpr uint32_t STARTUP_HEAP_KNOWN_GOOD = 111488;
+extern "C" int _heap_start_low;  // linker: end of static data in the low region
+#endif
 
 /// Moves the previous boot's record aside and starts recording this boot.
 inline void install() {
@@ -81,6 +107,20 @@ inline void log_report() {
   ESP_LOGI("alloc_diag", "PSRAM: %u free, %u largest block",
            (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
            (unsigned) heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));
+#ifdef ESP32_DASH_STARTUP_HEAP_REPORT
+  // Fixed at link time: what static RAM leaves of the low region. IDF's startup
+  // allocations and the 8 KB main task stack must fit in it.
+  const uint32_t startup_heap = (uint32_t) (LOW_DRAM_END - (intptr_t) &_heap_start_low);
+  if (startup_heap < STARTUP_HEAP_KNOWN_GOOD) {
+    ESP_LOGW("alloc_diag", "Startup heap (low internal RAM): %u bytes, below the %u known to boot: "
+             "static RAM growth can stop the panel booting",
+             (unsigned) startup_heap, (unsigned) STARTUP_HEAP_KNOWN_GOOD);
+  } else {
+    ESP_LOGI("alloc_diag", "Startup heap (low internal RAM): %u bytes (%d vs the %u known to boot)",
+             (unsigned) startup_heap, (int) (startup_heap - STARTUP_HEAP_KNOWN_GOOD),
+             (unsigned) STARTUP_HEAP_KNOWN_GOOD);
+  }
+#endif
   log_one("Previous boot", s_previous);
   log_one("This boot", s_current);
 }

@@ -145,6 +145,11 @@ async def to_code(config):
     cg.add_global(
         cg.RawStatement('#include "esphome/components/calendar_json/http_worker.h"')
     )
+    # Climate page state, kept in PSRAM rather than in static globals (see
+    # climate_state.h for why static internal RAM is the scarce resource).
+    cg.add_global(
+        cg.RawStatement('#include "esphome/components/calendar_json/climate_state.h"')
+    )
     # Memory diagnostics (alloc_diag.h): start recording failed allocations
     # early in setup(); device.yaml logs the report on API connect.
     cg.add_global(

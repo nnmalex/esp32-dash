@@ -165,10 +165,10 @@ Five LVGL pages defined across several files (`device/lvgl.yaml` + `device/navba
   - Globals: `wf_data_buf` (pipe-delimited lines), `wf_today_col`, `wf_last_fetch_ms`
 
 - **`climate_page`** — thermostat cards + optional button row
-  - `clim_root` (flex column, 24 px margins) holds `clim_cards` (flex row-wrap) and `clim_buttons` (112 px flex row, hidden when no button is set). Up to 8 cards (3 switch rows each) and 6 buttons, built in C++ by `build_climate_widgets` and stored in `clim_*` widget-pointer globals. **A card is built only once its thermostat is configured** (never up front): #63 built all 8 slots with far more objects each and ran out of internal RAM at boot. A cleared slot is hidden, not deleted. `layout_climate_page` builds what is missing, shows/hides slots, sizes the cards (1–4: one row; 5–8: two rows of compact cards, `clim_compact`, with explicit pixel widths — LVGL never wraps a `flex_grow` item) and the `clim_empty` message. `clim_ui_ready` (set in `lvgl: on_boot`) keeps the boot-time settings restore away from LVGL
+  - `clim_root` (flex column, 24 px margins) holds `clim_cards` (flex row-wrap) and `clim_buttons` (112 px flex row, hidden when no button is set). Up to 8 cards (3 switch rows each) and 6 buttons, built in C++ by `build_climate_widgets` and stored in `clim_*` widget-pointer globals. A card is built only once its thermostat is configured; a cleared slot is hidden, not deleted. (LVGL objects are in PSRAM, so this is not what made 8 thermostats boot; see Gotchas, "Static internal RAM".) `layout_climate_page` builds what is missing, shows/hides slots, sizes the cards (1–4: one row; 5–8: two rows of compact cards, `clim_compact`, with explicit pixel widths — LVGL never wraps a `flex_grow` item) and the `clim_empty` message. `clim_ui_ready` (set in `lvgl: on_boot`) keeps the boot-time settings restore away from LVGL
   - Card: name + `hvac_action` icon, status ("Heating · Boost"), current temp (centred), TARGET (caption hidden in compact) with −/+ (range text in heat_cool), then up to 3 switch chips (`switch.*` / `input_boolean.*` chosen per card, `clim_sw_*` slot = card × 3 + n; sized to their text, wrapping rather than ellipsising — the label's max width is set in pixels from the card width in `render_climate_switch`, re-run when the card count changes; blue fill while on). The card is top-aligned with fixed-height blocks above TARGET, so the −/+ row lines up across cards — do not add a flex-grow spacer above it. There are no hvac-mode or preset chips (removed; the preset still shows in the status line). `render_climate_card(slot)` / `render_climate_switch(slot)` / `render_climate_button(slot)` redraw from state
-  - Data (`climate_sensors.yaml`): settings `climate_entity_select_0..7` / `climate_switch_select_<card>_<0..2>` / `climate_button_select_0..5`; per-attribute subscriptions with the gen-counter + `*_subbed` pattern. HA sends attributes as Python `str()`; `None` → NAN
-  - Actions go over the native API (`homeassistant.action`, needs "allow actions" in HA): `climate_set_temperature`, `ha_entity_action` (switch rows: `<domain>.toggle`; button row: action picked by domain). −/+ only move `clim_pending`; `climate_pending_tick` (200 ms interval, only while something is pending) sends once taps stop for 1.2 s and drops it when HA confirms or after 10 s.
+  - Data (`climate_sensors.yaml`): settings `climate_entity_select_0..7` / `climate_switch_select_<card>_<0..2>` / `climate_button_select_0..5`; per-attribute subscriptions with the gen-counter + `*_subbed` pattern. All state is one PSRAM struct, `id(clim)->entity[i]`, `->sw_state[i]`, `->btn_name[i]`, … (`esp32_dash::ClimateState`, `components/calendar_json/climate_state.h`), not a global per field: do not add per-slot globals back. HA sends attributes as Python `str()`; `None` → NAN
+  - Actions go over the native API (`homeassistant.action`, needs "allow actions" in HA): `climate_set_temperature`, `ha_entity_action` (switch rows: `<domain>.toggle`; button row: action picked by domain). −/+ only move `id(clim)->pending`; `climate_pending_tick` (200 ms interval, only while something is pending) sends once taps stop for 1.2 s and drops it when HA confirms or after 10 s.
 
 Navigation bar (`nav_bar`) defined in `device/navbar.yaml`, reparented to `lv_layer_top()` on boot so it floats above all pages. 60px bar at y=740, visible on all five views (every `show_*_view` script reveals it; it starts hidden only so it does not flash during boot/setup), five icon buttons: Home, Music, Calendar, Forecast, Climate. `update_nav_highlight` (run by every `show_*_view`) brightens the current view's icon and shows its accent mark (`nav_*_mark`); the others are dimmed. `layout_nav_bar` narrows the buttons to 5×160px in the left 800px while `timer_bar` is visible, and restores 5×256px otherwise.
 
@@ -394,15 +394,38 @@ zero-config `ha_token` setup.
   `heap_caps_malloc(..., MALLOC_CAP_SPIRAM)` for anything sized by external
   data; `HttpWorker` refuses buffered bodies over `HTTP_MAX_BUFFERED_BODY`
   (256 KB) with an error rather than growing without bound.
+- **Static internal RAM is the tightest budget, not the heap.** The panel is a
+  pre-v3 ESP32-P4 (rev 1.x, `CONFIG_ESP32P4_SELECTS_REV_LESS_V3`). Until IDF's
+  `main` task runs, the only internal heap is the low region
+  (`0x4ff00000..0x4ff3afc0`) minus the static `.data`/`.bss` linked into it, and
+  ESPHome 2026.x stores **every entity, component and global statically**
+  there (`*__pstorage`). IDF's startup allocations and then the 8 KB main task
+  stack (ESPHome pins `CONFIG_ESP_MAIN_TASK_STACK_SIZE` to 8192) must fit in
+  what is left. Too little and the panel aborts at power-up in
+  `app_startup.c` (`assert(res == pdTRUE)`), before ESPHome runs; an OTA
+  install is rolled back and the crash is reported by the *old* build, with
+  addresses that do not decode against it. That is what both 8-thermostat
+  builds did (#63, #73): ~4.5 KB of per-slot globals and text entities. The
+  runtime heap (300 KB free) was never the problem, and LVGL objects are in
+  PSRAM. Startup heap = `0x4ff3afc0 - _heap_start_low`: #72 booted with
+  111488 bytes, #73 aborted with 107008 (2026.10.2). CI fails a build below
+  111488 (`.github/scripts/check_startup_ram.py`, latest ESPHome only), and
+  `alloc_diag` logs the figure on API connect. To add static state, make room
+  first: keep bulky state in PSRAM behind one pointer global (as
+  `ClimateState` does), make read-only tables `const` (the gsl3680 config
+  table was 2 KB of `.data`). Diagnosis: the crash report's flash "addresses"
+  `0x401…` were pointers into `.flash.rodata` (the assert's file and function
+  strings), found by building the same commit with the same ESPHome locally
+  and reading the strings at those addresses; IDF's startup strings sit at
+  the start of rodata and do not move with app changes.
 - **Memory diagnostics.** `alloc_diag.h` (`calendar_json`) records the last
   failed heap allocation (size, caps, free / largest block) in `.noinit` RAM,
   which survives the reset after an abort, and on every API connect (including
   the dashboard log viewer) logs the internal heap free / largest block /
-  minimum since boot, PSRAM free, and any failed allocation from this boot or
-  the previous one. Added to the 4-thermostat baseline after the 8-thermostat
-  climate build (#63) aborted at start-up and every attempt to fix it blind
-  (#64–#68) failed; `main` was restored to the #62 tree (#69) first. Use its
-  "minimum since boot" to judge how close a change takes internal RAM to empty.
+  minimum since boot, PSRAM free, any failed allocation from this boot or
+  the previous one, and the startup heap size against the known-good figure
+  (above). It was added while the 8-thermostat abort was still undiagnosed; it
+  could not see that abort, which happens before any allocation hook exists.
 - **Check MDI codepoints against the font, not memory.** Several glyphs were
   wrong for a long time (pressure showed `format-wrap-tight`, "windy-variant" a
   globe). Verify with the 7.4.47 CSS

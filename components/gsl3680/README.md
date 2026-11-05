@@ -37,7 +37,7 @@ with no pin.
 
 ## Local changes vs upstream
 
-One line in `gsl3680.cpp`:
+Two changes. First, one line in `gsl3680.cpp`:
 
 ```diff
 -        this->mark_failed("I2C init error");
@@ -47,8 +47,14 @@ One line in `gsl3680.cpp`:
 `mark_failed(const LogString *)` exists in 2026.4 and later, so this form works
 across every ESPHome version this project supports.
 
+Second, `gsl_config_data_id` (`gsl3680_firmware.h`) is `const`, and
+`gsl_DataInit` / `ConfigCoorMulti` / `ConfigFilter` / `ConfigKeyMap`
+(`gsl_point_id.*`) take `const unsigned int *`. They only read the table; as a
+non-const array it sat in internal RAM (2 KB of `.data`) in the region ESP-IDF
+needs free at power-up on pre-v3 P4 silicon (see CLAUDE.md, Gotchas).
+
 ## Re-syncing from upstream
 
 If kvj's branch gains fixes worth taking, diff against it and re-apply the change
-above — `gsl3680.cpp` carries a comment marking it. Everything else is untouched,
-so a plain file copy plus that one edit is the whole merge.
+above: `gsl3680.cpp` carries a comment marking the first, and the second is the
+`const` on the table and those four signatures. Everything else is untouched.
