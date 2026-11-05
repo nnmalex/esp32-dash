@@ -3,17 +3,13 @@
 # =============================================================================
 # Data side of the climate view (device/climate_view.yaml):
 #
-#   climate_entity_select_0..7       — up to 8 climate.* entities, one card each
-#   climate_card_button_select_T_J   — up to 3 buttons under thermostat T
-#   climate_button_select_0..5       — up to 6 entities for the bottom button row
-#                                      (button, scene, script, light, switch, ...)
+#   climate_entity_select_0..3   — up to 4 climate.* entities, one card each
+#   climate_button_select_0..5   — up to 6 entities for the optional button row
+#                                  (button, scene, script, light, switch, ...)
 #
 # All are NVS-persisted internal text entities edited on the device settings
-# page (device/web_settings.yaml); the climate_entity_N, climate_entity_N_button_M
-# and climate_button_N substitutions only seed them on first boot.
-#
-# Button slots (clim_btn_* arrays, CLIM_BTN = 30): 0..5 are the bottom row,
-# 6 + T*3 + J is button J of thermostat T.
+# page (device/web_settings.yaml); the climate_entity_1..4 and
+# climate_button_1..6 substitutions only seed them on first boot.
 #
 # Per thermostat the panel subscribes to the state (hvac mode) and the
 # attributes friendly_name, current_temperature, temperature,
@@ -33,37 +29,9 @@
 
 substitutions:
   climate_entity_1: ""
-  climate_entity_1_button_1: ""
-  climate_entity_1_button_2: ""
-  climate_entity_1_button_3: ""
   climate_entity_2: ""
-  climate_entity_2_button_1: ""
-  climate_entity_2_button_2: ""
-  climate_entity_2_button_3: ""
   climate_entity_3: ""
-  climate_entity_3_button_1: ""
-  climate_entity_3_button_2: ""
-  climate_entity_3_button_3: ""
   climate_entity_4: ""
-  climate_entity_4_button_1: ""
-  climate_entity_4_button_2: ""
-  climate_entity_4_button_3: ""
-  climate_entity_5: ""
-  climate_entity_5_button_1: ""
-  climate_entity_5_button_2: ""
-  climate_entity_5_button_3: ""
-  climate_entity_6: ""
-  climate_entity_6_button_1: ""
-  climate_entity_6_button_2: ""
-  climate_entity_6_button_3: ""
-  climate_entity_7: ""
-  climate_entity_7_button_1: ""
-  climate_entity_7_button_2: ""
-  climate_entity_7_button_3: ""
-  climate_entity_8: ""
-  climate_entity_8_button_1: ""
-  climate_entity_8_button_2: ""
-  climate_entity_8_button_3: ""
   climate_button_1: ""
   climate_button_2: ""
   climate_button_3: ""
@@ -71,110 +39,111 @@ substitutions:
   climate_button_5: ""
   climate_button_6: ""
 
+
 globals:
-  # ---- Thermostats (8 slots) ------------------------------------------------
+  # ---- Thermostats (4 slots) ------------------------------------------------
   # Validated entity per slot ("" = slot unused). Set even before the API is up,
   # so the view can lay itself out from it.
   - id: clim_entity
-    type: std::array<std::string, 8>
-    initial_value: 'std::array<std::string, 8>{}'
+    type: std::array<std::string, 4>
+    initial_value: '{"","","",""}'
   # Entity registered with the API's state-subscription list, per slot. ESPHome
   # has no unsubscribe (see weather_sensors.yaml), so a reconnect must not
   # subscribe again; the generation counter invalidates callbacks of an entity
   # that was replaced.
   - id: clim_subbed
-    type: std::array<std::string, 8>
-    initial_value: 'std::array<std::string, 8>{}'
+    type: std::array<std::string, 4>
+    initial_value: '{"","","",""}'
   - id: clim_gen
-    type: std::array<int, 8>
-    initial_value: 'std::array<int, 8>{}'
+    type: std::array<int, 4>
+    initial_value: '{0,0,0,0}'
 
   - id: clim_name
-    type: std::array<std::string, 8>
-    initial_value: 'std::array<std::string, 8>{}'
+    type: std::array<std::string, 4>
+    initial_value: '{"","","",""}'
   # Entity state = hvac mode ("off", "heat", ...) or "unavailable".
   - id: clim_state
-    type: std::array<std::string, 8>
-    initial_value: 'std::array<std::string, 8>{}'
+    type: std::array<std::string, 4>
+    initial_value: '{"","","",""}'
   - id: clim_action
-    type: std::array<std::string, 8>
-    initial_value: 'std::array<std::string, 8>{}'
+    type: std::array<std::string, 4>
+    initial_value: '{"","","",""}'
   - id: clim_preset
-    type: std::array<std::string, 8>
-    initial_value: 'std::array<std::string, 8>{}'
+    type: std::array<std::string, 4>
+    initial_value: '{"","","",""}'
   # Last mode other than off, so the power button can restore it.
   - id: clim_last_on_mode
-    type: std::array<std::string, 8>
-    initial_value: 'std::array<std::string, 8>{}'
+    type: std::array<std::string, 4>
+    initial_value: '{"","","",""}'
 
   # Numeric attributes; NAN = not reported (or "None").
   - id: clim_cur
-    type: std::array<float, 8>
-    initial_value: 'std::array<float, 8>{NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN}'
+    type: std::array<float, 4>
+    initial_value: 'std::array<float, 4>{NAN, NAN, NAN, NAN}'
   - id: clim_target
-    type: std::array<float, 8>
-    initial_value: 'std::array<float, 8>{NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN}'
+    type: std::array<float, 4>
+    initial_value: 'std::array<float, 4>{NAN, NAN, NAN, NAN}'
   - id: clim_low
-    type: std::array<float, 8>
-    initial_value: 'std::array<float, 8>{NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN}'
+    type: std::array<float, 4>
+    initial_value: 'std::array<float, 4>{NAN, NAN, NAN, NAN}'
   - id: clim_high
-    type: std::array<float, 8>
-    initial_value: 'std::array<float, 8>{NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN}'
+    type: std::array<float, 4>
+    initial_value: 'std::array<float, 4>{NAN, NAN, NAN, NAN}'
   - id: clim_step
-    type: std::array<float, 8>
-    initial_value: 'std::array<float, 8>{NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN}'
+    type: std::array<float, 4>
+    initial_value: 'std::array<float, 4>{NAN, NAN, NAN, NAN}'
   - id: clim_min
-    type: std::array<float, 8>
-    initial_value: 'std::array<float, 8>{NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN}'
+    type: std::array<float, 4>
+    initial_value: 'std::array<float, 4>{NAN, NAN, NAN, NAN}'
   - id: clim_max
-    type: std::array<float, 8>
-    initial_value: 'std::array<float, 8>{NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN}'
+    type: std::array<float, 4>
+    initial_value: 'std::array<float, 4>{NAN, NAN, NAN, NAN}'
 
   # hvac_modes without "off" (off is the power button), and whether off exists.
   - id: clim_modes
-    type: std::array<std::vector<std::string>, 8>
-    initial_value: 'std::array<std::vector<std::string>, 8>{}'
+    type: std::array<std::vector<std::string>, 4>
+    initial_value: 'std::array<std::vector<std::string>, 4>{}'
   - id: clim_has_off
-    type: std::array<bool, 8>
-    initial_value: 'std::array<bool, 8>{}'
+    type: std::array<bool, 4>
+    initial_value: '{false,false,false,false}'
   - id: clim_presets
-    type: std::array<std::vector<std::string>, 8>
-    initial_value: 'std::array<std::vector<std::string>, 8>{}'
+    type: std::array<std::vector<std::string>, 4>
+    initial_value: 'std::array<std::vector<std::string>, 4>{}'
 
   # Target set with +/− but not yet confirmed by HA (NAN = none). Sent once no
   # tap has come for CLIM_SEND_DELAY_MS; dropped when HA reports the new
   # target, or after CLIM_PENDING_TIMEOUT_MS if it never does (rejected call).
   - id: clim_pending
-    type: std::array<float, 8>
-    initial_value: 'std::array<float, 8>{NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN}'
+    type: std::array<float, 4>
+    initial_value: 'std::array<float, 4>{NAN, NAN, NAN, NAN}'
   - id: clim_pending_ms
-    type: std::array<uint32_t, 8>
-    initial_value: 'std::array<uint32_t, 8>{}'
+    type: std::array<uint32_t, 4>
+    initial_value: '{0,0,0,0}'
   - id: clim_pending_sent
-    type: std::array<bool, 8>
-    initial_value: 'std::array<bool, 8>{}'
+    type: std::array<bool, 4>
+    initial_value: '{false,false,false,false}'
 
-  # ---- Buttons (30 slots: 6 bottom row + 3 per thermostat) -------------------------------------------------
+  # ---- Button row (6 slots) -------------------------------------------------
   - id: clim_btn_entity
-    type: std::array<std::string, 30>
-    initial_value: 'std::array<std::string, 30>{}'
+    type: std::array<std::string, 6>
+    initial_value: '{"","","","","",""}'
   - id: clim_btn_subbed
-    type: std::array<std::string, 30>
-    initial_value: 'std::array<std::string, 30>{}'
+    type: std::array<std::string, 6>
+    initial_value: '{"","","","","",""}'
   - id: clim_btn_gen
-    type: std::array<int, 30>
-    initial_value: 'std::array<int, 30>{}'
+    type: std::array<int, 6>
+    initial_value: '{0,0,0,0,0,0}'
   - id: clim_btn_name
-    type: std::array<std::string, 30>
-    initial_value: 'std::array<std::string, 30>{}'
+    type: std::array<std::string, 6>
+    initial_value: '{"","","","","",""}'
   - id: clim_btn_state
-    type: std::array<std::string, 30>
-    initial_value: 'std::array<std::string, 30>{}'
+    type: std::array<std::string, 6>
+    initial_value: '{"","","","","",""}'
   # Glyph mapped from the entity's `icon` attribute (nullptr = none / unmapped;
   # the domain's default icon is used then).
   - id: clim_btn_icon_attr
-    type: std::array<const char *, 30>
-    initial_value: 'std::array<const char *, 30>{}'
+    type: std::array<const char *, 6>
+    initial_value: 'std::array<const char *, 6>{}'
 
 
 # -----------------------------------------------------------------------------
@@ -196,45 +165,6 @@ text:
       - script.execute: {id: subscribe_climate, slot: 0}
 
   - platform: template
-    name: "Climate: Thermostat 1 Button 1"
-    id: climate_card_button_select_0_0
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_1_button_1}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate_button, slot: 6}
-
-  - platform: template
-    name: "Climate: Thermostat 1 Button 2"
-    id: climate_card_button_select_0_1
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_1_button_2}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate_button, slot: 7}
-
-  - platform: template
-    name: "Climate: Thermostat 1 Button 3"
-    id: climate_card_button_select_0_2
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_1_button_3}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate_button, slot: 8}
-
-  - platform: template
     name: "Climate: Thermostat 2"
     id: climate_entity_select_1
     internal: true
@@ -246,45 +176,6 @@ text:
     max_length: 100
     on_value:
       - script.execute: {id: subscribe_climate, slot: 1}
-
-  - platform: template
-    name: "Climate: Thermostat 2 Button 1"
-    id: climate_card_button_select_1_0
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_2_button_1}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate_button, slot: 9}
-
-  - platform: template
-    name: "Climate: Thermostat 2 Button 2"
-    id: climate_card_button_select_1_1
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_2_button_2}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate_button, slot: 10}
-
-  - platform: template
-    name: "Climate: Thermostat 2 Button 3"
-    id: climate_card_button_select_1_2
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_2_button_3}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate_button, slot: 11}
 
   - platform: template
     name: "Climate: Thermostat 3"
@@ -300,45 +191,6 @@ text:
       - script.execute: {id: subscribe_climate, slot: 2}
 
   - platform: template
-    name: "Climate: Thermostat 3 Button 1"
-    id: climate_card_button_select_2_0
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_3_button_1}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate_button, slot: 12}
-
-  - platform: template
-    name: "Climate: Thermostat 3 Button 2"
-    id: climate_card_button_select_2_1
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_3_button_2}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate_button, slot: 13}
-
-  - platform: template
-    name: "Climate: Thermostat 3 Button 3"
-    id: climate_card_button_select_2_2
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_3_button_3}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate_button, slot: 14}
-
-  - platform: template
     name: "Climate: Thermostat 4"
     id: climate_entity_select_3
     internal: true
@@ -350,253 +202,6 @@ text:
     max_length: 100
     on_value:
       - script.execute: {id: subscribe_climate, slot: 3}
-
-  - platform: template
-    name: "Climate: Thermostat 4 Button 1"
-    id: climate_card_button_select_3_0
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_4_button_1}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate_button, slot: 15}
-
-  - platform: template
-    name: "Climate: Thermostat 4 Button 2"
-    id: climate_card_button_select_3_1
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_4_button_2}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate_button, slot: 16}
-
-  - platform: template
-    name: "Climate: Thermostat 4 Button 3"
-    id: climate_card_button_select_3_2
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_4_button_3}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate_button, slot: 17}
-
-  - platform: template
-    name: "Climate: Thermostat 5"
-    id: climate_entity_select_4
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_5}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate, slot: 4}
-
-  - platform: template
-    name: "Climate: Thermostat 5 Button 1"
-    id: climate_card_button_select_4_0
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_5_button_1}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate_button, slot: 18}
-
-  - platform: template
-    name: "Climate: Thermostat 5 Button 2"
-    id: climate_card_button_select_4_1
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_5_button_2}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate_button, slot: 19}
-
-  - platform: template
-    name: "Climate: Thermostat 5 Button 3"
-    id: climate_card_button_select_4_2
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_5_button_3}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate_button, slot: 20}
-
-  - platform: template
-    name: "Climate: Thermostat 6"
-    id: climate_entity_select_5
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_6}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate, slot: 5}
-
-  - platform: template
-    name: "Climate: Thermostat 6 Button 1"
-    id: climate_card_button_select_5_0
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_6_button_1}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate_button, slot: 21}
-
-  - platform: template
-    name: "Climate: Thermostat 6 Button 2"
-    id: climate_card_button_select_5_1
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_6_button_2}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate_button, slot: 22}
-
-  - platform: template
-    name: "Climate: Thermostat 6 Button 3"
-    id: climate_card_button_select_5_2
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_6_button_3}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate_button, slot: 23}
-
-  - platform: template
-    name: "Climate: Thermostat 7"
-    id: climate_entity_select_6
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_7}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate, slot: 6}
-
-  - platform: template
-    name: "Climate: Thermostat 7 Button 1"
-    id: climate_card_button_select_6_0
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_7_button_1}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate_button, slot: 24}
-
-  - platform: template
-    name: "Climate: Thermostat 7 Button 2"
-    id: climate_card_button_select_6_1
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_7_button_2}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate_button, slot: 25}
-
-  - platform: template
-    name: "Climate: Thermostat 7 Button 3"
-    id: climate_card_button_select_6_2
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_7_button_3}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate_button, slot: 26}
-
-  - platform: template
-    name: "Climate: Thermostat 8"
-    id: climate_entity_select_7
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_8}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate, slot: 7}
-
-  - platform: template
-    name: "Climate: Thermostat 8 Button 1"
-    id: climate_card_button_select_7_0
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_8_button_1}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate_button, slot: 27}
-
-  - platform: template
-    name: "Climate: Thermostat 8 Button 2"
-    id: climate_card_button_select_7_1
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_8_button_2}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate_button, slot: 28}
-
-  - platform: template
-    name: "Climate: Thermostat 8 Button 3"
-    id: climate_card_button_select_7_2
-    internal: true
-    mode: text
-    optimistic: true
-    restore_value: true
-    initial_value: "${climate_entity_8_button_3}"
-    min_length: 0
-    max_length: 100
-    on_value:
-      - script.execute: {id: subscribe_climate_button, slot: 29}
 
   - platform: template
     name: "Climate: Button 1"
@@ -676,6 +281,7 @@ text:
     on_value:
       - script.execute: {id: subscribe_climate_button, slot: 5}
 
+
 script:
   # ---------------------------------------------------------------------------
   # subscribe_climate: (re)binds thermostat slot N to its configured entity.
@@ -686,14 +292,14 @@ script:
     mode: restart
     then:
       - lambda: |-
-          if (slot < 0 || slot >= 8) return;
-          esphome::text::Text *const sel[8] = {
-            id(climate_entity_select_0), id(climate_entity_select_1),
-            id(climate_entity_select_2), id(climate_entity_select_3),
-            id(climate_entity_select_4), id(climate_entity_select_5),
-            id(climate_entity_select_6), id(climate_entity_select_7),
-          };
-          std::string entity = sel[slot]->state;
+          if (slot < 0 || slot > 3) return;
+          std::string entity;
+          switch (slot) {
+            case 0: entity = id(climate_entity_select_0).state; break;
+            case 1: entity = id(climate_entity_select_1).state; break;
+            case 2: entity = id(climate_entity_select_2).state; break;
+            default: entity = id(climate_entity_select_3).state; break;
+          }
           if (!entity.empty() && entity.rfind("climate.", 0) != 0) {
             ESP_LOGW("climate", "Thermostat %d: '%s' must start with 'climate.'", slot + 1, entity.c_str());
             entity.clear();
@@ -719,9 +325,8 @@ script:
             id(clim_presets)[slot].clear();
             id(clim_pending)[slot] = NAN;
             id(clim_pending_sent)[slot] = false;
-            // Which cards show, and their size, depend on how many are set.
-            id(layout_climate_page).execute();
           }
+          id(layout_climate_page).execute();
           id(render_climate_card).execute(slot);
 
           if (entity.empty()) {
@@ -827,23 +432,18 @@ script:
     mode: restart
     then:
       - lambda: |-
-          if (slot < 0 || slot >= 30) return;
-          // 0..5 bottom row, 6 + T*3 + J button J of thermostat T.
-          esphome::text::Text *const sel[30] = {
-            id(climate_button_select_0), id(climate_button_select_1), id(climate_button_select_2),
-            id(climate_button_select_3), id(climate_button_select_4), id(climate_button_select_5),
-            id(climate_card_button_select_0_0), id(climate_card_button_select_0_1), id(climate_card_button_select_0_2),
-            id(climate_card_button_select_1_0), id(climate_card_button_select_1_1), id(climate_card_button_select_1_2),
-            id(climate_card_button_select_2_0), id(climate_card_button_select_2_1), id(climate_card_button_select_2_2),
-            id(climate_card_button_select_3_0), id(climate_card_button_select_3_1), id(climate_card_button_select_3_2),
-            id(climate_card_button_select_4_0), id(climate_card_button_select_4_1), id(climate_card_button_select_4_2),
-            id(climate_card_button_select_5_0), id(climate_card_button_select_5_1), id(climate_card_button_select_5_2),
-            id(climate_card_button_select_6_0), id(climate_card_button_select_6_1), id(climate_card_button_select_6_2),
-            id(climate_card_button_select_7_0), id(climate_card_button_select_7_1), id(climate_card_button_select_7_2),
-          };
-          std::string entity = sel[slot]->state;
+          if (slot < 0 || slot > 5) return;
+          std::string entity;
+          switch (slot) {
+            case 0: entity = id(climate_button_select_0).state; break;
+            case 1: entity = id(climate_button_select_1).state; break;
+            case 2: entity = id(climate_button_select_2).state; break;
+            case 3: entity = id(climate_button_select_3).state; break;
+            case 4: entity = id(climate_button_select_4).state; break;
+            default: entity = id(climate_button_select_5).state; break;
+          }
           if (!entity.empty() && entity.find('.') == std::string::npos) {
-            ESP_LOGW("climate", "Button slot %d: '%s' is not an entity id", slot, entity.c_str());
+            ESP_LOGW("climate", "Button %d: '%s' is not an entity id", slot + 1, entity.c_str());
             entity.clear();
           }
 
@@ -852,8 +452,8 @@ script:
             id(clim_btn_name)[slot] = "";
             id(clim_btn_state)[slot] = "";
             id(clim_btn_icon_attr)[slot] = nullptr;
-            id(layout_climate_page).execute();
           }
+          id(layout_climate_page).execute();
           id(render_climate_button).execute(slot);
 
           if (entity.empty()) {
@@ -929,7 +529,7 @@ script:
                 id(render_climate_button).execute(slot);
               }));
 
-          ESP_LOGI("climate", "Button slot %d: subscribed to '%s'", slot, entity.c_str());
+          ESP_LOGI("climate", "Button %d: subscribed to '%s'", slot + 1, entity.c_str());
 
   # ---------------------------------------------------------------------------
   # Tap handlers (called from the LVGL event callbacks in climate_view.yaml)
@@ -944,7 +544,7 @@ script:
     max_runs: 10
     then:
       - lambda: |-
-          if (slot < 0 || slot >= 8 || id(clim_entity)[slot].empty()) return;
+          if (slot < 0 || slot > 3 || id(clim_entity)[slot].empty()) return;
           float step = id(clim_step)[slot];
           float mx = id(clim_max)[slot], mn = id(clim_min)[slot];
           if (std::isnan(step) || step <= 0) step = (!std::isnan(mx) && mx > 50) ? 1.0f : 0.5f;
@@ -967,7 +567,7 @@ script:
     max_runs: 10
     then:
       - lambda: |-
-          if (slot < 0 || slot >= 8) return;
+          if (slot < 0 || slot > 3) return;
           const std::string &entity = id(clim_entity)[slot];
           if (entity.empty()) return;
           const auto &modes = id(clim_modes)[slot];
@@ -999,7 +599,7 @@ script:
     max_runs: 10
     then:
       - lambda: |-
-          if (slot < 0 || slot >= 8) return;
+          if (slot < 0 || slot > 3) return;
           const std::string &entity = id(clim_entity)[slot];
           const auto &presets = id(clim_presets)[slot];
           if (entity.empty() || idx < 0 || idx >= (int) presets.size()) return;
@@ -1012,7 +612,7 @@ script:
           }
           id(climate_set_preset_mode).execute(entity, preset);
 
-  # Bottom row and per-thermostat buttons: the action depends on the domain.
+  # Button row: the action depends on the entity's domain.
   - id: climate_button_pressed
     parameters:
       slot: int
@@ -1020,7 +620,7 @@ script:
     max_runs: 10
     then:
       - lambda: |-
-          if (slot < 0 || slot >= 30) return;
+          if (slot < 0 || slot > 5) return;
           const std::string &entity = id(clim_btn_entity)[slot];
           if (entity.empty()) return;
           std::string domain = entity.substr(0, entity.find('.'));
@@ -1032,7 +632,7 @@ script:
             action = id(clim_btn_state)[slot] == "locked" ? "lock.unlock" : "lock.lock";
           else if (domain == "cover") action = "cover.toggle";
           else action = "homeassistant.toggle";
-          ESP_LOGI("climate", "Button slot %d: %s %s", slot, action.c_str(), entity.c_str());
+          ESP_LOGI("climate", "Button %d: %s %s", slot + 1, action.c_str(), entity.c_str());
           id(ha_entity_action).execute(action, entity);
 
   # ---------------------------------------------------------------------------
@@ -1115,7 +715,7 @@ script:
           const uint32_t CLIM_SEND_DELAY_MS = 1200;
           const uint32_t CLIM_PENDING_TIMEOUT_MS = 10000;
           const uint32_t now = millis();
-          for (int i = 0; i < 8; i++) {
+          for (int i = 0; i < 4; i++) {
             if (std::isnan(id(clim_pending)[i])) continue;
             uint32_t age = now - id(clim_pending_ms)[i];
             if (!id(clim_pending_sent)[i]) {
@@ -1155,13 +755,15 @@ interval:
 
 
 # Re-subscribe after HA reconnect (merged with the api block in device.yaml).
-# Each call returns at once for a slot that is already registered.
 api:
   on_client_connected:
-    - lambda: |-
-        for (int i = 0; i < 8; i++) id(subscribe_climate).execute(i);
-        for (int i = 0; i < 30; i++) id(subscribe_climate_button).execute(i);
-        ESP_LOGI("climate", "HA connected. Internal heap: %u free, %u largest block, %u minimum",
-                 (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
-                 (unsigned) heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
-                 (unsigned) heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL));
+    - script.execute: {id: subscribe_climate, slot: 0}
+    - script.execute: {id: subscribe_climate, slot: 1}
+    - script.execute: {id: subscribe_climate, slot: 2}
+    - script.execute: {id: subscribe_climate, slot: 3}
+    - script.execute: {id: subscribe_climate_button, slot: 0}
+    - script.execute: {id: subscribe_climate_button, slot: 1}
+    - script.execute: {id: subscribe_climate_button, slot: 2}
+    - script.execute: {id: subscribe_climate_button, slot: 3}
+    - script.execute: {id: subscribe_climate_button, slot: 4}
+    - script.execute: {id: subscribe_climate_button, slot: 5}

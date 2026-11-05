@@ -71,9 +71,6 @@ class EntityListScanner {
   bool feed(const char *data, size_t len);
   size_t count() const { return this->count_; }
   bool truncated() const { return this->truncated_; }
-  /// True once the top-level array has closed, i.e. the whole body was seen. A
-  /// body cut short (connection dropped mid-transfer) leaves this false.
-  bool complete() const { return this->complete_; }
   /// The collected entries without the enclosing brackets.
   PsramString &output() { return this->out_; }
 
@@ -101,7 +98,6 @@ class EntityListScanner {
   PsramString out_;
   size_t count_{0};
   bool truncated_{false};
-  bool complete_{false};
 };
 
 /// Device-hosted settings page (http://<device>/).
@@ -169,9 +165,7 @@ class SettingsPage : public esphome::Component, public AsyncWebHandler {
   std::string validate_(const Field &field, std::string &value) const;
 
   // main loop
-  /// Built in PSRAM: with ~80 fields it is 20 KB+, and internal RAM is scarce
-  /// (see CLAUDE.md, "Large buffers must go to PSRAM explicitly").
-  std::shared_ptr<const PsramString> build_state_json_() const;
+  std::string build_state_json_() const;
   void apply_(const Field &field, const std::string &value);
   void start_entity_fetch_();
   void set_entities_error_(const std::string &msg);
@@ -189,7 +183,7 @@ class SettingsPage : public esphome::Component, public AsyncWebHandler {
   // State snapshot: the httpd task asks, loop() builds it and signals.
   std::atomic<bool> state_wanted_{false};
   SemaphoreHandle_t state_ready_{nullptr};
-  std::shared_ptr<const PsramString> state_json_;  ///< latest snapshot, immutable once published
+  std::string state_json_;
 
   // Writes waiting for the main loop: (field index, validated value).
   std::vector<std::pair<size_t, std::string>> pending_;

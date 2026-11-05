@@ -165,10 +165,9 @@ Five LVGL pages defined across several files (`device/lvgl.yaml` + `device/navba
   - Globals: `wf_data_buf` (pipe-delimited lines), `wf_today_col`, `wf_last_fetch_ms`
 
 - **`climate_page`** — thermostat cards + optional button row
-  - `clim_root` (flex column, 24 px margins) holds `clim_cards` (flex ROW_WRAP) and `clim_buttons` (112 px bottom row, hidden when no bottom button is set). Up to 8 cards and 30 buttons, all built in C++ in `climate_view.yaml`'s `lvgl: on_boot` (chip counts depend on what HA reports) and stored in `clim_*` widget-pointer globals. Button slots: 0..5 bottom row, `6 + T*3 + J` button J on thermostat T's card (`clim_cbtn_box[T]`, hidden when that card has none)
-  - `layout_climate_page` shows only configured slots and sizes cards: 1–4 → one row, full height; 5–8 → two rows (`ceil(n/2)` per row) with `clim_compact` set (status line and big current temp hidden, temp shown in the header, smaller chips/fonts; sizes budgeted for a ~270 px card). Cards get `flex_grow` so a shorter last row stretches. Cards scroll vertically if content still overflows. It runs on boot and when a slot's entity changes, not on every reconnect
-  - Card: name + `hvac_action` icon, status ("Heating · Boost"), current temp, TARGET with −/+ (range text in heat_cool), mode chips (power + up to 6 `hvac_modes`, icons), preset chips (up to 6 `preset_modes`, text), card buttons. `render_climate_card(slot)` / `render_climate_button(slot)` redraw from state
-  - Data (`climate_sensors.yaml`): settings `climate_entity_select_0..7`, `climate_card_button_select_T_J`, `climate_button_select_0..5`; per-attribute subscriptions with the gen-counter + `*_subbed` pattern. HA sends attributes as Python `str()`: lists arrive as reprs (`[<HVACMode.OFF: 'off'>, ...]`), parsed by taking quoted tokens; `None` → NAN
+  - `clim_root` (flex column, 24 px margins) holds `clim_cards` (flex row) and `clim_buttons` (112 px flex row, hidden when no button is set). Up to 4 cards and 6 buttons, all built in C++ in `climate_view.yaml`'s `lvgl: on_boot` (chip counts depend on what HA reports) and stored in `clim_*` widget-pointer globals. Unused slots are hidden and LVGL flex skips hidden children, so the configured ones share the width equally. `layout_climate_page` shows/hides slots and the `clim_empty` message
+  - Card: name + `hvac_action` icon, status ("Heating · Boost"), current temp, TARGET with −/+ (range text in heat_cool), mode chips (power + up to 6 `hvac_modes`, icons) and preset chips (up to 6 `preset_modes`, text). `render_climate_card(slot)` / `render_climate_button(slot)` redraw from state
+  - Data (`climate_sensors.yaml`): settings `climate_entity_select_0..3` / `climate_button_select_0..5`; per-attribute subscriptions with the gen-counter + `*_subbed` pattern. HA sends attributes as Python `str()`: lists arrive as reprs (`[<HVACMode.OFF: 'off'>, ...]`), parsed by taking quoted tokens; `None` → NAN
   - Actions go over the native API (`homeassistant.action`, needs "allow actions" in HA): `climate_set_temperature` / `_hvac_mode` / `_preset_mode`, `ha_entity_action` (button row; action picked by domain). −/+ only move `clim_pending`; `climate_pending_tick` (200 ms interval, only while something is pending) sends once taps stop for 1.2 s and drops it when HA confirms or after 10 s. The power chip uses `set_hvac_mode` (off / last on-mode), not `climate.turn_on`, which not every integration supports
 
 Navigation bar (`nav_bar`) defined in `device/navbar.yaml`, reparented to `lv_layer_top()` on boot so it floats above all pages. 60px bar at y=740, visible on all five views (every `show_*_view` script reveals it; it starts hidden only so it does not flash during boot/setup), five icon buttons: Home, Music, Calendar, Forecast, Climate. `update_nav_highlight` (run by every `show_*_view`) brightens the current view's icon and shows its accent mark (`nav_*_mark`); the others are dimmed. `layout_nav_bar` narrows the buttons to 5×160px in the left 800px while `timer_bar` is visible, and restores 5×256px otherwise.
@@ -293,11 +292,7 @@ under `calendar_json: settings:`.
   `device/web_settings.yaml` (`text:` / `number:` / `select:` / `switch:` plus
   `group`, `label`, optional `help`, `domain` (entity pickers) and
   `unit_of_measurement`). The page is generic; no HTML changes needed.
-- Entity pickers (`text:` fields) are a custom suggestion dropdown in the page's
-  JS, not a `<datalist>`: browsers differ on whether a datalist shows anything
-  before typing and most match only the value prefix, never the friendly name.
-  It lists every entity of the field's domains on focus and filters on words in
-  id or name. They are filled from HA's `GET /api/states`, fetched
+- Entity pickers (`text:` fields) are filled from HA's `GET /api/states`, fetched
   through `HttpWorker` with `ha_token` when the page asks
   (`/settings/entities`, cached 5 min, `?refresh=1` forces it). HA rejects the
   template API for non-admin tokens, which is why the full state list is used.
@@ -305,15 +300,10 @@ under `calendar_json: settings:`.
   `EntityListScanner` consumes it chunk by chunk on the worker task (an
   `HttpBodySink`) and writes `[id, friendly_name, unit]` JSON into a
   `PsramString`, which the endpoint sends with `httpd_resp_send_chunk` straight
-  from PSRAM. The browser sorts it. A body cut short would otherwise be
-  accepted as a shorter list (`esp_http_client_read()` returns 0 on an early
-  close, same as at the end), silently dropping every entity after the cut: the
-  scanner's `complete()` (top-level array closed) must be true, and `HttpWorker`
-  flags an early close via `esp_http_client_is_complete_data_received()`.
+  from PSRAM. The browser sorts it.
 - Threading: `handleRequest()` runs on the httpd task and touches only the
   immutable field table. State snapshots are built in `loop()` on request (the
-  handler waits on a semaphore) into a `PsramString` (20 KB+ with ~80 fields)
-  and sent chunked from PSRAM, never copied into an `std::string`, writes are validated on the httpd task, then
+  handler waits on a semaphore), writes are validated on the httpd task, then
   queued and applied in `loop()`. Keep entity access on the main loop.
 - Endpoints: `GET /settings/state`, `GET /settings/entities`,
   `POST /settings/set` (form `key`, `value`; `key` is the entity's YAML id).
@@ -395,43 +385,15 @@ zero-config `ha_token` setup.
   those columns with it when adding a zone. `ha_time` keeps `timezone: UTC`
   explicitly: without it 2026.9 defines `USE_HOMEASSISTANT_TIMEZONE` and HA's
   zone overwrites the selector after every time sync.
-- **Internal RAM is the scarce heap; plain `malloc` falls back to PSRAM.**
-  `psram:` sets `CONFIG_SPIRAM_USE_CAPS_ALLOC`, under which `new` / `malloc` /
-  `std::string` only ever use internal RAM (~768 KB on the P4, shared with
-  IRAM code, `.data`/`.bss` and task stacks), and with exceptions disabled a
-  failed allocation is an abort. The 8-thermostat climate build (#63) aborted
-  during start-up, before any of its own code ran, purely because internal RAM
-  ran out (the 4-thermostat build booted); a 16 KB loop stack, tried first,
-  only made it worse and was reverted. `alloc_diag.h` (`calendar_json`, always
-  included) therefore calls `heap_caps_malloc_extmem_enable(4096)` from a static
-  constructor, before `setup()`: requests over 4 KB go to PSRAM, smaller ones
-  to internal RAM first and PSRAM when it is full (Arduino-ESP32's default
-  policy). Code needing internal/DMA memory asks with explicit caps and is
-  unaffected. Still put anything sized by external data in PSRAM explicitly
-  (`esp32_dash::PsramString` / `PsramAllocator`, settings_page.h, or
-  `heap_caps_malloc(..., MALLOC_CAP_SPIRAM)`): the first settings page buffered
-  `/api/states` in a `std::string` and crashed on a real HA. `HttpWorker`
-  refuses buffered bodies over `HTTP_MAX_BUFFERED_BODY` (256 KB).
-- **Diagnosing a boot crash.** A crash report from a *different* build (always
-  the case after an OTA rollback, which happens when a new build resets before
-  `safe_mode` confirms it, ~1 min) prints raw `bt` addresses that nothing
-  decodes. `enable_ota_rollback: false` in the new build does **not** stop
-  that rollback: the old firmware performing the OTA marks the image
-  pending-verify, and the bootloader (flashed with rollback on) reverts it.
-  Instead set the substitution `diag_keep_build: "true"` in the device YAML:
-  the build marks itself valid at the start of `setup()`, right after
-  safe_mode's boot-loop check (`alloc_diag::keep_this_build()`, emitted by
-  `calendar_json`'s `to_code` at COMPONENT priority; an `on_boot` hook was
-  too late, the crash came first), reboots as itself after a crash, and the
-  dashboard log viewer decodes its report (`PC:` / `BT` lines) against the ELF
-  it just built. After 10 failed boots `safe_mode` takes over, which still
-  serves logs and OTA. `alloc_diag.h` (`calendar_json`) also records the last
-  failed heap allocation (size, caps, free / largest block) in `.noinit` RAM
-  and logs it on API connect, which says what ran out when the abort was a failed allocation.
-  It also keeps a boot breadcrumb: `on_boot` hooks at priorities 1100 … -200
-  in `device.yaml` and the climate widget build call `alloc_diag::stage()`,
-  so the next boot (or safe mode) logs the last stage the crashed boot reached
-  and the lowest internal free heap by then.
+- **Large buffers must go to PSRAM explicitly.** `psram:` here sets
+  `CONFIG_SPIRAM_USE_CAPS_ALLOC`, so `new` / `malloc` / `std::string` only ever
+  use internal RAM (a few hundred KB free), and with exceptions disabled a
+  failed allocation is a `__cxa_throw` → abort, i.e. a reboot. The first settings
+  page buffered `/api/states` in a `std::string` and crashed on a real HA. Use
+  `esp32_dash::PsramString` / `PsramAllocator` (settings_page.h) or
+  `heap_caps_malloc(..., MALLOC_CAP_SPIRAM)` for anything sized by external
+  data; `HttpWorker` refuses buffered bodies over `HTTP_MAX_BUFFERED_BODY`
+  (256 KB) with an error rather than growing without bound.
 - **Check MDI codepoints against the font, not memory.** Several glyphs were
   wrong for a long time (pressure showed `format-wrap-tight`, "windy-variant" a
   globe). Verify with the 7.4.47 CSS
@@ -447,6 +409,5 @@ zero-config `ha_token` setup.
 | `weather_bg_path` | `""` | HA `/local/` path for condition background images |
 | `idle_sensor_1..10` | `""` | Up to 10 arbitrary HA entities for sensor tiles (5 left + 5 right column) |
 | `calendar_entity_1..3` | `""` | Up to 3 `calendar.*` entities for the agenda panel |
-| `climate_entity_1..8` | `""` | Up to 8 `climate.*` entities for the climate page cards |
-| `climate_entity_N_button_1..3` | `""` | Up to 3 buttons on thermostat N's card |
-| `climate_button_1..6` | `""` | Up to 6 entities for the climate page bottom row |
+| `climate_entity_1..4` | `""` | Up to 4 `climate.*` entities for the climate page cards |
+| `climate_button_1..6` | `""` | Up to 6 entities for the climate page button row |
