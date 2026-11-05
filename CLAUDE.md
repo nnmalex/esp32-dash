@@ -395,23 +395,23 @@ zero-config `ha_token` setup.
   those columns with it when adding a zone. `ha_time` keeps `timezone: UTC`
   explicitly: without it 2026.9 defines `USE_HOMEASSISTANT_TIMEZONE` and HA's
   zone overwrites the selector after every time sync.
-- **Large buffers must go to PSRAM explicitly.** `psram:` here sets
-  `CONFIG_SPIRAM_USE_CAPS_ALLOC`, so `new` / `malloc` / `std::string` only ever
-  use internal RAM (a few hundred KB free), and with exceptions disabled a
-  failed allocation is a `__cxa_throw` → abort, i.e. a reboot. The first settings
-  page buffered `/api/states` in a `std::string` and crashed on a real HA. Use
-  `esp32_dash::PsramString` / `PsramAllocator` (settings_page.h) or
-  `heap_caps_malloc(..., MALLOC_CAP_SPIRAM)` for anything sized by external
-  data; `HttpWorker` refuses buffered bodies over `HTTP_MAX_BUFFERED_BODY`
-  (256 KB) with an error rather than growing without bound.
-- **The loop task stack is 16 KB** (`esp32: framework: advanced:
-  loop_task_stack_size` in `device/device.yaml`), up from ESPHome's 8 KB
-  default. Every lambda, LVGL setup and rendering run on it, and the climate
-  page builds ~400 LVGL objects on boot. The 8-thermostat build aborted within
-  a minute of its first boot with the default (cause not decoded: the backtrace
-  needs that build's ELF). `climate_view.yaml` logs the internal heap (free /
-  largest block / minimum) after building its widgets and on HA connect, as a
-  baseline for diagnosing the next out-of-memory abort.
+- **Internal RAM is the scarce heap; plain `malloc` falls back to PSRAM.**
+  `psram:` sets `CONFIG_SPIRAM_USE_CAPS_ALLOC`, under which `new` / `malloc` /
+  `std::string` only ever use internal RAM (~768 KB on the P4, shared with
+  IRAM code, `.data`/`.bss` and task stacks), and with exceptions disabled a
+  failed allocation is an abort. The 8-thermostat climate build (#63) aborted
+  during start-up, before any of its own code ran, purely because internal RAM
+  ran out (the 4-thermostat build booted); a 16 KB loop stack, tried first,
+  only made it worse and was reverted. `alloc_diag.h` (`calendar_json`, always
+  included) therefore calls `heap_caps_malloc_extmem_enable(4096)` from a static
+  constructor, before `setup()`: requests over 4 KB go to PSRAM, smaller ones
+  to internal RAM first and PSRAM when it is full (Arduino-ESP32's default
+  policy). Code needing internal/DMA memory asks with explicit caps and is
+  unaffected. Still put anything sized by external data in PSRAM explicitly
+  (`esp32_dash::PsramString` / `PsramAllocator`, settings_page.h, or
+  `heap_caps_malloc(..., MALLOC_CAP_SPIRAM)`): the first settings page buffered
+  `/api/states` in a `std::string` and crashed on a real HA. `HttpWorker`
+  refuses buffered bodies over `HTTP_MAX_BUFFERED_BODY` (256 KB).
 - **Diagnosing a boot crash.** A crash report from a *different* build (always
   the case after an OTA rollback, which happens when a new build resets before
   `safe_mode` confirms it, ~1 min) prints raw `bt` addresses that nothing
