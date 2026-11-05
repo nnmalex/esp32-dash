@@ -15,9 +15,14 @@
 #   status   "Heating · Boost"
 #   current temperature (70 px)
 #   TARGET   [−]  22.5°  [+]      (range "20–24°" in heat_cool, no +/−)
-#   switch rows  Towel rail  (●)   up to 3 switch / input_boolean toggles per
-#                                  card, chosen on the settings page; the
-#                                  rows are hidden when none is set
+#   switches  [Towel rail] [Fan]  up to 3 switch / input_boolean chips per
+#                                 card, chosen on the settings page; sized to
+#                                 their text (wrapping, never cut off), blue
+#                                 while on, hidden when none is set
+#
+# Everything is top-aligned, and the blocks above the target row have fixed
+# heights, so the −/+ row sits at the same height on every card whatever the
+# card holds below it.
 #
 # Cards and buttons are built in C++ on boot (4 cards × 3 switch rows, 6
 # buttons) and stored in the clim_* widget globals below;
@@ -71,12 +76,6 @@ globals:
   - id: clim_sw_name_lbl
     type: std::array<lv_obj_t *, 12>
     initial_value: 'std::array<lv_obj_t *, 12>{}'
-  - id: clim_sw_track
-    type: std::array<lv_obj_t *, 12>
-    initial_value: 'std::array<lv_obj_t *, 12>{}'
-  - id: clim_sw_knob
-    type: std::array<lv_obj_t *, 12>
-    initial_value: 'std::array<lv_obj_t *, 12>{}'
 
   # ---- Button row widgets ---------------------------------------------------
   - id: clim_btn
@@ -127,6 +126,14 @@ script:
           }
           if (buttons > 0) lv_obj_clear_flag(id(clim_buttons), LV_OBJ_FLAG_HIDDEN);
           else lv_obj_add_flag(id(clim_buttons), LV_OBJ_FLAG_HIDDEN);
+
+          // Card width follows the card count: re-wrap the switch chips.
+          static int last_cards = -1;
+          if (cards != last_cards) {
+            last_cards = cards;
+            for (int i = 0; i < 12; i++)
+              if (!id(clim_sw_entity)[i].empty()) id(render_climate_switch).execute(i);
+          }
 
           if (cards > 0) {
             lv_obj_add_flag(id(clim_empty), LV_OBJ_FLAG_HIDDEN);
@@ -253,13 +260,13 @@ script:
           lv_obj_set_style_opa(id(clim_card)[slot], unavail && !st.empty() ? LV_OPA_50 : LV_OPA_COVER, 0);
 
   # ---------------------------------------------------------------------------
-  # render_climate_switch: fills switch row N (name, on/off toggle).
+  # render_climate_switch: fills switch chip N (name; blue while on).
   # ---------------------------------------------------------------------------
   - id: render_climate_switch
     parameters:
       slot: int
     mode: queued
-    max_runs: 16
+    max_runs: 24
     then:
       - lambda: |-
           if (slot < 0 || slot > 11 || id(clim_sw_row)[slot] == nullptr) return;
@@ -273,14 +280,21 @@ script:
             for (char &c : name) if (c == '_') c = ' ';
             if (!name.empty()) name[0] = toupper((unsigned char) name[0]);
           }
-          lv_label_set_text(id(clim_sw_name_lbl)[slot], name.c_str());
+          lv_obj_t *lbl = id(clim_sw_name_lbl)[slot];
+          lv_label_set_text(lbl, name.c_str());
+          // Cap the text at the card's inner width (minus the chip's 18 px
+          // side padding) so a long name wraps instead of overflowing. A pixel
+          // cap, not a percentage: the chip is sized by its content.
+          lv_obj_t *box = id(clim_sw_box)[slot / 3];
+          lv_obj_update_layout(box);
+          int32_t avail = lv_obj_get_content_width(box) - 36;
+          if (avail > 0) lv_obj_set_style_max_width(lbl, avail, 0);
 
           bool on = st == "on";
           bool unavail = st.empty() || st == "unavailable" || st == "unknown";
-          lv_obj_set_style_bg_color(id(clim_sw_track)[slot], lv_color_hex(on ? 0x5BA55A : 0x444444), 0);
-          lv_obj_set_style_bg_color(id(clim_sw_knob)[slot], lv_color_hex(on ? 0xFFFFFF : 0x999999), 0);
-          lv_obj_align(id(clim_sw_knob)[slot], on ? LV_ALIGN_RIGHT_MID : LV_ALIGN_LEFT_MID, on ? -3 : 3, 0);
-          lv_obj_set_style_text_color(id(clim_sw_name_lbl)[slot], lv_color_hex(on ? 0xEEEEEE : 0xBBBBBB), 0);
+          lv_obj_set_style_bg_color(id(clim_sw_row)[slot], lv_color_hex(on ? 0x6CB4F0 : 0x2A2A2A), 0);
+          lv_obj_set_style_bg_color(id(clim_sw_row)[slot], lv_color_hex(on ? 0x8CC6F4 : 0x444444), LV_STATE_PRESSED);
+          lv_obj_set_style_text_color(id(clim_sw_name_lbl)[slot], lv_color_hex(on ? 0x111111 : 0xBBBBBB), 0);
           lv_obj_set_style_opa(id(clim_sw_row)[slot], unavail ? LV_OPA_40 : LV_OPA_COVER, 0);
 
   # ---------------------------------------------------------------------------
@@ -389,7 +403,7 @@ lvgl:
           lv_obj_set_style_radius(card, 20, 0);
           lv_obj_set_style_pad_all(card, 20, 0);
           flex(card, LV_FLEX_FLOW_COLUMN, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, 10);
-          // With four cards and three switch rows the content can outgrow the card:
+          // With four cards and long switch names the content can outgrow the card:
           // let it scroll vertically rather than clip.
           lv_obj_add_flag(card, LV_OBJ_FLAG_SCROLLABLE);
           lv_obj_set_scroll_dir(card, LV_DIR_VER);
@@ -416,10 +430,10 @@ lvgl:
 
           id(clim_cur_lbl)[s] = label(card, f_big, 0xFFFFFF);
 
-          // Pushes the target and switch rows to the bottom of the card.
+          // Fixed gap under the current temperature. No flex-grow spacer: the
+          // target row must not move with what the card holds below it.
           lv_obj_t *spacer = box(card);
-          lv_obj_set_width(spacer, 1);
-          lv_obj_set_flex_grow(spacer, 1);
+          lv_obj_set_size(spacer, 1, 8);
 
           lv_obj_t *cap = label(card, f_cap, 0x777777);
           lv_label_set_text(cap, "TARGET");
@@ -448,37 +462,26 @@ lvgl:
             id(climate_adjust_target).execute((int) (intptr_t) lv_event_get_user_data(e), 1);
           }, LV_EVENT_CLICKED, (void *) (intptr_t) s);
 
-          // Switch rows: name + toggle, full card width. Tap = toggle.
+          // Switch chips: sized to their text and wrapping onto further lines
+          // (chip and text) rather than cutting it off. Tap = toggle.
           lv_obj_t *sws = box(card);
           lv_obj_set_size(sws, lv_pct(100), LV_SIZE_CONTENT);
-          flex(sws, LV_FLEX_FLOW_COLUMN, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, 8);
+          flex(sws, LV_FLEX_FLOW_ROW_WRAP, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, 8);
           lv_obj_set_style_pad_top(sws, 6, 0);
           lv_obj_add_flag(sws, LV_OBJ_FLAG_HIDDEN);
           id(clim_sw_box)[s] = sws;
           for (int n = 0; n < 3; n++) {
             const int i = s * 3 + n;
-            lv_obj_t *r = button(sws, lv_pct(100), 52, 26);
-            lv_obj_set_style_pad_left(r, 18, 0);
-            lv_obj_set_style_pad_right(r, 10, 0);
-            flex(r, LV_FLEX_FLOW_ROW, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, 8);
+            lv_obj_t *r = button(sws, LV_SIZE_CONTENT, LV_SIZE_CONTENT, 24);
+            lv_obj_set_style_min_height(r, 48, 0);
+            lv_obj_set_style_pad_hor(r, 18, 0);
+            lv_obj_set_style_pad_ver(r, 8, 0);
             lv_obj_t *nm = label(r, f_small, 0xBBBBBB);
-            lv_obj_set_flex_grow(nm, 1);
-            lv_label_set_long_mode(nm, LV_LABEL_LONG_DOT);
-            lv_obj_set_height(nm, 32);
+            lv_label_set_long_mode(nm, LV_LABEL_LONG_WRAP);
+            lv_obj_set_width(nm, LV_SIZE_CONTENT);  // max width set in render
+            lv_obj_set_style_text_align(nm, LV_TEXT_ALIGN_CENTER, 0);
+            lv_obj_center(nm);
             id(clim_sw_name_lbl)[i] = nm;
-            lv_obj_t *track = box(r);
-            lv_obj_set_size(track, 48, 28);
-            lv_obj_set_style_radius(track, 14, 0);
-            lv_obj_set_style_bg_opa(track, LV_OPA_COVER, 0);
-            lv_obj_set_style_bg_color(track, lv_color_hex(0x444444), 0);
-            id(clim_sw_track)[i] = track;
-            lv_obj_t *knob = box(track);
-            lv_obj_set_size(knob, 22, 22);
-            lv_obj_set_style_radius(knob, 11, 0);
-            lv_obj_set_style_bg_opa(knob, LV_OPA_COVER, 0);
-            lv_obj_set_style_bg_color(knob, lv_color_hex(0x999999), 0);
-            lv_obj_align(knob, LV_ALIGN_LEFT_MID, 3, 0);
-            id(clim_sw_knob)[i] = knob;
             lv_obj_add_flag(r, LV_OBJ_FLAG_HIDDEN);
             lv_obj_add_event_cb(r, [](lv_event_t *e) {
               id(climate_switch_pressed).execute((int) (intptr_t) lv_event_get_user_data(e));

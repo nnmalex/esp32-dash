@@ -152,7 +152,7 @@ Each thermostat card shows, all read from Home Assistant:
 - the name, what it is doing now (Heating, Idle, Off…) and the active preset
 - the current temperature
 - the target temperature with **−** / **+** (in the thermostat's own step, within its min/max). Taps are collected and sent once you stop tapping; the value shows blue until HA confirms it. A thermostat in heat/cool mode shows its range instead.
-- up to 3 toggles for switches or input booleans you pick per thermostat on the settings page (**Thermostat N switch 1..3**), each showing the entity's name and on/off state. Tapping one toggles it. No toggles are shown when none is set.
+- up to 3 toggles for switches or input booleans you pick per thermostat on the settings page (**Thermostat N switch 1..3**), each a button with the entity's full name that turns blue while it is on. Tapping one toggles it. No toggles are shown when none is set.
 
 Buttons in the row act by the entity's domain: `button` / `input_button` are pressed, `scene` / `script` run, `automation` is triggered, `lock` locks or unlocks, and anything else (light, switch, fan, cover…) toggles. Buttons for entities that are on are highlighted. The icon is the entity's own icon when it is one the panel knows, otherwise one for its domain.
 
