@@ -65,6 +65,7 @@ substitutions:
   # ── Climate screen (up to 4 thermostats + up to 6 buttons) ───────────────
   # climate_entity_1: "climate.living_room"
   # climate_entity_2: "climate.bedroom"
+  # climate_entity_1_switch_1: "switch.living_room_towel_rail"   # up to 3 per thermostat
   # climate_button_1: "scene.movie_night"
   # climate_button_2: "switch.towel_rail"
 
@@ -142,7 +143,7 @@ Leave `weather_bg_path` commented out (default) to skip background images and sh
 
 ## Climate screen
 
-The fifth tab (thermostat icon) shows a card for each configured thermostat, plus an optional row of buttons underneath. Set them on the [settings page](#settings-page) under **Climate** and **Climate buttons** (or seed them with the `climate_entity_1..4` / `climate_button_1..6` substitutions).
+The fifth tab (thermostat icon) shows a card for each configured thermostat, plus an optional row of buttons underneath. Set them on the [settings page](#settings-page) under **Climate** and **Climate buttons** (or seed them with the `climate_entity_1..4` / `climate_entity_N_switch_1..3` / `climate_button_1..6` substitutions).
 
 Cards and buttons share the width by how many are set: one thermostat gets the full width, four get a quarter each. The button row is hidden when no button is set.
 
@@ -151,8 +152,7 @@ Each thermostat card shows, all read from Home Assistant:
 - the name, what it is doing now (Heating, Idle, Off…) and the active preset
 - the current temperature
 - the target temperature with **−** / **+** (in the thermostat's own step, within its min/max). Taps are collected and sent once you stop tapping; the value shows blue until HA confirms it. A thermostat in heat/cool mode shows its range instead.
-- a **power** button (when the thermostat has an *off* mode; turning it back on restores the last mode) and a button for each HVAC mode it supports (heat, cool, auto…)
-- a button for each preset it supports (Eco, Boost…). Tapping the active preset returns to *none*, so Boost works as an on/off toggle.
+- up to 3 toggles for switches or input booleans you pick per thermostat on the settings page (**Thermostat N switch 1..3**), each showing the entity's name and on/off state. Tapping one toggles it. No toggles are shown when none is set.
 
 Buttons in the row act by the entity's domain: `button` / `input_button` are pressed, `scene` / `script` run, `automation` is triggered, `lock` locks or unlocks, and anything else (light, switch, fan, cover…) toggles. Buttons for entities that are on are highlighted. The icon is the entity's own icon when it is one the panel knows, otherwise one for its domain.
 

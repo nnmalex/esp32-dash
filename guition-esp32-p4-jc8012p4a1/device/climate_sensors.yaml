@@ -4,21 +4,22 @@
 # Data side of the climate view (device/climate_view.yaml):
 #
 #   climate_entity_select_0..3   — up to 4 climate.* entities, one card each
+#   climate_switch_select_C_N    — up to 3 switch.* / input_boolean.* toggles
+#                                  shown under card C's target row
+#                                  (slot C * 3 + N in the clim_sw_* arrays)
 #   climate_button_select_0..5   — up to 6 entities for the optional button row
 #                                  (button, scene, script, light, switch, ...)
 #
 # All are NVS-persisted internal text entities edited on the device settings
-# page (device/web_settings.yaml); the climate_entity_1..4 and
-# climate_button_1..6 substitutions only seed them on first boot.
+# page (device/web_settings.yaml); the climate_entity_1..4,
+# climate_entity_C_switch_N and climate_button_1..6 substitutions only seed
+# them on first boot.
 #
 # Per thermostat the panel subscribes to the state (hvac mode) and the
 # attributes friendly_name, current_temperature, temperature,
-# target_temp_low/high, target_temp_step, min_temp, max_temp, hvac_action,
-# hvac_modes, preset_mode and preset_modes. HA forwards attributes as
-# str(value): numbers arrive as "21.5", a missing value as "None", and lists as
-# Python reprs ("[<HVACMode.OFF: 'off'>, <HVACMode.HEAT: 'heat'>]" or
-# "['none', 'boost']") — clim_parse_list takes the quoted tokens, which covers
-# both forms.
+# target_temp_low/high, target_temp_step, min_temp, max_temp, hvac_action and
+# preset_mode (shown in the status line only). HA forwards attributes as
+# str(value): numbers arrive as "21.5" and a missing value as "None".
 #
 # Taps call HA actions over the native API (homeassistant.action), like the
 # music controls, so they need "Allow the device to perform Home Assistant
@@ -32,6 +33,18 @@ substitutions:
   climate_entity_2: ""
   climate_entity_3: ""
   climate_entity_4: ""
+  climate_entity_1_switch_1: ""
+  climate_entity_1_switch_2: ""
+  climate_entity_1_switch_3: ""
+  climate_entity_2_switch_1: ""
+  climate_entity_2_switch_2: ""
+  climate_entity_2_switch_3: ""
+  climate_entity_3_switch_1: ""
+  climate_entity_3_switch_2: ""
+  climate_entity_3_switch_3: ""
+  climate_entity_4_switch_1: ""
+  climate_entity_4_switch_2: ""
+  climate_entity_4_switch_3: ""
   climate_button_1: ""
   climate_button_2: ""
   climate_button_3: ""
@@ -71,10 +84,6 @@ globals:
   - id: clim_preset
     type: std::array<std::string, 4>
     initial_value: '{"","","",""}'
-  # Last mode other than off, so the power button can restore it.
-  - id: clim_last_on_mode
-    type: std::array<std::string, 4>
-    initial_value: '{"","","",""}'
 
   # Numeric attributes; NAN = not reported (or "None").
   - id: clim_cur
@@ -99,17 +108,6 @@ globals:
     type: std::array<float, 4>
     initial_value: 'std::array<float, 4>{NAN, NAN, NAN, NAN}'
 
-  # hvac_modes without "off" (off is the power button), and whether off exists.
-  - id: clim_modes
-    type: std::array<std::vector<std::string>, 4>
-    initial_value: 'std::array<std::vector<std::string>, 4>{}'
-  - id: clim_has_off
-    type: std::array<bool, 4>
-    initial_value: '{false,false,false,false}'
-  - id: clim_presets
-    type: std::array<std::vector<std::string>, 4>
-    initial_value: 'std::array<std::vector<std::string>, 4>{}'
-
   # Target set with +/− but not yet confirmed by HA (NAN = none). Sent once no
   # tap has come for CLIM_SEND_DELAY_MS; dropped when HA reports the new
   # target, or after CLIM_PENDING_TIMEOUT_MS if it never does (rejected call).
@@ -122,6 +120,23 @@ globals:
   - id: clim_pending_sent
     type: std::array<bool, 4>
     initial_value: '{false,false,false,false}'
+
+  # ---- Per-card switch rows (12 slots = card * 3 + n) -------------------------
+  - id: clim_sw_entity
+    type: std::array<std::string, 12>
+    initial_value: 'std::array<std::string, 12>{}'
+  - id: clim_sw_subbed
+    type: std::array<std::string, 12>
+    initial_value: 'std::array<std::string, 12>{}'
+  - id: clim_sw_gen
+    type: std::array<int, 12>
+    initial_value: 'std::array<int, 12>{}'
+  - id: clim_sw_name
+    type: std::array<std::string, 12>
+    initial_value: 'std::array<std::string, 12>{}'
+  - id: clim_sw_state
+    type: std::array<std::string, 12>
+    initial_value: 'std::array<std::string, 12>{}'
 
   # ---- Button row (6 slots) -------------------------------------------------
   - id: clim_btn_entity
@@ -202,6 +217,162 @@ text:
     max_length: 100
     on_value:
       - script.execute: {id: subscribe_climate, slot: 3}
+
+  - platform: template
+    name: "Climate: Thermostat 1 Switch 1"
+    id: climate_switch_select_0_0
+    internal: true
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${climate_entity_1_switch_1}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: {id: subscribe_climate_switch, slot: 0}
+
+  - platform: template
+    name: "Climate: Thermostat 1 Switch 2"
+    id: climate_switch_select_0_1
+    internal: true
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${climate_entity_1_switch_2}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: {id: subscribe_climate_switch, slot: 1}
+
+  - platform: template
+    name: "Climate: Thermostat 1 Switch 3"
+    id: climate_switch_select_0_2
+    internal: true
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${climate_entity_1_switch_3}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: {id: subscribe_climate_switch, slot: 2}
+
+  - platform: template
+    name: "Climate: Thermostat 2 Switch 1"
+    id: climate_switch_select_1_0
+    internal: true
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${climate_entity_2_switch_1}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: {id: subscribe_climate_switch, slot: 3}
+
+  - platform: template
+    name: "Climate: Thermostat 2 Switch 2"
+    id: climate_switch_select_1_1
+    internal: true
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${climate_entity_2_switch_2}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: {id: subscribe_climate_switch, slot: 4}
+
+  - platform: template
+    name: "Climate: Thermostat 2 Switch 3"
+    id: climate_switch_select_1_2
+    internal: true
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${climate_entity_2_switch_3}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: {id: subscribe_climate_switch, slot: 5}
+
+  - platform: template
+    name: "Climate: Thermostat 3 Switch 1"
+    id: climate_switch_select_2_0
+    internal: true
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${climate_entity_3_switch_1}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: {id: subscribe_climate_switch, slot: 6}
+
+  - platform: template
+    name: "Climate: Thermostat 3 Switch 2"
+    id: climate_switch_select_2_1
+    internal: true
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${climate_entity_3_switch_2}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: {id: subscribe_climate_switch, slot: 7}
+
+  - platform: template
+    name: "Climate: Thermostat 3 Switch 3"
+    id: climate_switch_select_2_2
+    internal: true
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${climate_entity_3_switch_3}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: {id: subscribe_climate_switch, slot: 8}
+
+  - platform: template
+    name: "Climate: Thermostat 4 Switch 1"
+    id: climate_switch_select_3_0
+    internal: true
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${climate_entity_4_switch_1}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: {id: subscribe_climate_switch, slot: 9}
+
+  - platform: template
+    name: "Climate: Thermostat 4 Switch 2"
+    id: climate_switch_select_3_1
+    internal: true
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${climate_entity_4_switch_2}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: {id: subscribe_climate_switch, slot: 10}
+
+  - platform: template
+    name: "Climate: Thermostat 4 Switch 3"
+    id: climate_switch_select_3_2
+    internal: true
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "${climate_entity_4_switch_3}"
+    min_length: 0
+    max_length: 100
+    on_value:
+      - script.execute: {id: subscribe_climate_switch, slot: 11}
 
   - platform: template
     name: "Climate: Button 1"
@@ -312,7 +483,6 @@ script:
             id(clim_state)[slot] = "";
             id(clim_action)[slot] = "";
             id(clim_preset)[slot] = "";
-            id(clim_last_on_mode)[slot] = "";
             id(clim_cur)[slot] = NAN;
             id(clim_target)[slot] = NAN;
             id(clim_low)[slot] = NAN;
@@ -320,9 +490,6 @@ script:
             id(clim_step)[slot] = NAN;
             id(clim_min)[slot] = NAN;
             id(clim_max)[slot] = NAN;
-            id(clim_modes)[slot].clear();
-            id(clim_has_off)[slot] = false;
-            id(clim_presets)[slot].clear();
             id(clim_pending)[slot] = NAN;
             id(clim_pending_sent)[slot] = false;
           }
@@ -364,30 +531,7 @@ script:
             float f = strtof(s.c_str(), &end);
             return end == s.c_str() ? NAN : f;
           };
-          // Python list repr → the quoted tokens. Handles both plain strings
-          // "['eco', 'boost']" and enum reprs "[<HVACMode.OFF: 'off'>, ...]".
-          auto parse_list = [](const std::string &s) {
-            std::vector<std::string> out;
-            size_t i = 0;
-            while (i < s.size()) {
-              char q = s[i];
-              if (q == '\'' || q == '"') {
-                size_t j = s.find(q, i + 1);
-                if (j == std::string::npos) break;
-                out.push_back(s.substr(i + 1, j - i - 1));
-                i = j + 1;
-              } else {
-                i++;
-              }
-            }
-            return out;
-          };
-
-          sub(nullptr, [](int n, const std::string &v) {
-            id(clim_state)[n] = v;
-            if (!v.empty() && v != "off" && v != "unavailable" && v != "unknown")
-              id(clim_last_on_mode)[n] = v;
-          });
+          sub(nullptr, [](int n, const std::string &v) { id(clim_state)[n] = v; });
           sub("friendly_name", [](int n, const std::string &v) { id(clim_name)[n] = v; });
           sub("current_temperature", [num](int n, const std::string &v) { id(clim_cur)[n] = num(v); });
           sub("temperature", [num](int n, const std::string &v) {
@@ -406,22 +550,83 @@ script:
           sub("hvac_action", [](int n, const std::string &v) {
             id(clim_action)[n] = (v == "None") ? "" : v;
           });
-          sub("hvac_modes", [parse_list](int n, const std::string &v) {
-            id(clim_modes)[n].clear();
-            id(clim_has_off)[n] = false;
-            for (auto &m : parse_list(v)) {
-              if (m == "off") id(clim_has_off)[n] = true;
-              else id(clim_modes)[n].push_back(m);
-            }
-          });
           sub("preset_mode", [](int n, const std::string &v) {
             id(clim_preset)[n] = (v == "None") ? "" : v;
           });
-          sub("preset_modes", [parse_list](int n, const std::string &v) {
-            id(clim_presets)[n] = parse_list(v);
-          });
 
           ESP_LOGI("climate", "Thermostat %d: subscribed to '%s'", slot + 1, entity.c_str());
+
+  # ---------------------------------------------------------------------------
+  # subscribe_climate_switch: (re)binds switch row N (card N / 3) to its entity.
+  # ---------------------------------------------------------------------------
+  - id: subscribe_climate_switch
+    parameters:
+      slot: int
+    mode: restart
+    then:
+      - lambda: |-
+          if (slot < 0 || slot > 11) return;
+          std::string entity;
+          switch (slot) {
+            case 0: entity = id(climate_switch_select_0_0).state; break;
+            case 1: entity = id(climate_switch_select_0_1).state; break;
+            case 2: entity = id(climate_switch_select_0_2).state; break;
+            case 3: entity = id(climate_switch_select_1_0).state; break;
+            case 4: entity = id(climate_switch_select_1_1).state; break;
+            case 5: entity = id(climate_switch_select_1_2).state; break;
+            case 6: entity = id(climate_switch_select_2_0).state; break;
+            case 7: entity = id(climate_switch_select_2_1).state; break;
+            case 8: entity = id(climate_switch_select_2_2).state; break;
+            case 9: entity = id(climate_switch_select_3_0).state; break;
+            case 10: entity = id(climate_switch_select_3_1).state; break;
+            case 11: entity = id(climate_switch_select_3_2).state; break;
+            default: return;
+          }
+          if (!entity.empty() && entity.rfind("switch.", 0) != 0
+              && entity.rfind("input_boolean.", 0) != 0) {
+            ESP_LOGW("climate", "Thermostat %d switch %d: '%s' must be a switch or input_boolean",
+                     slot / 3 + 1, slot % 3 + 1, entity.c_str());
+            entity.clear();
+          }
+
+          if (entity != id(clim_sw_entity)[slot]) {
+            id(clim_sw_entity)[slot] = entity;
+            id(clim_sw_name)[slot] = "";
+            id(clim_sw_state)[slot] = "";
+          }
+          id(layout_climate_page).execute();
+          id(render_climate_switch).execute(slot);
+
+          if (entity.empty()) {
+            id(clim_sw_subbed)[slot] = "";
+            id(clim_sw_gen)[slot] += 1;
+            return;
+          }
+          if (esphome::api::global_api_server == nullptr) return;
+          if (entity == id(clim_sw_subbed)[slot]) return;
+          id(clim_sw_subbed)[slot] = entity;
+
+          id(clim_sw_gen)[slot] += 1;
+          const int gen = id(clim_sw_gen)[slot];
+          int *gen_ptr = &id(clim_sw_gen)[slot];
+          auto *api = esphome::api::global_api_server;
+          using str_cb = std::function<void(const std::string &)>;
+
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(),
+              str_cb([gen, gen_ptr, slot](const std::string &v) {
+                if (gen != *gen_ptr) return;
+                id(clim_sw_state)[slot] = v;
+                id(render_climate_switch).execute(slot);
+              }));
+          api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
+              str_cb([gen, gen_ptr, slot](const std::string &v) {
+                if (gen != *gen_ptr) return;
+                id(clim_sw_name)[slot] = v;
+                id(render_climate_switch).execute(slot);
+              }));
+
+          ESP_LOGI("climate", "Thermostat %d switch %d: subscribed to '%s'",
+                   slot / 3 + 1, slot % 3 + 1, entity.c_str());
 
   # ---------------------------------------------------------------------------
   # subscribe_climate_button: (re)binds button slot N to its entity.
@@ -558,59 +763,22 @@ script:
           id(clim_pending_sent)[slot] = false;
           id(render_climate_card).execute(slot);
 
-  # Mode row: idx 0 is the power button, 1.. are clim_modes[idx - 1].
-  - id: climate_mode_pressed
+  # Switch row: switch.toggle / input_boolean.toggle. The row redraws when
+  # HA reports the new state.
+  - id: climate_switch_pressed
     parameters:
       slot: int
-      idx: int
     mode: queued
     max_runs: 10
     then:
       - lambda: |-
-          if (slot < 0 || slot > 3) return;
-          const std::string &entity = id(clim_entity)[slot];
+          if (slot < 0 || slot > 11) return;
+          const std::string &entity = id(clim_sw_entity)[slot];
           if (entity.empty()) return;
-          const auto &modes = id(clim_modes)[slot];
-          std::string mode;
-          if (idx == 0) {
-            if (id(clim_state)[slot] != "off") {
-              mode = "off";
-            } else {
-              // Back to the mode it was in, else the most usual "on" mode.
-              mode = id(clim_last_on_mode)[slot];
-              if (std::find(modes.begin(), modes.end(), mode) == modes.end()) mode.clear();
-              for (const char *pref : {"heat", "heat_cool", "auto", "cool"}) {
-                if (!mode.empty()) break;
-                if (std::find(modes.begin(), modes.end(), pref) != modes.end()) mode = pref;
-              }
-              if (mode.empty() && !modes.empty()) mode = modes[0];
-            }
-          } else if (idx - 1 < (int) modes.size()) {
-            mode = modes[idx - 1];
-          }
-          if (mode.empty() || mode == id(clim_state)[slot]) return;
-          id(climate_set_hvac_mode).execute(entity, mode);
-
-  - id: climate_preset_pressed
-    parameters:
-      slot: int
-      idx: int
-    mode: queued
-    max_runs: 10
-    then:
-      - lambda: |-
-          if (slot < 0 || slot > 3) return;
-          const std::string &entity = id(clim_entity)[slot];
-          const auto &presets = id(clim_presets)[slot];
-          if (entity.empty() || idx < 0 || idx >= (int) presets.size()) return;
-          std::string preset = presets[idx];
-          // Tapping the active preset turns it off again (back to "none"), when
-          // the thermostat has one — so Boost works as a toggle.
-          if (preset == id(clim_preset)[slot]) {
-            if (std::find(presets.begin(), presets.end(), "none") == presets.end()) return;
-            preset = "none";
-          }
-          id(climate_set_preset_mode).execute(entity, preset);
+          std::string action = entity.substr(0, entity.find('.')) + ".toggle";
+          ESP_LOGI("climate", "Thermostat %d switch %d: %s %s", slot / 3 + 1, slot % 3 + 1,
+                   action.c_str(), entity.c_str());
+          id(ha_entity_action).execute(action, entity);
 
   # Button row: the action depends on the entity's domain.
   - id: climate_button_pressed
@@ -673,38 +841,6 @@ script:
             - lambda: |-
                 if (!id(actions_prompt_acked)) lv_obj_clear_flag(id(actions_prompt), LV_OBJ_FLAG_HIDDEN);
 
-  - id: climate_set_hvac_mode
-    parameters:
-      entity: string
-      mode: string
-    mode: queued
-    max_runs: 10
-    then:
-      - homeassistant.action:
-          action: climate.set_hvac_mode
-          data:
-            entity_id: !lambda 'return entity;'
-            hvac_mode: !lambda 'return mode;'
-          on_error:
-            - lambda: |-
-                if (!id(actions_prompt_acked)) lv_obj_clear_flag(id(actions_prompt), LV_OBJ_FLAG_HIDDEN);
-
-  - id: climate_set_preset_mode
-    parameters:
-      entity: string
-      preset: string
-    mode: queued
-    max_runs: 10
-    then:
-      - homeassistant.action:
-          action: climate.set_preset_mode
-          data:
-            entity_id: !lambda 'return entity;'
-            preset_mode: !lambda 'return preset;'
-          on_error:
-            - lambda: |-
-                if (!id(actions_prompt_acked)) lv_obj_clear_flag(id(actions_prompt), LV_OBJ_FLAG_HIDDEN);
-
   # ---------------------------------------------------------------------------
   # climate_pending_tick: sends a settled +/− target, expires unconfirmed ones.
   # ---------------------------------------------------------------------------
@@ -761,6 +897,18 @@ api:
     - script.execute: {id: subscribe_climate, slot: 1}
     - script.execute: {id: subscribe_climate, slot: 2}
     - script.execute: {id: subscribe_climate, slot: 3}
+    - script.execute: {id: subscribe_climate_switch, slot: 0}
+    - script.execute: {id: subscribe_climate_switch, slot: 1}
+    - script.execute: {id: subscribe_climate_switch, slot: 2}
+    - script.execute: {id: subscribe_climate_switch, slot: 3}
+    - script.execute: {id: subscribe_climate_switch, slot: 4}
+    - script.execute: {id: subscribe_climate_switch, slot: 5}
+    - script.execute: {id: subscribe_climate_switch, slot: 6}
+    - script.execute: {id: subscribe_climate_switch, slot: 7}
+    - script.execute: {id: subscribe_climate_switch, slot: 8}
+    - script.execute: {id: subscribe_climate_switch, slot: 9}
+    - script.execute: {id: subscribe_climate_switch, slot: 10}
+    - script.execute: {id: subscribe_climate_switch, slot: 11}
     - script.execute: {id: subscribe_climate_button, slot: 0}
     - script.execute: {id: subscribe_climate_button, slot: 1}
     - script.execute: {id: subscribe_climate_button, slot: 2}

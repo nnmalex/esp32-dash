@@ -160,18 +160,67 @@ calendar_json:
         label: "Thermostat 1"
         help: "Each thermostat gets a card on the climate page. Empty hides it."
         domain: [climate]
+      - text: climate_switch_select_0_0
+        group: "Climate"
+        label: "Thermostat 1 switch 1"
+        help: "Up to 3 switches or input booleans shown as toggles under each thermostat's target. Empty hides the row."
+        domain: [switch, input_boolean]
+      - text: climate_switch_select_0_1
+        group: "Climate"
+        label: "Thermostat 1 switch 2"
+        domain: [switch, input_boolean]
+      - text: climate_switch_select_0_2
+        group: "Climate"
+        label: "Thermostat 1 switch 3"
+        domain: [switch, input_boolean]
       - text: climate_entity_select_1
         group: "Climate"
         label: "Thermostat 2"
         domain: [climate]
+      - text: climate_switch_select_1_0
+        group: "Climate"
+        label: "Thermostat 2 switch 1"
+        domain: [switch, input_boolean]
+      - text: climate_switch_select_1_1
+        group: "Climate"
+        label: "Thermostat 2 switch 2"
+        domain: [switch, input_boolean]
+      - text: climate_switch_select_1_2
+        group: "Climate"
+        label: "Thermostat 2 switch 3"
+        domain: [switch, input_boolean]
       - text: climate_entity_select_2
         group: "Climate"
         label: "Thermostat 3"
         domain: [climate]
+      - text: climate_switch_select_2_0
+        group: "Climate"
+        label: "Thermostat 3 switch 1"
+        domain: [switch, input_boolean]
+      - text: climate_switch_select_2_1
+        group: "Climate"
+        label: "Thermostat 3 switch 2"
+        domain: [switch, input_boolean]
+      - text: climate_switch_select_2_2
+        group: "Climate"
+        label: "Thermostat 3 switch 3"
+        domain: [switch, input_boolean]
       - text: climate_entity_select_3
         group: "Climate"
         label: "Thermostat 4"
         domain: [climate]
+      - text: climate_switch_select_3_0
+        group: "Climate"
+        label: "Thermostat 4 switch 1"
+        domain: [switch, input_boolean]
+      - text: climate_switch_select_3_1
+        group: "Climate"
+        label: "Thermostat 4 switch 2"
+        domain: [switch, input_boolean]
+      - text: climate_switch_select_3_2
+        group: "Climate"
+        label: "Thermostat 4 switch 3"
+        domain: [switch, input_boolean]
       - text: climate_button_select_0
         group: "Climate buttons"
         label: "Button 1"
