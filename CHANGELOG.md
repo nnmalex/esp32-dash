@@ -4,12 +4,13 @@
 
 ### New: climate screen
 
-A fifth tab shows up to four thermostats from Home Assistant — current and
+A fifth tab shows up to eight thermostats from Home Assistant — current and
 target temperature with −/+, an on/off button, the HVAC modes and presets the
 thermostat supports (e.g. Boost) — plus an optional row of up to six buttons
 for any entity (scenes, scripts, lights, switches…). Everything is chosen on
 the device settings page; cards and buttons share the width by how many are
-configured.
+configured (five or more go in two rows of smaller cards), and the current
+temperature is centred on each card.
 
 ### Fix: builds failed on ESPHome 2026.6+ (vendored gsl3680)
 

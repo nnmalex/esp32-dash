@@ -3,18 +3,22 @@
 # =============================================================================
 # Layout (1280×740, nav bar at y=740), all flex, 24 px margins:
 #
-#   clim_cards    one card per configured thermostat (up to 4), sharing the
-#                 width equally: 1 card = full width, 4 cards = 4 × ~293 px.
-#                 Unused slots are hidden, and LVGL flex skips hidden children,
-#                 so the remaining cards widen to fill the row.
+#   clim_cards    one card per configured thermostat (up to 8), only the
+#                 configured ones shown:
+#                   1–4 thermostats: one row of tall cards sharing the width
+#                                    (1 card = full width, 4 = 4 × ~293 px)
+#                   5–8 thermostats: two rows of compact cards (5 → 3+2,
+#                                    6 → 3+3, 7 → 4+3, 8 → 4+4); a shorter
+#                                    second row has wider cards
 #   clim_buttons  optional row of up to 6 entity buttons (112 px high), hidden
-#                 when none is configured. Buttons share the width the same way.
+#                 when none is configured. Buttons share the width equally.
 #
-# Card, top to bottom:
+# Card, top to bottom (compact differences in brackets):
 #   name ........................ hvac_action icon (fire / snowflake / ...)
 #   status   "Heating · Boost"
-#   current temperature (70 px)
-#   TARGET   [−]  22.5°  [+]      (range "20–24°" in heat_cool, no +/−)
+#   current temperature, centred (70 px)            [40 px]
+#   TARGET                                          [no caption]
+#   [−]  22.5°  [+]      (range "20–24°" in heat_cool, no +/−)  [smaller]
 #   switches  [Towel rail] [Fan]  up to 3 switch / input_boolean chips per
 #                                 card, chosen on the settings page; sized to
 #                                 their text (wrapping, never cut off), blue
@@ -24,58 +28,70 @@
 # heights, so the −/+ row sits at the same height on every card whatever the
 # card holds below it.
 #
-# Cards and buttons are built in C++ on boot (4 cards × 3 switch rows, 6
-# buttons) and stored in the clim_* widget globals below;
-# render_climate_card / render_climate_switch / render_climate_button fill
-# them from the state in climate_sensors.yaml.
+# Cards are built in C++ (build_climate_widgets) only for thermostats that are
+# configured, the first time they are: an unused slot costs no LVGL objects.
+# The 8-thermostat build of #63 built every slot up front (with far more
+# objects per card) and ran out of internal RAM during start-up. Pointers go
+# into the clim_* widget globals below; render_climate_card /
+# render_climate_switch / render_climate_button fill them from the state in
+# climate_sensors.yaml.
 #
 # Data: climate_sensors.yaml. Taps call HA actions through scripts there.
 # =============================================================================
 
 globals:
+  # Set at the end of lvgl on_boot: widgets may be built from then on. The
+  # settings' restore runs before LVGL exists and must not touch it.
+  - id: clim_ui_ready
+    type: bool
+    initial_value: 'false'
+  # Two rows of compact cards (5+ thermostats).
+  - id: clim_compact
+    type: bool
+    initial_value: 'false'
   # ---- Card widgets, per thermostat slot -------------------------------------
   - id: clim_card
-    type: std::array<lv_obj_t *, 4>
-    initial_value: 'std::array<lv_obj_t *, 4>{}'
+    type: std::array<lv_obj_t *, 8>
+    initial_value: 'std::array<lv_obj_t *, 8>{}'
   - id: clim_name_lbl
-    type: std::array<lv_obj_t *, 4>
-    initial_value: 'std::array<lv_obj_t *, 4>{}'
+    type: std::array<lv_obj_t *, 8>
+    initial_value: 'std::array<lv_obj_t *, 8>{}'
   - id: clim_icon_lbl
-    type: std::array<lv_obj_t *, 4>
-    initial_value: 'std::array<lv_obj_t *, 4>{}'
+    type: std::array<lv_obj_t *, 8>
+    initial_value: 'std::array<lv_obj_t *, 8>{}'
   - id: clim_status_lbl
-    type: std::array<lv_obj_t *, 4>
-    initial_value: 'std::array<lv_obj_t *, 4>{}'
+    type: std::array<lv_obj_t *, 8>
+    initial_value: 'std::array<lv_obj_t *, 8>{}'
   - id: clim_cur_lbl
-    type: std::array<lv_obj_t *, 4>
-    initial_value: 'std::array<lv_obj_t *, 4>{}'
+    type: std::array<lv_obj_t *, 8>
+    initial_value: 'std::array<lv_obj_t *, 8>{}'
   - id: clim_tgt_caption
-    type: std::array<lv_obj_t *, 4>
-    initial_value: 'std::array<lv_obj_t *, 4>{}'
+    type: std::array<lv_obj_t *, 8>
+    initial_value: 'std::array<lv_obj_t *, 8>{}'
   - id: clim_tgt_row
-    type: std::array<lv_obj_t *, 4>
-    initial_value: 'std::array<lv_obj_t *, 4>{}'
+    type: std::array<lv_obj_t *, 8>
+    initial_value: 'std::array<lv_obj_t *, 8>{}'
   - id: clim_tgt_lbl
-    type: std::array<lv_obj_t *, 4>
-    initial_value: 'std::array<lv_obj_t *, 4>{}'
+    type: std::array<lv_obj_t *, 8>
+    initial_value: 'std::array<lv_obj_t *, 8>{}'
   - id: clim_minus_btn
-    type: std::array<lv_obj_t *, 4>
-    initial_value: 'std::array<lv_obj_t *, 4>{}'
+    type: std::array<lv_obj_t *, 8>
+    initial_value: 'std::array<lv_obj_t *, 8>{}'
   - id: clim_plus_btn
-    type: std::array<lv_obj_t *, 4>
-    initial_value: 'std::array<lv_obj_t *, 4>{}'
+    type: std::array<lv_obj_t *, 8>
+    initial_value: 'std::array<lv_obj_t *, 8>{}'
   # Container of the card's switch rows (hidden when the card has none).
   - id: clim_sw_box
-    type: std::array<lv_obj_t *, 4>
-    initial_value: 'std::array<lv_obj_t *, 4>{}'
+    type: std::array<lv_obj_t *, 8>
+    initial_value: 'std::array<lv_obj_t *, 8>{}'
 
-  # ---- Switch rows, slot = card * 3 + n ---------------------------------------
+  # ---- Switch rows, slot = card * 3 + n (24) ---------------------------------------
   - id: clim_sw_row
-    type: std::array<lv_obj_t *, 12>
-    initial_value: 'std::array<lv_obj_t *, 12>{}'
+    type: std::array<lv_obj_t *, 24>
+    initial_value: 'std::array<lv_obj_t *, 24>{}'
   - id: clim_sw_name_lbl
-    type: std::array<lv_obj_t *, 12>
-    initial_value: 'std::array<lv_obj_t *, 12>{}'
+    type: std::array<lv_obj_t *, 24>
+    initial_value: 'std::array<lv_obj_t *, 24>{}'
 
   # ---- Button row widgets ---------------------------------------------------
   - id: clim_btn
@@ -91,20 +107,216 @@ globals:
 
 script:
   # ---------------------------------------------------------------------------
-  # layout_climate_page: shows the cards and buttons that are configured, and
-  # the empty-state message when there is nothing to show.
+  # build_climate_widgets: builds the button row (once) and a card, with its 3
+  # switch chips, for every configured thermostat that has none yet. Cards are
+  # never deleted; a cleared slot is only hidden.
+  # ---------------------------------------------------------------------------
+  - id: build_climate_widgets
+    mode: single
+    then:
+      - lambda: |-
+          if (!id(clim_ui_ready)) return;
+          const lv_font_t *f_icon  = id(icon_font)->get_lv_font();
+          const lv_font_t *f_name  = id(roboto_light30_font)->get_lv_font();
+          const lv_font_t *f_small = id(roboto_light26_font)->get_lv_font();
+          const lv_font_t *f_cap   = id(roboto19_font)->get_lv_font();
+          const lv_font_t *f_big   = id(roboto_light70_font)->get_lv_font();
+          const lv_font_t *f_tgt   = id(roboto_light40_font)->get_lv_font();
+
+          // A bare container: no theme styles, not clickable or scrollable.
+          auto box = [](lv_obj_t *parent) {
+            lv_obj_t *o = lv_obj_create(parent);
+            lv_obj_remove_style_all(o);
+            lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
+            return o;
+          };
+          auto label = [](lv_obj_t *parent, const lv_font_t *font, uint32_t color) {
+            lv_obj_t *l = lv_label_create(parent);
+            lv_obj_set_style_text_font(l, font, 0);
+            lv_obj_set_style_text_color(l, lv_color_hex(color), 0);
+            lv_label_set_text(l, "");
+            return l;
+          };
+          // A tappable pill/round button: flat fill, lighter while pressed.
+          auto button = [](lv_obj_t *parent, int32_t w, int32_t h, int32_t radius) {
+            lv_obj_t *b = lv_button_create(parent);
+            lv_obj_remove_style_all(b);
+            lv_obj_set_size(b, w, h);
+            lv_obj_set_style_radius(b, radius, 0);
+            lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+            lv_obj_set_style_bg_color(b, lv_color_hex(0x2A2A2A), 0);
+            lv_obj_set_style_bg_color(b, lv_color_hex(0x444444), LV_STATE_PRESSED);
+            lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+            return b;
+          };
+          auto flex = [](lv_obj_t *o, lv_flex_flow_t flow, lv_flex_align_t main,
+                         lv_flex_align_t cross, int32_t gap) {
+            lv_obj_set_layout(o, LV_LAYOUT_FLEX);
+            lv_obj_set_flex_flow(o, flow);
+            lv_obj_set_flex_align(o, main, cross, cross);
+            lv_obj_set_style_pad_row(o, gap, 0);
+            lv_obj_set_style_pad_column(o, gap, 0);
+          };
+
+          // ---- Button row: icon over name, sharing the width equally --------
+          if (id(clim_btn)[0] == nullptr) {
+            flex(id(clim_buttons), LV_FLEX_FLOW_ROW, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, 16);
+            for (int s = 0; s < 6; s++) {
+              lv_obj_t *b = button(id(clim_buttons), 1, lv_pct(100), 18);
+              lv_obj_set_flex_grow(b, 1);
+              lv_obj_set_style_bg_color(b, lv_color_hex(0x1C1C1C), 0);
+              lv_obj_set_style_bg_color(b, lv_color_hex(0x333333), LV_STATE_PRESSED);
+              lv_obj_set_style_pad_hor(b, 12, 0);
+              flex(b, LV_FLEX_FLOW_COLUMN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, 4);
+              id(clim_btn_icon_lbl)[s] = label(b, f_icon, 0xBBBBBB);
+              lv_obj_t *n = label(b, f_small, 0xDDDDDD);
+              lv_obj_set_width(n, lv_pct(100));
+              lv_obj_set_style_text_align(n, LV_TEXT_ALIGN_CENTER, 0);
+              lv_label_set_long_mode(n, LV_LABEL_LONG_DOT);
+              lv_obj_set_height(n, 32);
+              id(clim_btn_name_lbl)[s] = n;
+              lv_obj_add_flag(b, LV_OBJ_FLAG_HIDDEN);
+              lv_obj_add_event_cb(b, [](lv_event_t *e) {
+                id(climate_button_pressed).execute((int) (intptr_t) lv_event_get_user_data(e));
+              }, LV_EVENT_CLICKED, (void *) (intptr_t) s);
+              id(clim_btn)[s] = b;
+            }
+          }
+
+          // ---- Thermostat cards, configured slots only -----------------------
+          bool built = false;
+          for (int s = 0; s < 8; s++) {
+            if (id(clim_card)[s] != nullptr || id(clim_entity)[s].empty()) continue;
+            built = true;
+
+            // Size and compact styling are set by layout_climate_page.
+            lv_obj_t *card = box(id(clim_cards));
+            lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
+            lv_obj_set_style_bg_color(card, lv_color_hex(0x1C1C1C), 0);
+            lv_obj_set_style_radius(card, 20, 0);
+            lv_obj_set_style_pad_all(card, 20, 0);
+            flex(card, LV_FLEX_FLOW_COLUMN, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, 10);
+            // Long switch names can outgrow the card: let it scroll vertically
+            // rather than clip.
+            lv_obj_add_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_set_scroll_dir(card, LV_DIR_VER);
+            lv_obj_set_scrollbar_mode(card, LV_SCROLLBAR_MODE_OFF);
+            lv_obj_add_flag(card, LV_OBJ_FLAG_HIDDEN);
+            id(clim_card)[s] = card;
+
+            // Header: name (ellipsised) + action icon
+            lv_obj_t *hdr = box(card);
+            lv_obj_set_size(hdr, lv_pct(100), LV_SIZE_CONTENT);
+            flex(hdr, LV_FLEX_FLOW_ROW, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, 8);
+            lv_obj_t *name = label(hdr, f_name, 0xEEEEEE);
+            lv_obj_set_flex_grow(name, 1);
+            lv_obj_set_height(name, 36);
+            lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
+            id(clim_name_lbl)[s] = name;
+            id(clim_icon_lbl)[s] = label(hdr, f_icon, 0x666666);
+
+            lv_obj_t *status = label(card, f_small, 0x888888);
+            lv_obj_set_width(status, lv_pct(100));
+            lv_label_set_long_mode(status, LV_LABEL_LONG_DOT);
+            lv_obj_set_height(status, 32);
+            id(clim_status_lbl)[s] = status;
+
+            // Current temperature, centred across the card. Its bottom padding
+            // is the fixed gap above TARGET (no flex-grow spacer: the target
+            // row must not move with what the card holds below it).
+            lv_obj_t *cur = label(card, f_big, 0xFFFFFF);
+            lv_obj_set_width(cur, lv_pct(100));
+            lv_obj_set_style_text_align(cur, LV_TEXT_ALIGN_CENTER, 0);
+            lv_obj_set_style_pad_bottom(cur, 18, 0);
+            id(clim_cur_lbl)[s] = cur;
+
+            lv_obj_t *cap = label(card, f_cap, 0x777777);
+            lv_label_set_text(cap, "TARGET");
+            id(clim_tgt_caption)[s] = cap;
+
+            lv_obj_t *row = box(card);
+            lv_obj_set_size(row, lv_pct(100), 64);
+            flex(row, LV_FLEX_FLOW_ROW, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, 8);
+            id(clim_tgt_row)[s] = row;
+            lv_obj_t *minus = button(row, 64, 64, 32);
+            lv_obj_t *ml = label(minus, f_icon, 0xFFFFFF);
+            lv_label_set_text(ml, "\U000F0374");  // minus
+            lv_obj_center(ml);
+            id(clim_minus_btn)[s] = minus;
+            lv_obj_t *tgt = label(row, f_tgt, 0xEEEEEE);
+            id(clim_tgt_lbl)[s] = tgt;
+            lv_obj_t *plus = button(row, 64, 64, 32);
+            lv_obj_t *pl = label(plus, f_icon, 0xFFFFFF);
+            lv_label_set_text(pl, "\U000F0415");  // plus
+            lv_obj_center(pl);
+            id(clim_plus_btn)[s] = plus;
+            lv_obj_add_event_cb(minus, [](lv_event_t *e) {
+              id(climate_adjust_target).execute((int) (intptr_t) lv_event_get_user_data(e), -1);
+            }, LV_EVENT_CLICKED, (void *) (intptr_t) s);
+            lv_obj_add_event_cb(plus, [](lv_event_t *e) {
+              id(climate_adjust_target).execute((int) (intptr_t) lv_event_get_user_data(e), 1);
+            }, LV_EVENT_CLICKED, (void *) (intptr_t) s);
+
+            // Switch chips: sized to their text and wrapping onto further lines
+            // (chip and text) rather than cutting it off. Tap = toggle.
+            lv_obj_t *sws = box(card);
+            lv_obj_set_size(sws, lv_pct(100), LV_SIZE_CONTENT);
+            flex(sws, LV_FLEX_FLOW_ROW_WRAP, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, 8);
+            lv_obj_set_style_pad_top(sws, 6, 0);
+            lv_obj_add_flag(sws, LV_OBJ_FLAG_HIDDEN);
+            id(clim_sw_box)[s] = sws;
+            for (int n = 0; n < 3; n++) {
+              const int i = s * 3 + n;
+              lv_obj_t *r = button(sws, LV_SIZE_CONTENT, LV_SIZE_CONTENT, 24);
+              lv_obj_set_style_min_height(r, 48, 0);
+              lv_obj_set_style_pad_hor(r, 18, 0);
+              lv_obj_set_style_pad_ver(r, 8, 0);
+              lv_obj_t *nm = label(r, f_small, 0xBBBBBB);
+              lv_label_set_long_mode(nm, LV_LABEL_LONG_WRAP);
+              lv_obj_set_width(nm, LV_SIZE_CONTENT);  // max width set in render
+              lv_obj_set_style_text_align(nm, LV_TEXT_ALIGN_CENTER, 0);
+              lv_obj_center(nm);
+              id(clim_sw_name_lbl)[i] = nm;
+              lv_obj_add_flag(r, LV_OBJ_FLAG_HIDDEN);
+              lv_obj_add_event_cb(r, [](lv_event_t *e) {
+                id(climate_switch_pressed).execute((int) (intptr_t) lv_event_get_user_data(e));
+              }, LV_EVENT_CLICKED, (void *) (intptr_t) i);
+              id(clim_sw_row)[i] = r;
+            }
+            ESP_LOGD("climate", "Built card %d", s + 1);
+          }
+
+          // Cards are created in the order thermostats get configured: keep
+          // them in slot order (after the clim_empty label).
+          if (built) {
+            for (int s = 0; s < 8; s++) {
+              lv_obj_t *card = id(clim_card)[s];
+              if (card != nullptr)
+                lv_obj_move_to_index(card, (int32_t) lv_obj_get_child_count(id(clim_cards)) - 1);
+            }
+          }
+
+  # ---------------------------------------------------------------------------
+  # layout_climate_page: builds missing widgets, shows the cards and buttons
+  # that are configured, sizes the cards into one or two rows, and shows the
+  # empty-state message when there is nothing to show.
   # ---------------------------------------------------------------------------
   - id: layout_climate_page
     mode: single
     then:
       - lambda: |-
-          if (id(clim_card)[0] == nullptr) return;  // widgets not built yet
+          if (!id(clim_ui_ready)) return;  // LVGL not set up yet
+          id(build_climate_widgets).execute();
+
           int cards = 0, buttons = 0;
-          for (int i = 0; i < 4; i++) {
-            bool on = !id(clim_entity)[i].empty();
+          for (int i = 0; i < 8; i++) {
+            lv_obj_t *card = id(clim_card)[i];
+            bool on = !id(clim_entity)[i].empty() && card != nullptr;
             cards += on;
-            if (on) lv_obj_clear_flag(id(clim_card)[i], LV_OBJ_FLAG_HIDDEN);
-            else lv_obj_add_flag(id(clim_card)[i], LV_OBJ_FLAG_HIDDEN);
+            if (card == nullptr) continue;
+            if (on) lv_obj_clear_flag(card, LV_OBJ_FLAG_HIDDEN);
+            else lv_obj_add_flag(card, LV_OBJ_FLAG_HIDDEN);
           }
           for (int i = 0; i < 6; i++) {
             bool on = !id(clim_btn_entity)[i].empty();
@@ -112,7 +324,8 @@ script:
             if (on) lv_obj_clear_flag(id(clim_btn)[i], LV_OBJ_FLAG_HIDDEN);
             else lv_obj_add_flag(id(clim_btn)[i], LV_OBJ_FLAG_HIDDEN);
           }
-          for (int c = 0; c < 4; c++) {
+          for (int c = 0; c < 8; c++) {
+            if (id(clim_sw_box)[c] == nullptr) continue;
             bool any = false;
             for (int n = 0; n < 3; n++) {
               int i = c * 3 + n;
@@ -127,13 +340,66 @@ script:
           if (buttons > 0) lv_obj_clear_flag(id(clim_buttons), LV_OBJ_FLAG_HIDDEN);
           else lv_obj_add_flag(id(clim_buttons), LV_OBJ_FLAG_HIDDEN);
 
+          // ---- Card grid: 1–4 cards in one row, 5–8 in two -----------------
+          const bool compact = cards > 4;
+          const int per_row = compact ? (cards + 1) / 2 : (cards > 0 ? cards : 1);
+          const int rows = compact ? 2 : 1;
+          const int32_t GAP = 20;
+          lv_obj_update_layout(id(clim_root));  // clim_cards' size follows the button row
+          const int32_t W = lv_obj_get_content_width(id(clim_cards));
+          const int32_t H = lv_obj_get_content_height(id(clim_cards));
+          // Explicit widths: per_row cards fill the first row and the next one
+          // wraps; a shorter second row gets wider cards so it fills the width
+          // too. (Not flex_grow: LVGL never wraps a growing item.)
+          const int last_row = cards - per_row;
+          const int32_t cw = (W - (per_row - 1) * GAP) / per_row;
+          const int32_t cw2 = last_row > 0 ? (W - (last_row - 1) * GAP) / last_row : cw;
+          const int32_t ch = (H - (rows - 1) * GAP) / rows;
+          for (int i = 0, v = 0; i < 8; i++) {
+            lv_obj_t *card = id(clim_card)[i];
+            if (card == nullptr || lv_obj_has_flag(card, LV_OBJ_FLAG_HIDDEN)) continue;
+            lv_obj_set_size(card, v < per_row ? cw : cw2, ch);
+            v++;
+          }
+
+          // Compact cards (two rows): less padding, a smaller current
+          // temperature, no TARGET caption, smaller −/+ and switch chips.
+          // Restyled when the mode changes or a card was just built.
+          static bool last_compact = false;
+          static uint8_t last_built = 0;
+          uint8_t built_mask = 0;
+          for (int i = 0; i < 8; i++) if (id(clim_card)[i] != nullptr) built_mask |= 1 << i;
+          if (compact != last_compact || built_mask != last_built) {
+            id(clim_compact) = compact;
+            const lv_font_t *f_cur = (compact ? id(roboto_light40_font) : id(roboto_light70_font))->get_lv_font();
+            const int32_t pm = compact ? 52 : 64;
+            for (int s = 0; s < 8; s++) {
+              lv_obj_t *card = id(clim_card)[s];
+              if (card == nullptr) continue;
+              lv_obj_set_style_pad_all(card, compact ? 14 : 20, 0);
+              lv_obj_set_style_pad_row(card, compact ? 4 : 10, 0);
+              lv_obj_set_style_text_font(id(clim_cur_lbl)[s], f_cur, 0);
+              lv_obj_set_style_pad_bottom(id(clim_cur_lbl)[s], compact ? 0 : 18, 0);
+              lv_obj_set_height(id(clim_tgt_row)[s], pm);
+              for (lv_obj_t *b : {id(clim_minus_btn)[s], id(clim_plus_btn)[s]}) {
+                lv_obj_set_size(b, pm, pm);
+                lv_obj_set_style_radius(b, pm / 2, 0);
+              }
+              for (int n = 0; n < 3; n++)
+                lv_obj_set_style_min_height(id(clim_sw_row)[s * 3 + n], compact ? 40 : 48, 0);
+              id(render_climate_card).execute(s);  // TARGET caption follows compact
+            }
+          }
+
           // Card width follows the card count: re-wrap the switch chips.
           static int last_cards = -1;
-          if (cards != last_cards) {
+          if (cards != last_cards || built_mask != last_built) {
             last_cards = cards;
-            for (int i = 0; i < 12; i++)
+            for (int i = 0; i < 24; i++)
               if (!id(clim_sw_entity)[i].empty()) id(render_climate_switch).execute(i);
           }
+          last_compact = compact;
+          last_built = built_mask;
 
           if (cards > 0) {
             lv_obj_add_flag(id(clim_empty), LV_OBJ_FLAG_HIDDEN);
@@ -152,10 +418,10 @@ script:
     parameters:
       slot: int
     mode: queued
-    max_runs: 8
+    max_runs: 16
     then:
       - lambda: |-
-          if (slot < 0 || slot > 3 || id(clim_card)[slot] == nullptr) return;
+          if (slot < 0 || slot > 7 || id(clim_card)[slot] == nullptr) return;
           const std::string &entity = id(clim_entity)[slot];
           if (entity.empty()) return;  // hidden by layout_climate_page
 
@@ -244,7 +510,9 @@ script:
             lv_obj_add_flag(cap, LV_OBJ_FLAG_HIDDEN);
             lv_obj_add_flag(row, LV_OBJ_FLAG_HIDDEN);
           } else {
-            lv_obj_clear_flag(cap, LV_OBJ_FLAG_HIDDEN);
+            // Compact cards (5+ thermostats) leave the caption out.
+            if (id(clim_compact)) lv_obj_add_flag(cap, LV_OBJ_FLAG_HIDDEN);
+            else lv_obj_clear_flag(cap, LV_OBJ_FLAG_HIDDEN);
             lv_obj_clear_flag(row, LV_OBJ_FLAG_HIDDEN);
             std::string t = single ? fmt(target) : fmt(lo) + "\xe2\x80\x93" + fmt(hi);
             lv_label_set_text(id(clim_tgt_lbl)[slot], t.c_str());
@@ -266,10 +534,10 @@ script:
     parameters:
       slot: int
     mode: queued
-    max_runs: 24
+    max_runs: 48
     then:
       - lambda: |-
-          if (slot < 0 || slot > 11 || id(clim_sw_row)[slot] == nullptr) return;
+          if (slot < 0 || slot > 23 || id(clim_sw_row)[slot] == nullptr) return;
           const std::string &entity = id(clim_sw_entity)[slot];
           if (entity.empty()) return;  // hidden by layout_climate_page
           const std::string &st = id(clim_sw_state)[slot];
@@ -349,173 +617,13 @@ script:
 
 lvgl:
   on_boot:
-    # Build the four thermostat cards (3 switch rows each) and six buttons (hidden), then lay out.
+    # Widgets can be built from now on: the button row (hidden) and a card for
+    # each thermostat configured so far. Others are built when configured.
     - lambda: |-
-        const lv_font_t *f_icon  = id(icon_font)->get_lv_font();
-        const lv_font_t *f_name  = id(roboto_light30_font)->get_lv_font();
-        const lv_font_t *f_small = id(roboto_light26_font)->get_lv_font();
-        const lv_font_t *f_cap   = id(roboto19_font)->get_lv_font();
-        const lv_font_t *f_big   = id(roboto_light70_font)->get_lv_font();
-        const lv_font_t *f_tgt   = id(roboto_light40_font)->get_lv_font();
-
-        // A bare container: no theme styles, not clickable or scrollable.
-        auto box = [](lv_obj_t *parent) {
-          lv_obj_t *o = lv_obj_create(parent);
-          lv_obj_remove_style_all(o);
-          lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
-          lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
-          return o;
-        };
-        auto label = [](lv_obj_t *parent, const lv_font_t *font, uint32_t color) {
-          lv_obj_t *l = lv_label_create(parent);
-          lv_obj_set_style_text_font(l, font, 0);
-          lv_obj_set_style_text_color(l, lv_color_hex(color), 0);
-          lv_label_set_text(l, "");
-          return l;
-        };
-        // A tappable pill/round button: flat fill, lighter while pressed.
-        auto button = [](lv_obj_t *parent, int32_t w, int32_t h, int32_t radius) {
-          lv_obj_t *b = lv_button_create(parent);
-          lv_obj_remove_style_all(b);
-          lv_obj_set_size(b, w, h);
-          lv_obj_set_style_radius(b, radius, 0);
-          lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
-          lv_obj_set_style_bg_color(b, lv_color_hex(0x2A2A2A), 0);
-          lv_obj_set_style_bg_color(b, lv_color_hex(0x444444), LV_STATE_PRESSED);
-          lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
-          return b;
-        };
-        auto flex = [](lv_obj_t *o, lv_flex_flow_t flow, lv_flex_align_t main,
-                       lv_flex_align_t cross, int32_t gap) {
-          lv_obj_set_layout(o, LV_LAYOUT_FLEX);
-          lv_obj_set_flex_flow(o, flow);
-          lv_obj_set_flex_align(o, main, cross, cross);
-          lv_obj_set_style_pad_row(o, gap, 0);
-          lv_obj_set_style_pad_column(o, gap, 0);
-        };
-
-        for (int s = 0; s < 4; s++) {
-          lv_obj_t *card = box(id(clim_cards));
-          lv_obj_set_height(card, lv_pct(100));
-          lv_obj_set_flex_grow(card, 1);
-          lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-          lv_obj_set_style_bg_color(card, lv_color_hex(0x1C1C1C), 0);
-          lv_obj_set_style_radius(card, 20, 0);
-          lv_obj_set_style_pad_all(card, 20, 0);
-          flex(card, LV_FLEX_FLOW_COLUMN, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, 10);
-          // With four cards and long switch names the content can outgrow the card:
-          // let it scroll vertically rather than clip.
-          lv_obj_add_flag(card, LV_OBJ_FLAG_SCROLLABLE);
-          lv_obj_set_scroll_dir(card, LV_DIR_VER);
-          lv_obj_set_scrollbar_mode(card, LV_SCROLLBAR_MODE_OFF);
-          lv_obj_add_flag(card, LV_OBJ_FLAG_HIDDEN);
-          id(clim_card)[s] = card;
-
-          // Header: name (ellipsised) + action icon
-          lv_obj_t *hdr = box(card);
-          lv_obj_set_size(hdr, lv_pct(100), LV_SIZE_CONTENT);
-          flex(hdr, LV_FLEX_FLOW_ROW, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, 8);
-          lv_obj_t *name = label(hdr, f_name, 0xEEEEEE);
-          lv_obj_set_flex_grow(name, 1);
-          lv_obj_set_height(name, 36);
-          lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
-          id(clim_name_lbl)[s] = name;
-          id(clim_icon_lbl)[s] = label(hdr, f_icon, 0x666666);
-
-          lv_obj_t *status = label(card, f_small, 0x888888);
-          lv_obj_set_width(status, lv_pct(100));
-          lv_label_set_long_mode(status, LV_LABEL_LONG_DOT);
-          lv_obj_set_height(status, 32);
-          id(clim_status_lbl)[s] = status;
-
-          id(clim_cur_lbl)[s] = label(card, f_big, 0xFFFFFF);
-
-          // Fixed gap under the current temperature. No flex-grow spacer: the
-          // target row must not move with what the card holds below it.
-          lv_obj_t *spacer = box(card);
-          lv_obj_set_size(spacer, 1, 8);
-
-          lv_obj_t *cap = label(card, f_cap, 0x777777);
-          lv_label_set_text(cap, "TARGET");
-          id(clim_tgt_caption)[s] = cap;
-
-          lv_obj_t *row = box(card);
-          lv_obj_set_size(row, lv_pct(100), 64);
-          flex(row, LV_FLEX_FLOW_ROW, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, 8);
-          id(clim_tgt_row)[s] = row;
-          lv_obj_t *minus = button(row, 64, 64, 32);
-          lv_obj_t *ml = label(minus, f_icon, 0xFFFFFF);
-          lv_label_set_text(ml, "\U000F0374");  // minus
-          lv_obj_center(ml);
-          id(clim_minus_btn)[s] = minus;
-          lv_obj_t *tgt = label(row, f_tgt, 0xEEEEEE);
-          id(clim_tgt_lbl)[s] = tgt;
-          lv_obj_t *plus = button(row, 64, 64, 32);
-          lv_obj_t *pl = label(plus, f_icon, 0xFFFFFF);
-          lv_label_set_text(pl, "\U000F0415");  // plus
-          lv_obj_center(pl);
-          id(clim_plus_btn)[s] = plus;
-          lv_obj_add_event_cb(minus, [](lv_event_t *e) {
-            id(climate_adjust_target).execute((int) (intptr_t) lv_event_get_user_data(e), -1);
-          }, LV_EVENT_CLICKED, (void *) (intptr_t) s);
-          lv_obj_add_event_cb(plus, [](lv_event_t *e) {
-            id(climate_adjust_target).execute((int) (intptr_t) lv_event_get_user_data(e), 1);
-          }, LV_EVENT_CLICKED, (void *) (intptr_t) s);
-
-          // Switch chips: sized to their text and wrapping onto further lines
-          // (chip and text) rather than cutting it off. Tap = toggle.
-          lv_obj_t *sws = box(card);
-          lv_obj_set_size(sws, lv_pct(100), LV_SIZE_CONTENT);
-          flex(sws, LV_FLEX_FLOW_ROW_WRAP, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, 8);
-          lv_obj_set_style_pad_top(sws, 6, 0);
-          lv_obj_add_flag(sws, LV_OBJ_FLAG_HIDDEN);
-          id(clim_sw_box)[s] = sws;
-          for (int n = 0; n < 3; n++) {
-            const int i = s * 3 + n;
-            lv_obj_t *r = button(sws, LV_SIZE_CONTENT, LV_SIZE_CONTENT, 24);
-            lv_obj_set_style_min_height(r, 48, 0);
-            lv_obj_set_style_pad_hor(r, 18, 0);
-            lv_obj_set_style_pad_ver(r, 8, 0);
-            lv_obj_t *nm = label(r, f_small, 0xBBBBBB);
-            lv_label_set_long_mode(nm, LV_LABEL_LONG_WRAP);
-            lv_obj_set_width(nm, LV_SIZE_CONTENT);  // max width set in render
-            lv_obj_set_style_text_align(nm, LV_TEXT_ALIGN_CENTER, 0);
-            lv_obj_center(nm);
-            id(clim_sw_name_lbl)[i] = nm;
-            lv_obj_add_flag(r, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_add_event_cb(r, [](lv_event_t *e) {
-              id(climate_switch_pressed).execute((int) (intptr_t) lv_event_get_user_data(e));
-            }, LV_EVENT_CLICKED, (void *) (intptr_t) i);
-            id(clim_sw_row)[i] = r;
-          }
-        }
-
-        // Button row: icon over name, sharing the width equally.
-        flex(id(clim_buttons), LV_FLEX_FLOW_ROW, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, 16);
-        for (int s = 0; s < 6; s++) {
-          lv_obj_t *b = button(id(clim_buttons), 1, lv_pct(100), 18);
-          lv_obj_set_flex_grow(b, 1);
-          lv_obj_set_style_bg_color(b, lv_color_hex(0x1C1C1C), 0);
-          lv_obj_set_style_bg_color(b, lv_color_hex(0x333333), LV_STATE_PRESSED);
-          lv_obj_set_style_pad_hor(b, 12, 0);
-          flex(b, LV_FLEX_FLOW_COLUMN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, 4);
-          id(clim_btn_icon_lbl)[s] = label(b, f_icon, 0xBBBBBB);
-          lv_obj_t *n = label(b, f_small, 0xDDDDDD);
-          lv_obj_set_width(n, lv_pct(100));
-          lv_obj_set_style_text_align(n, LV_TEXT_ALIGN_CENTER, 0);
-          lv_label_set_long_mode(n, LV_LABEL_LONG_DOT);
-          lv_obj_set_height(n, 32);
-          id(clim_btn_name_lbl)[s] = n;
-          lv_obj_add_flag(b, LV_OBJ_FLAG_HIDDEN);
-          lv_obj_add_event_cb(b, [](lv_event_t *e) {
-            id(climate_button_pressed).execute((int) (intptr_t) lv_event_get_user_data(e));
-          }, LV_EVENT_CLICKED, (void *) (intptr_t) s);
-          id(clim_btn)[s] = b;
-        }
-
+        id(clim_ui_ready) = true;
         id(layout_climate_page).execute();
-        for (int i = 0; i < 4; i++) id(render_climate_card).execute(i);
-        for (int i = 0; i < 12; i++) id(render_climate_switch).execute(i);
+        for (int i = 0; i < 8; i++) id(render_climate_card).execute(i);
+        for (int i = 0; i < 24; i++) id(render_climate_switch).execute(i);
         for (int i = 0; i < 6; i++) id(render_climate_button).execute(i);
 
   pages:
@@ -559,11 +667,12 @@ lvgl:
                   scrollable: false
                   layout:
                     type: flex
-                    flex_flow: ROW
+                    flex_flow: ROW_WRAP
                     flex_align_main: START
                     flex_align_cross: CENTER
                     flex_align_track: CENTER
                     pad_column: 20
+                    pad_row: 20
                   widgets:
                     - label:
                         id: clim_empty
