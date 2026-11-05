@@ -26,7 +26,7 @@ h1{font-size:19px;margin:0;flex:1;min-width:0}
 button{font:inherit;font-size:13px;padding:5px 11px;border-radius:7px;border:1px solid var(--line);background:var(--card);color:var(--text);cursor:pointer}
 button:disabled{opacity:.5;cursor:default}
 main{padding:16px 0 48px}
-section{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:16px;overflow:hidden}
+section{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:16px}
 h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0;padding:12px 16px 4px}
 .row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);gap:4px 16px;align-items:start;padding:10px 16px;border-top:1px solid var(--line)}
 section .row:first-of-type{border-top:0}
@@ -48,6 +48,14 @@ input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
 .switch input:checked+span{background:var(--accent)}
 .switch input:checked+span:before{transform:translateX(18px)}
 .switch input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}
+.combo{position:relative;flex:1;min-width:0}
+.dd{position:absolute;z-index:1;left:0;right:0;top:calc(100% + 3px);margin:0;padding:4px 0;list-style:none;max-height:300px;overflow-y:auto;background:var(--card);border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.18)}
+.dd li{padding:5px 10px;cursor:pointer;display:flex;flex-direction:column;min-width:0}
+.dd li.on{background:var(--accent);color:#fff}
+.dd .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dd .i{font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dd li.on .i{color:inherit;opacity:.85}
+.dd .more{font-size:12px;color:var(--muted);cursor:default;padding:5px 10px}
 #msg{padding:12px 16px;border-radius:10px;margin:16px 0 0;background:var(--card);border:1px solid var(--line)}
 #msg.err{color:var(--err)}
 @media (max-width:560px){.row{grid-template-columns:1fr}.row label{padding-top:0}}
@@ -68,8 +76,9 @@ const el = (tag, props, kids) => {
 };
 let entities = [];        // [[id, friendly_name, unit], ...]
 const byId = new Map();
-const pickers = [];       // {input, hint, domains}
-const lists = new Map();  // domains string -> <datalist>
+const pickers = [];       // {input, hint, domains, refresh()}
+let haystack = [];        // lowercased "id name" per entity, parallel to entities
+const MAX_SUGGEST = 60;
 const controls = new Map(); // key -> {set(value)}
 
 function showMsg(text, isErr) {
@@ -106,22 +115,33 @@ async function save(key, value, st, revert) {
 function domainsOf(f) { return (f.domains || "").split(",").map((s) => s.trim()).filter(Boolean); }
 function matches(id, domains) { return !domains.length || domains.includes(id.split(".")[0]); }
 
-function datalistFor(domainsKey) {
-  if (!lists.has(domainsKey)) {
-    const dl = el("datalist", { id: "dl" + lists.size });
-    document.body.appendChild(dl);
-    lists.set(domainsKey, dl);
-  }
-  return lists.get(domainsKey);
+function fillLists() {
+  haystack = entities.map((e) => (e[0] + " " + (e[1] || "")).toLowerCase());
+  pickers.forEach((p) => { updateHint(p); p.refresh(); });
 }
 
-function fillLists() {
-  for (const [key, dl] of lists) {
-    const domains = key ? key.split(",") : [];
-    dl.textContent = "";
-    for (const [id, name] of entities) if (matches(id, domains)) dl.appendChild(el("option", { value: id, label: name || id }));
+// Entities matching every whitespace-separated word of q in either the id or
+// the friendly name. Id / object_id / name prefix matches rank first.
+function suggest(q, domains) {
+  q = q.trim().toLowerCase();
+  const words = q.split(/\s+/).filter(Boolean);
+  const hits = [];
+  for (let i = 0; i < entities.length; i++) {
+    const e = entities[i];
+    if (!matches(e[0], domains)) continue;
+    const h = haystack[i];
+    if (!words.every((w) => h.includes(w))) continue;
+    let rank = 3;
+    if (q) {
+      const id = e[0].toLowerCase(), name = (e[1] || "").toLowerCase();
+      if (id === q) rank = 0;
+      else if (id.startsWith(q) || id.slice(id.indexOf(".") + 1).startsWith(q)) rank = 1;
+      else if (name.startsWith(q)) rank = 2;
+    }
+    hits.push([rank, i]);
   }
-  pickers.forEach(updateHint);
+  hits.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  return hits.map((h) => entities[h[1]]);
 }
 
 function updateHint(p) {
@@ -141,24 +161,74 @@ function entityControl(f, st) {
   const domains = domainsOf(f);
   const input = el("input", { type: "text", value: f.value, spellcheck: false, autocomplete: "off",
     placeholder: domains.length ? domains[0] + ".…" : "any entity, e.g. sensor.…" });
-  input.setAttribute("list", datalistFor(domains.join(",")).id);
   input.setAttribute("autocapitalize", "off");
+  input.setAttribute("role", "combobox");
+  input.setAttribute("aria-autocomplete", "list");
+  input.setAttribute("aria-expanded", "false");
+  const ddId = "dd_" + f.key;
+  input.setAttribute("aria-controls", ddId);
+  const dd = el("ul", { className: "dd", id: ddId, role: "listbox", hidden: true });
+  const combo = el("div", { className: "combo" }, [input, dd]);
   const hint = el("div", { className: "hint" });
-  const p = { input, hint, domains };
-  pickers.push(p);
-  let saved = f.value;
+  let saved = f.value, items = [], active = -1;
   const commit = () => {
     const v = input.value.trim();
     input.value = v;
     updateHint(p);
     if (v !== saved) { const prev = saved; saved = v; save(f.key, v, st, () => { saved = prev; }); }
   };
+  const close = () => { dd.hidden = true; active = -1; input.setAttribute("aria-expanded", "false"); input.removeAttribute("aria-activedescendant"); };
+  const setActive = (i) => {
+    const lis = dd.querySelectorAll("li[role=option]");
+    if (active >= 0 && lis[active]) lis[active].classList.remove("on");
+    active = i;
+    if (i >= 0 && lis[i]) { lis[i].classList.add("on"); lis[i].scrollIntoView({ block: "nearest" }); input.setAttribute("aria-activedescendant", lis[i].id); }
+    else input.removeAttribute("aria-activedescendant");
+  };
+  const pick = (i) => { input.value = items[i][0]; close(); commit(); };
+  const open = () => {
+    if (!entities.length) { close(); return; }
+    const all = suggest(input.value, domains);
+    items = all.slice(0, MAX_SUGGEST);
+    dd.textContent = "";
+    items.forEach((e, i) => {
+      const li = el("li", { role: "option", id: ddId + "_" + i }, [
+        el("span", { className: "n", text: e[1] || e[0] }), el("span", { className: "i", text: e[0] })]);
+      li.addEventListener("mousedown", (ev) => { ev.preventDefault(); pick(i); });
+      li.addEventListener("mousemove", () => { if (active !== i) setActive(i); });
+      dd.appendChild(li);
+    });
+    if (!items.length) dd.appendChild(el("li", { className: "more", text: "No matching entities" }));
+    else if (all.length > items.length) dd.appendChild(el("li", { className: "more", text: (all.length - items.length) + " more, keep typing to narrow down" }));
+    active = -1;
+    dd.hidden = false;
+    input.setAttribute("aria-expanded", "true");
+  };
+  const p = { input, hint, domains, refresh() { if (!dd.hidden) open(); } };
+  pickers.push(p);
   input.addEventListener("change", commit);
-  input.addEventListener("input", () => updateHint(p));
-  input.addEventListener("keydown", (e) => { if (e.key === "Enter") input.blur(); });
+  input.addEventListener("input", () => { updateHint(p); open(); });
+  input.addEventListener("focus", open);
+  input.addEventListener("click", () => { if (dd.hidden) open(); });
+  input.addEventListener("blur", close);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (dd.hidden) { open(); return; }
+      if (!items.length) return;
+      const n = items.length;
+      setActive(e.key === "ArrowDown" ? (active + 1) % n : (active <= 0 ? n - 1 : active - 1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (!dd.hidden && active >= 0) pick(active);
+      else input.blur();
+    } else if (e.key === "Escape") {
+      if (!dd.hidden) { e.preventDefault(); close(); }
+    }
+  });
   updateHint(p);
   controls.set(f.key, { set(v) { if (document.activeElement !== input) { input.value = v; saved = v; updateHint(p); } } });
-  return [el("div", { className: "line" }, [input, st]), hint];
+  return [el("div", { className: "line" }, [combo, st]), hint];
 }
 
 function numberControl(f, st) {

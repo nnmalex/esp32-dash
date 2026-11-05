@@ -300,7 +300,11 @@ under `calendar_json: settings:`.
   `EntityListScanner` consumes it chunk by chunk on the worker task (an
   `HttpBodySink`) and writes `[id, friendly_name, unit]` JSON into a
   `PsramString`, which the endpoint sends with `httpd_resp_send_chunk` straight
-  from PSRAM. The browser sorts it.
+  from PSRAM. The browser sorts it. The picker dropdown is a small custom
+  combobox in `settings_page_html.h` that matches every typed word against the
+  entity id and friendly name and shows both. It replaced a `<datalist>`:
+  browsers differ in which of value/label a datalist searches and shows
+  (some match on the name only).
 - Threading: `handleRequest()` runs on the httpd task and touches only the
   immutable field table. State snapshots are built in `loop()` on request (the
   handler waits on a semaphore), writes are validated on the httpd task, then
