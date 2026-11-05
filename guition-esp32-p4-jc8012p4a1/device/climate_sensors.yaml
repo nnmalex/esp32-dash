@@ -6,7 +6,7 @@
 #   climate_entity_select_0..7   — up to 8 climate.* entities, one card each
 #   climate_switch_select_C_N    — up to 3 switch.* / input_boolean.* toggles
 #                                  shown under card C's target row
-#                                  (slot C * 3 + N in the clim_sw_* arrays)
+#                                  (slot C * 3 + N in the sw_* arrays)
 #   climate_button_select_0..5   — up to 6 entities for the optional button row
 #                                  (button, scene, script, light, switch, ...)
 #
@@ -26,6 +26,11 @@
 # actions" enabled on the device in HA. The +/− buttons only move a pending
 # target locally; climate_pending_tick sends one set_temperature once the taps
 # stop (CLIM_SEND_DELAY_MS), instead of one action per tap.
+#
+# State lives in one PSRAM struct, id(clim) (esp32_dash::ClimateState,
+# components/calendar_json/climate_state.h), not in a global per field. Static
+# internal RAM (every entity and global) is what stopped the 8-thermostat
+# builds booting; see CLAUDE.md, Gotchas, "Static internal RAM".
 # =============================================================================
 
 substitutions:
@@ -70,112 +75,14 @@ substitutions:
 
 
 globals:
-  # ---- Thermostats (8 slots) ------------------------------------------------
-  # Validated entity per slot ("" = slot unused). Set even before the API is up,
-  # so the view can lay itself out from it.
-  - id: clim_entity
-    type: std::array<std::string, 8>
-    initial_value: 'std::array<std::string, 8>{}'
-  # Entity registered with the API's state-subscription list, per slot. ESPHome
-  # has no unsubscribe (see weather_sensors.yaml), so a reconnect must not
-  # subscribe again; the generation counter invalidates callbacks of an entity
-  # that was replaced.
-  - id: clim_subbed
-    type: std::array<std::string, 8>
-    initial_value: 'std::array<std::string, 8>{}'
-  - id: clim_gen
-    type: std::array<int, 8>
-    initial_value: 'std::array<int, 8>{}'
-
-  - id: clim_name
-    type: std::array<std::string, 8>
-    initial_value: 'std::array<std::string, 8>{}'
-  # Entity state = hvac mode ("off", "heat", ...) or "unavailable".
-  - id: clim_state
-    type: std::array<std::string, 8>
-    initial_value: 'std::array<std::string, 8>{}'
-  - id: clim_action
-    type: std::array<std::string, 8>
-    initial_value: 'std::array<std::string, 8>{}'
-  - id: clim_preset
-    type: std::array<std::string, 8>
-    initial_value: 'std::array<std::string, 8>{}'
-
-  # Numeric attributes; NAN = not reported (or "None").
-  - id: clim_cur
-    type: std::array<float, 8>
-    initial_value: 'std::array<float, 8>{NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN}'
-  - id: clim_target
-    type: std::array<float, 8>
-    initial_value: 'std::array<float, 8>{NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN}'
-  - id: clim_low
-    type: std::array<float, 8>
-    initial_value: 'std::array<float, 8>{NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN}'
-  - id: clim_high
-    type: std::array<float, 8>
-    initial_value: 'std::array<float, 8>{NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN}'
-  - id: clim_step
-    type: std::array<float, 8>
-    initial_value: 'std::array<float, 8>{NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN}'
-  - id: clim_min
-    type: std::array<float, 8>
-    initial_value: 'std::array<float, 8>{NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN}'
-  - id: clim_max
-    type: std::array<float, 8>
-    initial_value: 'std::array<float, 8>{NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN}'
-
-  # Target set with +/− but not yet confirmed by HA (NAN = none). Sent once no
-  # tap has come for CLIM_SEND_DELAY_MS; dropped when HA reports the new
-  # target, or after CLIM_PENDING_TIMEOUT_MS if it never does (rejected call).
-  - id: clim_pending
-    type: std::array<float, 8>
-    initial_value: 'std::array<float, 8>{NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN}'
-  - id: clim_pending_ms
-    type: std::array<uint32_t, 8>
-    initial_value: 'std::array<uint32_t, 8>{}'
-  - id: clim_pending_sent
-    type: std::array<bool, 8>
-    initial_value: 'std::array<bool, 8>{}'
-
-  # ---- Per-card switch rows (24 slots = card * 3 + n) -------------------------
-  - id: clim_sw_entity
-    type: std::array<std::string, 24>
-    initial_value: 'std::array<std::string, 24>{}'
-  - id: clim_sw_subbed
-    type: std::array<std::string, 24>
-    initial_value: 'std::array<std::string, 24>{}'
-  - id: clim_sw_gen
-    type: std::array<int, 24>
-    initial_value: 'std::array<int, 24>{}'
-  - id: clim_sw_name
-    type: std::array<std::string, 24>
-    initial_value: 'std::array<std::string, 24>{}'
-  - id: clim_sw_state
-    type: std::array<std::string, 24>
-    initial_value: 'std::array<std::string, 24>{}'
-
-  # ---- Button row (6 slots) -------------------------------------------------
-  - id: clim_btn_entity
-    type: std::array<std::string, 6>
-    initial_value: '{"","","","","",""}'
-  - id: clim_btn_subbed
-    type: std::array<std::string, 6>
-    initial_value: '{"","","","","",""}'
-  - id: clim_btn_gen
-    type: std::array<int, 6>
-    initial_value: '{0,0,0,0,0,0}'
-  - id: clim_btn_name
-    type: std::array<std::string, 6>
-    initial_value: '{"","","","","",""}'
-  - id: clim_btn_state
-    type: std::array<std::string, 6>
-    initial_value: '{"","","","","",""}'
-  # Glyph mapped from the entity's `icon` attribute (nullptr = none / unmapped;
-  # the domain's default icon is used then).
-  - id: clim_btn_icon_attr
-    type: std::array<const char *, 6>
-    initial_value: 'std::array<const char *, 6>{}'
-
+  # All thermostat / switch / button state, in PSRAM (esp32_dash::ClimateState,
+  # components/calendar_json/climate_state.h). Not one global per field: every
+  # ESPHome global is stored statically in the low internal RAM that ESP-IDF
+  # needs free at power-up, and the per-slot globals for 8 thermostats were
+  # enough to make the panel abort before ESPHome started (see the header).
+  - id: clim
+    type: esp32_dash::ClimateState *
+    initial_value: 'esp32_dash::new_climate_state()'
 
 # -----------------------------------------------------------------------------
 # Entity selector text entities (NVS-persisted, edited on the settings page).
@@ -701,39 +608,39 @@ script:
           }
 
           // New entity: forget everything known about the previous one.
-          if (entity != id(clim_entity)[slot]) {
-            id(clim_entity)[slot] = entity;
-            id(clim_name)[slot] = "";
-            id(clim_state)[slot] = "";
-            id(clim_action)[slot] = "";
-            id(clim_preset)[slot] = "";
-            id(clim_cur)[slot] = NAN;
-            id(clim_target)[slot] = NAN;
-            id(clim_low)[slot] = NAN;
-            id(clim_high)[slot] = NAN;
-            id(clim_step)[slot] = NAN;
-            id(clim_min)[slot] = NAN;
-            id(clim_max)[slot] = NAN;
-            id(clim_pending)[slot] = NAN;
-            id(clim_pending_sent)[slot] = false;
+          if (entity != id(clim)->entity[slot]) {
+            id(clim)->entity[slot] = entity;
+            id(clim)->name[slot] = "";
+            id(clim)->state[slot] = "";
+            id(clim)->action[slot] = "";
+            id(clim)->preset[slot] = "";
+            id(clim)->cur[slot] = NAN;
+            id(clim)->target[slot] = NAN;
+            id(clim)->low[slot] = NAN;
+            id(clim)->high[slot] = NAN;
+            id(clim)->step[slot] = NAN;
+            id(clim)->min[slot] = NAN;
+            id(clim)->max[slot] = NAN;
+            id(clim)->pending[slot] = NAN;
+            id(clim)->pending_sent[slot] = false;
           }
           id(layout_climate_page).execute();
           id(render_climate_card).execute(slot);
 
           if (entity.empty()) {
-            id(clim_subbed)[slot] = "";
-            id(clim_gen)[slot] += 1;  // silence the old entity's callbacks
+            id(clim)->subbed[slot] = "";
+            id(clim)->gen[slot] += 1;  // silence the old entity's callbacks
             return;
           }
           if (esphome::api::global_api_server == nullptr) return;
           // Already registered (e.g. HA reconnect): the API re-sends the
           // existing subscription list to the new client itself.
-          if (entity == id(clim_subbed)[slot]) return;
-          id(clim_subbed)[slot] = entity;
+          if (entity == id(clim)->subbed[slot]) return;
+          id(clim)->subbed[slot] = entity;
 
-          id(clim_gen)[slot] += 1;
-          const int gen = id(clim_gen)[slot];
-          int *gen_ptr = &id(clim_gen)[slot];
+          id(clim)->gen[slot] += 1;
+          const int gen = id(clim)->gen[slot];
+          int *gen_ptr = &id(clim)->gen[slot];
           auto *api = esphome::api::global_api_server;
           using str_cb = std::function<void(const std::string &)>;
           using setter = std::function<void(int, const std::string &)>;
@@ -755,27 +662,27 @@ script:
             float f = strtof(s.c_str(), &end);
             return end == s.c_str() ? NAN : f;
           };
-          sub(nullptr, [](int n, const std::string &v) { id(clim_state)[n] = v; });
-          sub("friendly_name", [](int n, const std::string &v) { id(clim_name)[n] = v; });
-          sub("current_temperature", [num](int n, const std::string &v) { id(clim_cur)[n] = num(v); });
+          sub(nullptr, [](int n, const std::string &v) { id(clim)->state[n] = v; });
+          sub("friendly_name", [](int n, const std::string &v) { id(clim)->name[n] = v; });
+          sub("current_temperature", [num](int n, const std::string &v) { id(clim)->cur[n] = num(v); });
           sub("temperature", [num](int n, const std::string &v) {
-            id(clim_target)[n] = num(v);
+            id(clim)->target[n] = num(v);
             // HA confirmed a target: the pending one is no longer needed.
-            if (id(clim_pending_sent)[n]) {
-              id(clim_pending)[n] = NAN;
-              id(clim_pending_sent)[n] = false;
+            if (id(clim)->pending_sent[n]) {
+              id(clim)->pending[n] = NAN;
+              id(clim)->pending_sent[n] = false;
             }
           });
-          sub("target_temp_low", [num](int n, const std::string &v) { id(clim_low)[n] = num(v); });
-          sub("target_temp_high", [num](int n, const std::string &v) { id(clim_high)[n] = num(v); });
-          sub("target_temp_step", [num](int n, const std::string &v) { id(clim_step)[n] = num(v); });
-          sub("min_temp", [num](int n, const std::string &v) { id(clim_min)[n] = num(v); });
-          sub("max_temp", [num](int n, const std::string &v) { id(clim_max)[n] = num(v); });
+          sub("target_temp_low", [num](int n, const std::string &v) { id(clim)->low[n] = num(v); });
+          sub("target_temp_high", [num](int n, const std::string &v) { id(clim)->high[n] = num(v); });
+          sub("target_temp_step", [num](int n, const std::string &v) { id(clim)->step[n] = num(v); });
+          sub("min_temp", [num](int n, const std::string &v) { id(clim)->min[n] = num(v); });
+          sub("max_temp", [num](int n, const std::string &v) { id(clim)->max[n] = num(v); });
           sub("hvac_action", [](int n, const std::string &v) {
-            id(clim_action)[n] = (v == "None") ? "" : v;
+            id(clim)->action[n] = (v == "None") ? "" : v;
           });
           sub("preset_mode", [](int n, const std::string &v) {
-            id(clim_preset)[n] = (v == "None") ? "" : v;
+            id(clim)->preset[n] = (v == "None") ? "" : v;
           });
 
           ESP_LOGI("climate", "Thermostat %d: subscribed to '%s'", slot + 1, entity.c_str());
@@ -808,39 +715,39 @@ script:
             entity.clear();
           }
 
-          if (entity != id(clim_sw_entity)[slot]) {
-            id(clim_sw_entity)[slot] = entity;
-            id(clim_sw_name)[slot] = "";
-            id(clim_sw_state)[slot] = "";
+          if (entity != id(clim)->sw_entity[slot]) {
+            id(clim)->sw_entity[slot] = entity;
+            id(clim)->sw_name[slot] = "";
+            id(clim)->sw_state[slot] = "";
           }
           id(layout_climate_page).execute();
           id(render_climate_switch).execute(slot);
 
           if (entity.empty()) {
-            id(clim_sw_subbed)[slot] = "";
-            id(clim_sw_gen)[slot] += 1;
+            id(clim)->sw_subbed[slot] = "";
+            id(clim)->sw_gen[slot] += 1;
             return;
           }
           if (esphome::api::global_api_server == nullptr) return;
-          if (entity == id(clim_sw_subbed)[slot]) return;
-          id(clim_sw_subbed)[slot] = entity;
+          if (entity == id(clim)->sw_subbed[slot]) return;
+          id(clim)->sw_subbed[slot] = entity;
 
-          id(clim_sw_gen)[slot] += 1;
-          const int gen = id(clim_sw_gen)[slot];
-          int *gen_ptr = &id(clim_sw_gen)[slot];
+          id(clim)->sw_gen[slot] += 1;
+          const int gen = id(clim)->sw_gen[slot];
+          int *gen_ptr = &id(clim)->sw_gen[slot];
           auto *api = esphome::api::global_api_server;
           using str_cb = std::function<void(const std::string &)>;
 
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(),
               str_cb([gen, gen_ptr, slot](const std::string &v) {
                 if (gen != *gen_ptr) return;
-                id(clim_sw_state)[slot] = v;
+                id(clim)->sw_state[slot] = v;
                 id(render_climate_switch).execute(slot);
               }));
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
               str_cb([gen, gen_ptr, slot](const std::string &v) {
                 if (gen != *gen_ptr) return;
-                id(clim_sw_name)[slot] = v;
+                id(clim)->sw_name[slot] = v;
                 id(render_climate_switch).execute(slot);
               }));
 
@@ -871,40 +778,40 @@ script:
             entity.clear();
           }
 
-          if (entity != id(clim_btn_entity)[slot]) {
-            id(clim_btn_entity)[slot] = entity;
-            id(clim_btn_name)[slot] = "";
-            id(clim_btn_state)[slot] = "";
-            id(clim_btn_icon_attr)[slot] = nullptr;
+          if (entity != id(clim)->btn_entity[slot]) {
+            id(clim)->btn_entity[slot] = entity;
+            id(clim)->btn_name[slot] = "";
+            id(clim)->btn_state[slot] = "";
+            id(clim)->btn_icon_attr[slot] = nullptr;
           }
           id(layout_climate_page).execute();
           id(render_climate_button).execute(slot);
 
           if (entity.empty()) {
-            id(clim_btn_subbed)[slot] = "";
-            id(clim_btn_gen)[slot] += 1;
+            id(clim)->btn_subbed[slot] = "";
+            id(clim)->btn_gen[slot] += 1;
             return;
           }
           if (esphome::api::global_api_server == nullptr) return;
-          if (entity == id(clim_btn_subbed)[slot]) return;
-          id(clim_btn_subbed)[slot] = entity;
+          if (entity == id(clim)->btn_subbed[slot]) return;
+          id(clim)->btn_subbed[slot] = entity;
 
-          id(clim_btn_gen)[slot] += 1;
-          const int gen = id(clim_btn_gen)[slot];
-          int *gen_ptr = &id(clim_btn_gen)[slot];
+          id(clim)->btn_gen[slot] += 1;
+          const int gen = id(clim)->btn_gen[slot];
+          int *gen_ptr = &id(clim)->btn_gen[slot];
           auto *api = esphome::api::global_api_server;
           using str_cb = std::function<void(const std::string &)>;
 
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>(),
               str_cb([gen, gen_ptr, slot](const std::string &v) {
                 if (gen != *gen_ptr) return;
-                id(clim_btn_state)[slot] = v;
+                id(clim)->btn_state[slot] = v;
                 id(render_climate_button).execute(slot);
               }));
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("friendly_name"),
               str_cb([gen, gen_ptr, slot](const std::string &v) {
                 if (gen != *gen_ptr) return;
-                id(clim_btn_name)[slot] = v;
+                id(clim)->btn_name[slot] = v;
                 id(render_climate_button).execute(slot);
               }));
           api->subscribe_home_assistant_state(entity, esphome::optional<std::string>("icon"),
@@ -949,7 +856,7 @@ script:
                 };
                 const char *ic = nullptr;
                 for (auto &m : map) if (v == m[0]) { ic = m[1]; break; }
-                id(clim_btn_icon_attr)[slot] = ic;
+                id(clim)->btn_icon_attr[slot] = ic;
                 id(render_climate_button).execute(slot);
               }));
 
@@ -968,18 +875,18 @@ script:
     max_runs: 10
     then:
       - lambda: |-
-          if (slot < 0 || slot > 7 || id(clim_entity)[slot].empty()) return;
-          float step = id(clim_step)[slot];
-          float mx = id(clim_max)[slot], mn = id(clim_min)[slot];
+          if (slot < 0 || slot > 7 || id(clim)->entity[slot].empty()) return;
+          float step = id(clim)->step[slot];
+          float mx = id(clim)->max[slot], mn = id(clim)->min[slot];
           if (std::isnan(step) || step <= 0) step = (!std::isnan(mx) && mx > 50) ? 1.0f : 0.5f;
-          float base = std::isnan(id(clim_pending)[slot]) ? id(clim_target)[slot] : id(clim_pending)[slot];
+          float base = std::isnan(id(clim)->pending[slot]) ? id(clim)->target[slot] : id(clim)->pending[slot];
           if (std::isnan(base)) return;
           float v = roundf((base + dir * step) / step) * step;
           if (!std::isnan(mn) && v < mn) v = mn;
           if (!std::isnan(mx) && v > mx) v = mx;
-          id(clim_pending)[slot] = v;
-          id(clim_pending_ms)[slot] = millis();
-          id(clim_pending_sent)[slot] = false;
+          id(clim)->pending[slot] = v;
+          id(clim)->pending_ms[slot] = millis();
+          id(clim)->pending_sent[slot] = false;
           id(render_climate_card).execute(slot);
 
   # Switch row: switch.toggle / input_boolean.toggle. The row redraws when
@@ -992,7 +899,7 @@ script:
     then:
       - lambda: |-
           if (slot < 0 || slot > 23) return;
-          const std::string &entity = id(clim_sw_entity)[slot];
+          const std::string &entity = id(clim)->sw_entity[slot];
           if (entity.empty()) return;
           std::string action = entity.substr(0, entity.find('.')) + ".toggle";
           ESP_LOGI("climate", "Thermostat %d switch %d: %s %s", slot / 3 + 1, slot % 3 + 1,
@@ -1008,7 +915,7 @@ script:
     then:
       - lambda: |-
           if (slot < 0 || slot > 5) return;
-          const std::string &entity = id(clim_btn_entity)[slot];
+          const std::string &entity = id(clim)->btn_entity[slot];
           if (entity.empty()) return;
           std::string domain = entity.substr(0, entity.find('.'));
           std::string action;
@@ -1016,7 +923,7 @@ script:
           else if (domain == "scene" || domain == "script") action = domain + ".turn_on";
           else if (domain == "automation") action = "automation.trigger";
           else if (domain == "lock")
-            action = id(clim_btn_state)[slot] == "locked" ? "lock.unlock" : "lock.lock";
+            action = id(clim)->btn_state[slot] == "locked" ? "lock.unlock" : "lock.lock";
           else if (domain == "cover") action = "cover.toggle";
           else action = "homeassistant.toggle";
           ESP_LOGI("climate", "Button %d: %s %s", slot + 1, action.c_str(), entity.c_str());
@@ -1071,27 +978,27 @@ script:
           const uint32_t CLIM_PENDING_TIMEOUT_MS = 10000;
           const uint32_t now = millis();
           for (int i = 0; i < 8; i++) {
-            if (std::isnan(id(clim_pending)[i])) continue;
-            uint32_t age = now - id(clim_pending_ms)[i];
-            if (!id(clim_pending_sent)[i]) {
+            if (std::isnan(id(clim)->pending[i])) continue;
+            uint32_t age = now - id(clim)->pending_ms[i];
+            if (!id(clim)->pending_sent[i]) {
               if (age < CLIM_SEND_DELAY_MS) continue;
               // Nothing to send (no entity, or back at the current target —
               // HA would not report a change, so the pending value would
               // linger until the timeout).
-              if (id(clim_entity)[i].empty()
-                  || fabsf(id(clim_pending)[i] - id(clim_target)[i]) < 0.01f) {
-                id(clim_pending)[i] = NAN;
+              if (id(clim)->entity[i].empty()
+                  || fabsf(id(clim)->pending[i] - id(clim)->target[i]) < 0.01f) {
+                id(clim)->pending[i] = NAN;
                 id(render_climate_card).execute(i);
                 continue;
               }
-              id(clim_pending_sent)[i] = true;
-              id(clim_pending_ms)[i] = now;
-              ESP_LOGI("climate", "Thermostat %d: set_temperature %.1f", i + 1, id(clim_pending)[i]);
-              id(climate_set_temperature).execute(id(clim_entity)[i], id(clim_pending)[i]);
+              id(clim)->pending_sent[i] = true;
+              id(clim)->pending_ms[i] = now;
+              ESP_LOGI("climate", "Thermostat %d: set_temperature %.1f", i + 1, id(clim)->pending[i]);
+              id(climate_set_temperature).execute(id(clim)->entity[i], id(clim)->pending[i]);
             } else if (age >= CLIM_PENDING_TIMEOUT_MS) {
               // HA never reported the new target: show the real one again.
-              id(clim_pending)[i] = NAN;
-              id(clim_pending_sent)[i] = false;
+              id(clim)->pending[i] = NAN;
+              id(clim)->pending_sent[i] = false;
               id(render_climate_card).execute(i);
             }
           }
@@ -1103,7 +1010,7 @@ interval:
       - if:
           condition:
             lambda: |-
-              for (float p : id(clim_pending)) if (!std::isnan(p)) return true;
+              for (float p : id(clim)->pending) if (!std::isnan(p)) return true;
               return false;
           then:
             - script.execute: climate_pending_tick

@@ -30,11 +30,10 @@
 #
 # Cards are built in C++ (build_climate_widgets) only for thermostats that are
 # configured, the first time they are: an unused slot costs no LVGL objects.
-# The 8-thermostat build of #63 built every slot up front (with far more
-# objects per card) and ran out of internal RAM during start-up. Pointers go
-# into the clim_* widget globals below; render_climate_card /
-# render_climate_switch / render_climate_button fill them from the state in
-# climate_sensors.yaml.
+# (LVGL objects live in PSRAM, so this saves PSRAM and boot time, not the
+# internal RAM that matters; see climate_sensors.yaml.) Pointers go into the
+# clim_* widget globals below; render_climate_card / render_climate_switch /
+# render_climate_button fill them from the state in climate_sensors.yaml.
 #
 # Data: climate_sensors.yaml. Taps call HA actions through scripts there.
 # =============================================================================
@@ -187,7 +186,7 @@ script:
           // ---- Thermostat cards, configured slots only -----------------------
           bool built = false;
           for (int s = 0; s < 8; s++) {
-            if (id(clim_card)[s] != nullptr || id(clim_entity)[s].empty()) continue;
+            if (id(clim_card)[s] != nullptr || id(clim)->entity[s].empty()) continue;
             built = true;
 
             // Size and compact styling are set by layout_climate_page.
@@ -312,14 +311,14 @@ script:
           int cards = 0, buttons = 0;
           for (int i = 0; i < 8; i++) {
             lv_obj_t *card = id(clim_card)[i];
-            bool on = !id(clim_entity)[i].empty() && card != nullptr;
+            bool on = !id(clim)->entity[i].empty() && card != nullptr;
             cards += on;
             if (card == nullptr) continue;
             if (on) lv_obj_clear_flag(card, LV_OBJ_FLAG_HIDDEN);
             else lv_obj_add_flag(card, LV_OBJ_FLAG_HIDDEN);
           }
           for (int i = 0; i < 6; i++) {
-            bool on = !id(clim_btn_entity)[i].empty();
+            bool on = !id(clim)->btn_entity[i].empty();
             buttons += on;
             if (on) lv_obj_clear_flag(id(clim_btn)[i], LV_OBJ_FLAG_HIDDEN);
             else lv_obj_add_flag(id(clim_btn)[i], LV_OBJ_FLAG_HIDDEN);
@@ -329,7 +328,7 @@ script:
             bool any = false;
             for (int n = 0; n < 3; n++) {
               int i = c * 3 + n;
-              bool on = !id(clim_sw_entity)[i].empty();
+              bool on = !id(clim)->sw_entity[i].empty();
               any |= on;
               if (on) lv_obj_clear_flag(id(clim_sw_row)[i], LV_OBJ_FLAG_HIDDEN);
               else lv_obj_add_flag(id(clim_sw_row)[i], LV_OBJ_FLAG_HIDDEN);
@@ -396,7 +395,7 @@ script:
           if (cards != last_cards || built_mask != last_built) {
             last_cards = cards;
             for (int i = 0; i < 24; i++)
-              if (!id(clim_sw_entity)[i].empty()) id(render_climate_switch).execute(i);
+              if (!id(clim)->sw_entity[i].empty()) id(render_climate_switch).execute(i);
           }
           last_compact = compact;
           last_built = built_mask;
@@ -422,12 +421,12 @@ script:
     then:
       - lambda: |-
           if (slot < 0 || slot > 7 || id(clim_card)[slot] == nullptr) return;
-          const std::string &entity = id(clim_entity)[slot];
+          const std::string &entity = id(clim)->entity[slot];
           if (entity.empty()) return;  // hidden by layout_climate_page
 
-          const std::string &st = id(clim_state)[slot];
-          const std::string &act = id(clim_action)[slot];
-          const std::string &preset = id(clim_preset)[slot];
+          const std::string &st = id(clim)->state[slot];
+          const std::string &act = id(clim)->action[slot];
+          const std::string &preset = id(clim)->preset[slot];
           const bool unavail = st.empty() || st == "unavailable" || st == "unknown";
           const bool off = st == "off";
 
@@ -459,7 +458,7 @@ script:
           };
           // Temperatures: one decimal unless the thermostat steps in whole
           // degrees and the value is whole.
-          float step = id(clim_step)[slot];
+          float step = id(clim)->step[slot];
           auto fmt = [step](float v) -> std::string {
             if (std::isnan(v)) return "\xe2\x80\x94";  // —
             char b[16];
@@ -469,7 +468,7 @@ script:
           };
 
           // ---- Header: name + action icon --------------------------------
-          std::string name = id(clim_name)[slot];
+          std::string name = id(clim)->name[slot];
           if (name.empty()) {
             name = entity.substr(entity.find('.') + 1);
             for (char &c : name) if (c == '_') c = ' ';
@@ -497,12 +496,12 @@ script:
               lv_color_hex(running ? hdr.color : 0x888888), 0);
 
           // ---- Current temperature -----------------------------------------
-          lv_label_set_text(id(clim_cur_lbl)[slot], fmt(id(clim_cur)[slot]).c_str());
+          lv_label_set_text(id(clim_cur_lbl)[slot], fmt(id(clim)->cur[slot]).c_str());
 
           // ---- Target ------------------------------------------------------
-          float pending = id(clim_pending)[slot];
-          float target = std::isnan(pending) ? id(clim_target)[slot] : pending;
-          float lo = id(clim_low)[slot], hi = id(clim_high)[slot];
+          float pending = id(clim)->pending[slot];
+          float target = std::isnan(pending) ? id(clim)->target[slot] : pending;
+          float lo = id(clim)->low[slot], hi = id(clim)->high[slot];
           bool single = !std::isnan(target);
           bool range = !single && !std::isnan(lo) && !std::isnan(hi);
           lv_obj_t *cap = id(clim_tgt_caption)[slot], *row = id(clim_tgt_row)[slot];
@@ -538,11 +537,11 @@ script:
     then:
       - lambda: |-
           if (slot < 0 || slot > 23 || id(clim_sw_row)[slot] == nullptr) return;
-          const std::string &entity = id(clim_sw_entity)[slot];
+          const std::string &entity = id(clim)->sw_entity[slot];
           if (entity.empty()) return;  // hidden by layout_climate_page
-          const std::string &st = id(clim_sw_state)[slot];
+          const std::string &st = id(clim)->sw_state[slot];
 
-          std::string name = id(clim_sw_name)[slot];
+          std::string name = id(clim)->sw_name[slot];
           if (name.empty()) {
             name = entity.substr(entity.find('.') + 1);
             for (char &c : name) if (c == '_') c = ' ';
@@ -576,12 +575,12 @@ script:
     then:
       - lambda: |-
           if (slot < 0 || slot > 5 || id(clim_btn)[slot] == nullptr) return;
-          const std::string &entity = id(clim_btn_entity)[slot];
+          const std::string &entity = id(clim)->btn_entity[slot];
           if (entity.empty()) return;
           const std::string domain = entity.substr(0, entity.find('.'));
-          const std::string &st = id(clim_btn_state)[slot];
+          const std::string &st = id(clim)->btn_state[slot];
 
-          std::string name = id(clim_btn_name)[slot];
+          std::string name = id(clim)->btn_name[slot];
           if (name.empty()) {
             name = entity.substr(entity.find('.') + 1);
             for (char &c : name) if (c == '_') c = ' ';
@@ -589,7 +588,7 @@ script:
           }
           lv_label_set_text(id(clim_btn_name_lbl)[slot], name.c_str());
 
-          const char *ic = id(clim_btn_icon_attr)[slot];
+          const char *ic = id(clim)->btn_icon_attr[slot];
           if (ic == nullptr) {
             static const char *const by_domain[][2] = {
               {"light", "\U000F0335"},        {"switch", "\U000F1A25"},

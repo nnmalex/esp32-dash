@@ -40,6 +40,15 @@ jobs:
       - name: Compile firmware
         run: esphome compile builds/guition-esp32-p4-jc8012p4a1.yaml
 
+      # A clean compile is not enough: on the pre-v3 P4 the panel ships with,
+      # too much static RAM aborts the panel at power-up, before ESPHome runs
+      # (#63, #73). Fail the build below the startup heap known to boot. Only
+      # on the latest release, which is what users build with: the threshold
+      # was measured there, and older ESPHome/IDF lay memory out differently.
+      - name: Check startup RAM headroom
+        if: matrix.name == 'latest'
+        run: python3 .github/scripts/check_startup_ram.py builds/.esphome/build
+
       # The factory build layers dashboard_import onto the base config.
       - name: Validate factory build
         run: esphome config builds/guition-esp32-p4-jc8012p4a1.factory.yaml
