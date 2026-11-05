@@ -15,13 +15,14 @@
 #   status   "Heating · Boost"
 #   current temperature (70 px)
 #   TARGET   [−]  22.5°  [+]      (range "20–24°" in heat_cool, no +/−)
-#   mode row  [power] [heat] [cool] [auto] ...   (icons, from hvac_modes)
-#   preset row  Normal  Eco  Boost ...           (text, from preset_modes)
+#   switch rows  Towel rail  (●)   up to 3 switch / input_boolean toggles per
+#                                  card, chosen on the settings page; the
+#                                  rows are hidden when none is set
 #
-# Cards and buttons are built in C++ on boot (their chip count depends on what
-# HA reports, so they cannot be fixed YAML widgets). Pointers go into the
-# clim_* widget globals below; render_climate_card / render_climate_button
-# fill them from the state in climate_sensors.yaml.
+# Cards and buttons are built in C++ on boot (4 cards × 3 switch rows, 6
+# buttons) and stored in the clim_* widget globals below;
+# render_climate_card / render_climate_switch / render_climate_button fill
+# them from the state in climate_sensors.yaml.
 #
 # Data: climate_sensors.yaml. Taps call HA actions through scripts there.
 # =============================================================================
@@ -58,20 +59,24 @@ globals:
   - id: clim_plus_btn
     type: std::array<lv_obj_t *, 4>
     initial_value: 'std::array<lv_obj_t *, 4>{}'
-  - id: clim_mode_box
+  # Container of the card's switch rows (hidden when the card has none).
+  - id: clim_sw_box
     type: std::array<lv_obj_t *, 4>
     initial_value: 'std::array<lv_obj_t *, 4>{}'
-  - id: clim_preset_box
-    type: std::array<lv_obj_t *, 4>
-    initial_value: 'std::array<lv_obj_t *, 4>{}'
-  # Mode chips: [0] = power, [1..6] = clim_modes[0..5]. Icon label = child 0.
-  - id: clim_mode_chips
-    type: std::array<std::array<lv_obj_t *, 7>, 4>
-    initial_value: 'std::array<std::array<lv_obj_t *, 7>, 4>{}'
-  # Preset chips: clim_presets[0..5]. Text label = child 0.
-  - id: clim_preset_chips
-    type: std::array<std::array<lv_obj_t *, 6>, 4>
-    initial_value: 'std::array<std::array<lv_obj_t *, 6>, 4>{}'
+
+  # ---- Switch rows, slot = card * 3 + n ---------------------------------------
+  - id: clim_sw_row
+    type: std::array<lv_obj_t *, 12>
+    initial_value: 'std::array<lv_obj_t *, 12>{}'
+  - id: clim_sw_name_lbl
+    type: std::array<lv_obj_t *, 12>
+    initial_value: 'std::array<lv_obj_t *, 12>{}'
+  - id: clim_sw_track
+    type: std::array<lv_obj_t *, 12>
+    initial_value: 'std::array<lv_obj_t *, 12>{}'
+  - id: clim_sw_knob
+    type: std::array<lv_obj_t *, 12>
+    initial_value: 'std::array<lv_obj_t *, 12>{}'
 
   # ---- Button row widgets ---------------------------------------------------
   - id: clim_btn
@@ -107,6 +112,18 @@ script:
             buttons += on;
             if (on) lv_obj_clear_flag(id(clim_btn)[i], LV_OBJ_FLAG_HIDDEN);
             else lv_obj_add_flag(id(clim_btn)[i], LV_OBJ_FLAG_HIDDEN);
+          }
+          for (int c = 0; c < 4; c++) {
+            bool any = false;
+            for (int n = 0; n < 3; n++) {
+              int i = c * 3 + n;
+              bool on = !id(clim_sw_entity)[i].empty();
+              any |= on;
+              if (on) lv_obj_clear_flag(id(clim_sw_row)[i], LV_OBJ_FLAG_HIDDEN);
+              else lv_obj_add_flag(id(clim_sw_row)[i], LV_OBJ_FLAG_HIDDEN);
+            }
+            if (any) lv_obj_clear_flag(id(clim_sw_box)[c], LV_OBJ_FLAG_HIDDEN);
+            else lv_obj_add_flag(id(clim_sw_box)[c], LV_OBJ_FLAG_HIDDEN);
           }
           if (buttons > 0) lv_obj_clear_flag(id(clim_buttons), LV_OBJ_FLAG_HIDDEN);
           else lv_obj_add_flag(id(clim_buttons), LV_OBJ_FLAG_HIDDEN);
@@ -233,50 +250,38 @@ script:
             }
           }
 
-          // ---- Mode chips: power + up to 6 hvac modes ----------------------
-          const auto &modes = id(clim_modes)[slot];
-          auto &mchips = id(clim_mode_chips)[slot];
-          int shown = 0;
-          for (int i = 0; i < 7; i++) {
-            lv_obj_t *chip = mchips[i];
-            bool visible, active;
-            Look lk{"", 0};
-            if (i == 0) {
-              visible = id(clim_has_off)[slot];
-              active = !off && !unavail;
-              lk = {"\U000F0425", 0x5BA55A};  // power, green when on
-            } else {
-              visible = i - 1 < (int) modes.size();
-              active = visible && st == modes[i - 1];
-              if (visible) lk = look(modes[i - 1]);
-            }
-            if (!visible) { lv_obj_add_flag(chip, LV_OBJ_FLAG_HIDDEN); continue; }
-            shown++;
-            lv_obj_clear_flag(chip, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_t *icon = lv_obj_get_child(chip, 0);
-            lv_label_set_text(icon, lk.glyph);
-            lv_obj_set_style_bg_color(chip, lv_color_hex(active ? lk.color : 0x2A2A2A), 0);
-            lv_obj_set_style_text_color(icon, lv_color_hex(active ? 0xFFFFFF : 0x999999), 0);
-          }
-          if (shown) lv_obj_clear_flag(id(clim_mode_box)[slot], LV_OBJ_FLAG_HIDDEN);
-          else lv_obj_add_flag(id(clim_mode_box)[slot], LV_OBJ_FLAG_HIDDEN);
-
-          // ---- Preset chips ------------------------------------------------
-          const auto &presets = id(clim_presets)[slot];
-          auto &pchips = id(clim_preset_chips)[slot];
-          for (int i = 0; i < 6; i++) {
-            lv_obj_t *chip = pchips[i];
-            if (i >= (int) presets.size()) { lv_obj_add_flag(chip, LV_OBJ_FLAG_HIDDEN); continue; }
-            lv_obj_clear_flag(chip, LV_OBJ_FLAG_HIDDEN);
-            bool active = presets[i] == preset && !unavail;
-            lv_label_set_text(lv_obj_get_child(chip, 0), pretty(presets[i]).c_str());
-            lv_obj_set_style_bg_color(chip, lv_color_hex(active ? 0x6CB4F0 : 0x2A2A2A), 0);
-            lv_obj_set_style_text_color(chip, lv_color_hex(active ? 0x111111 : 0xBBBBBB), 0);
-          }
-          if (!presets.empty()) lv_obj_clear_flag(id(clim_preset_box)[slot], LV_OBJ_FLAG_HIDDEN);
-          else lv_obj_add_flag(id(clim_preset_box)[slot], LV_OBJ_FLAG_HIDDEN);
-
           lv_obj_set_style_opa(id(clim_card)[slot], unavail && !st.empty() ? LV_OPA_50 : LV_OPA_COVER, 0);
+
+  # ---------------------------------------------------------------------------
+  # render_climate_switch: fills switch row N (name, on/off toggle).
+  # ---------------------------------------------------------------------------
+  - id: render_climate_switch
+    parameters:
+      slot: int
+    mode: queued
+    max_runs: 16
+    then:
+      - lambda: |-
+          if (slot < 0 || slot > 11 || id(clim_sw_row)[slot] == nullptr) return;
+          const std::string &entity = id(clim_sw_entity)[slot];
+          if (entity.empty()) return;  // hidden by layout_climate_page
+          const std::string &st = id(clim_sw_state)[slot];
+
+          std::string name = id(clim_sw_name)[slot];
+          if (name.empty()) {
+            name = entity.substr(entity.find('.') + 1);
+            for (char &c : name) if (c == '_') c = ' ';
+            if (!name.empty()) name[0] = toupper((unsigned char) name[0]);
+          }
+          lv_label_set_text(id(clim_sw_name_lbl)[slot], name.c_str());
+
+          bool on = st == "on";
+          bool unavail = st.empty() || st == "unavailable" || st == "unknown";
+          lv_obj_set_style_bg_color(id(clim_sw_track)[slot], lv_color_hex(on ? 0x5BA55A : 0x444444), 0);
+          lv_obj_set_style_bg_color(id(clim_sw_knob)[slot], lv_color_hex(on ? 0xFFFFFF : 0x999999), 0);
+          lv_obj_align(id(clim_sw_knob)[slot], on ? LV_ALIGN_RIGHT_MID : LV_ALIGN_LEFT_MID, on ? -3 : 3, 0);
+          lv_obj_set_style_text_color(id(clim_sw_name_lbl)[slot], lv_color_hex(on ? 0xEEEEEE : 0xBBBBBB), 0);
+          lv_obj_set_style_opa(id(clim_sw_row)[slot], unavail ? LV_OPA_40 : LV_OPA_COVER, 0);
 
   # ---------------------------------------------------------------------------
   # render_climate_button: fills button N (icon, name, on/off highlight).
@@ -330,7 +335,7 @@ script:
 
 lvgl:
   on_boot:
-    # Build the four thermostat cards and six buttons (hidden), then lay out.
+    # Build the four thermostat cards (3 switch rows each) and six buttons (hidden), then lay out.
     - lambda: |-
         const lv_font_t *f_icon  = id(icon_font)->get_lv_font();
         const lv_font_t *f_name  = id(roboto_light30_font)->get_lv_font();
@@ -384,7 +389,7 @@ lvgl:
           lv_obj_set_style_radius(card, 20, 0);
           lv_obj_set_style_pad_all(card, 20, 0);
           flex(card, LV_FLEX_FLOW_COLUMN, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, 10);
-          // With four cards and many modes the content can outgrow the card:
+          // With four cards and three switch rows the content can outgrow the card:
           // let it scroll vertically rather than clip.
           lv_obj_add_flag(card, LV_OBJ_FLAG_SCROLLABLE);
           lv_obj_set_scroll_dir(card, LV_DIR_VER);
@@ -411,7 +416,7 @@ lvgl:
 
           id(clim_cur_lbl)[s] = label(card, f_big, 0xFFFFFF);
 
-          // Pushes the target and buttons to the bottom of the card.
+          // Pushes the target and switch rows to the bottom of the card.
           lv_obj_t *spacer = box(card);
           lv_obj_set_width(spacer, 1);
           lv_obj_set_flex_grow(spacer, 1);
@@ -443,43 +448,42 @@ lvgl:
             id(climate_adjust_target).execute((int) (intptr_t) lv_event_get_user_data(e), 1);
           }, LV_EVENT_CLICKED, (void *) (intptr_t) s);
 
-          // Mode chips (icons). user_data = slot * 8 + chip index.
-          lv_obj_t *modes = box(card);
-          lv_obj_set_size(modes, lv_pct(100), LV_SIZE_CONTENT);
-          flex(modes, LV_FLEX_FLOW_ROW_WRAP, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, 8);
-          lv_obj_set_style_pad_top(modes, 6, 0);
-          id(clim_mode_box)[s] = modes;
-          for (int i = 0; i < 7; i++) {
-            lv_obj_t *chip = button(modes, 58, 52, 26);
-            lv_obj_t *ic = label(chip, f_icon, 0x999999);
-            lv_obj_center(ic);
-            lv_obj_add_flag(chip, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_add_event_cb(chip, [](lv_event_t *e) {
-              int v = (int) (intptr_t) lv_event_get_user_data(e);
-              id(climate_mode_pressed).execute(v / 8, v % 8);
-            }, LV_EVENT_CLICKED, (void *) (intptr_t) (s * 8 + i));
-            id(clim_mode_chips)[s][i] = chip;
-          }
-
-          // Preset chips (text).
-          lv_obj_t *presets = box(card);
-          lv_obj_set_size(presets, lv_pct(100), LV_SIZE_CONTENT);
-          flex(presets, LV_FLEX_FLOW_ROW_WRAP, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, 8);
-          id(clim_preset_box)[s] = presets;
-          for (int i = 0; i < 6; i++) {
-            lv_obj_t *chip = button(presets, LV_SIZE_CONTENT, 48, 24);
-            lv_obj_set_style_pad_hor(chip, 18, 0);
-            lv_obj_t *t = label(chip, f_small, 0xBBBBBB);
-            lv_obj_center(t);
-            // Labels inherit the chip's text colour (set in render), so drop
-            // the explicit one label() gave it.
-            lv_obj_remove_local_style_prop(t, LV_STYLE_TEXT_COLOR, 0);
-            lv_obj_add_flag(chip, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_add_event_cb(chip, [](lv_event_t *e) {
-              int v = (int) (intptr_t) lv_event_get_user_data(e);
-              id(climate_preset_pressed).execute(v / 8, v % 8);
-            }, LV_EVENT_CLICKED, (void *) (intptr_t) (s * 8 + i));
-            id(clim_preset_chips)[s][i] = chip;
+          // Switch rows: name + toggle, full card width. Tap = toggle.
+          lv_obj_t *sws = box(card);
+          lv_obj_set_size(sws, lv_pct(100), LV_SIZE_CONTENT);
+          flex(sws, LV_FLEX_FLOW_COLUMN, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, 8);
+          lv_obj_set_style_pad_top(sws, 6, 0);
+          lv_obj_add_flag(sws, LV_OBJ_FLAG_HIDDEN);
+          id(clim_sw_box)[s] = sws;
+          for (int n = 0; n < 3; n++) {
+            const int i = s * 3 + n;
+            lv_obj_t *r = button(sws, lv_pct(100), 52, 26);
+            lv_obj_set_style_pad_left(r, 18, 0);
+            lv_obj_set_style_pad_right(r, 10, 0);
+            flex(r, LV_FLEX_FLOW_ROW, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, 8);
+            lv_obj_t *nm = label(r, f_small, 0xBBBBBB);
+            lv_obj_set_flex_grow(nm, 1);
+            lv_label_set_long_mode(nm, LV_LABEL_LONG_DOT);
+            lv_obj_set_height(nm, 32);
+            id(clim_sw_name_lbl)[i] = nm;
+            lv_obj_t *track = box(r);
+            lv_obj_set_size(track, 48, 28);
+            lv_obj_set_style_radius(track, 14, 0);
+            lv_obj_set_style_bg_opa(track, LV_OPA_COVER, 0);
+            lv_obj_set_style_bg_color(track, lv_color_hex(0x444444), 0);
+            id(clim_sw_track)[i] = track;
+            lv_obj_t *knob = box(track);
+            lv_obj_set_size(knob, 22, 22);
+            lv_obj_set_style_radius(knob, 11, 0);
+            lv_obj_set_style_bg_opa(knob, LV_OPA_COVER, 0);
+            lv_obj_set_style_bg_color(knob, lv_color_hex(0x999999), 0);
+            lv_obj_align(knob, LV_ALIGN_LEFT_MID, 3, 0);
+            id(clim_sw_knob)[i] = knob;
+            lv_obj_add_flag(r, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_event_cb(r, [](lv_event_t *e) {
+              id(climate_switch_pressed).execute((int) (intptr_t) lv_event_get_user_data(e));
+            }, LV_EVENT_CLICKED, (void *) (intptr_t) i);
+            id(clim_sw_row)[i] = r;
           }
         }
 
@@ -508,6 +512,7 @@ lvgl:
 
         id(layout_climate_page).execute();
         for (int i = 0; i < 4; i++) id(render_climate_card).execute(i);
+        for (int i = 0; i < 12; i++) id(render_climate_switch).execute(i);
         for (int i = 0; i < 6; i++) id(render_climate_button).execute(i);
 
   pages:
