@@ -65,7 +65,7 @@ template<typename S> static void json_escape(S &out, const char *s, size_t len) 
 template<typename S> static void json_escape(S &out, const std::string &s) { json_escape(out, s.data(), s.size()); }
 template<typename S> static void json_escape(S &out, const char *s) { json_escape(out, s ? s : "", s ? strlen(s) : 0); }
 
-template<typename S> static void json_number(S &out, float v) {
+static void json_number(std::string &out, float v) {
   if (!std::isfinite(v)) {
     out += "null";
     return;
@@ -173,7 +173,7 @@ void SettingsPage::loop() {
     this->apply_(this->fields_[p.first], p.second);
 
   if (this->state_wanted_.exchange(false)) {
-    auto json = this->build_state_json_();
+    std::string json = this->build_state_json_();
     {
       std::lock_guard<std::mutex> guard(this->lock_);
       this->state_json_ = std::move(json);
@@ -267,23 +267,14 @@ void SettingsPage::send_state_(AsyncWebServerRequest *request) {
     request->send(503, "application/json", "{\"error\":\"device busy, try again\"}");
     return;
   }
-  std::shared_ptr<const PsramString> json;
+  std::string json;
   {
     std::lock_guard<std::mutex> guard(this->lock_);
-    json = this->state_json_;  // immutable once published; sent below without the lock
+    json = this->state_json_;
   }
-  // Chunked straight from PSRAM, like the entity list: copying 20 KB+ into an
-  // AsyncWebServerResponse would put it in internal RAM.
-  httpd_req_t *r = *request;
-  httpd_resp_set_type(r, "application/json");
-  httpd_resp_set_hdr(r, "Cache-Control", "no-store");
-  if (json && !json->empty()) {
-    if (httpd_resp_send_chunk(r, json->data(), json->size()) != ESP_OK)
-      return;
-  } else if (httpd_resp_send_chunk(r, "{}", 2) != ESP_OK) {
-    return;
-  }
-  httpd_resp_send_chunk(r, nullptr, 0);
+  auto *response = request->beginResponse(200, "application/json", json);
+  response->addHeader("Cache-Control", "no-store");
+  request->send(response);
 }
 
 void SettingsPage::send_entities_(AsyncWebServerRequest *request) {
@@ -450,10 +441,9 @@ void SettingsPage::apply_(const Field &field, const std::string &value) {
   }
 }
 
-std::shared_ptr<const PsramString> SettingsPage::build_state_json_() const {
-  auto json = std::make_shared<PsramString>();
-  PsramString &out = *json;
-  out.reserve(32 * 1024);
+std::string SettingsPage::build_state_json_() const {
+  std::string out;
+  out.reserve(4096);
   out += "{\"title\":";
   json_escape(out, this->title_);
   out += ",\"token\":";
@@ -528,7 +518,7 @@ std::shared_ptr<const PsramString> SettingsPage::build_state_json_() const {
     out += '}';
   }
   out += "]}";
-  return json;
+  return out;
 }
 
 void SettingsPage::set_entities_error_(const std::string &msg) {
@@ -573,13 +563,6 @@ void SettingsPage::start_entity_fetch_() {
         }
         if (r.status != 200) {
           this->set_entities_error_("Home Assistant answered HTTP " + std::to_string(r.status));
-          return;
-        }
-        // A list that stops part-way would look fine on the page but silently
-        // lack every entity HA sends after the cut. Keep the previous list.
-        if (!scanner->complete()) {
-          this->set_entities_error_("Home Assistant's entity list arrived incomplete (" +
-                                    std::to_string(scanner->count()) + " entities read), try Refresh");
           return;
         }
         auto list = std::make_shared<PsramString>();
@@ -737,8 +720,6 @@ void EntityListScanner::on_char_(char c) {
       if (c == '}' && this->depth_ == 2)
         this->emit_();
       this->depth_--;
-      if (this->depth_ == 0)
-        this->complete_ = true;
       this->expect_key_ = false;  // a value just ended; ',' re-arms the key
       break;
     case ':':

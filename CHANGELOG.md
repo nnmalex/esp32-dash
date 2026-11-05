@@ -2,42 +2,6 @@
 
 ## [Unreleased]
 
-### Fix: panel crashing at start-up with the 8-thermostat climate screen
-
-The panel ran out of its small fast internal memory while starting up, even
-though it has plenty of slower PSRAM free, so it crashed and went back to the
-previous firmware. Ordinary memory requests can now use PSRAM when internal
-memory is short (large ones always do), which leaves internal memory for the
-things that need it.
-
-### Fix: panel restarting after updating to the 8-thermostat climate screen
-
-The update from the previous entry could crash the panel within a minute of
-starting. The panel then went back to the firmware it had before by itself.
-Two likely causes are addressed: the main task now has twice the working
-memory (stack), and the settings page no longer copies its (now much larger)
-list of settings through the panel's scarce internal memory. The panel also
-logs its free memory at start-up and when it connects to Home Assistant, to
-make any further problem easier to track down.
-
-### Climate screen: 8 thermostats, buttons per thermostat
-
-- Up to eight thermostats. One to four share a single row; five to eight use
-  two rows of smaller cards. Only the ones you set are shown.
-- Each thermostat card can have up to three buttons of its own, alongside the
-  six-button row along the bottom. Each thermostat has its own section on the
-  settings page.
-
-### Fix: settings page entity suggestions
-
-- Entity fields now list matching entities as soon as you click into them and
-  match the friendly name as well as the id, in every browser. They used the
-  browser's built-in suggestion list before, which some browsers show only
-  while typing, and only for the start of the entity id.
-- An entity list that Home Assistant cut off part-way is reported as an error
-  instead of being shown as if complete (with everything after the cut
-  missing).
-
 ### New: climate screen
 
 A fifth tab shows up to four thermostats from Home Assistant — current and

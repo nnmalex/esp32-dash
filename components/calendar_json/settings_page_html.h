@@ -26,7 +26,7 @@ h1{font-size:19px;margin:0;flex:1;min-width:0}
 button{font:inherit;font-size:13px;padding:5px 11px;border-radius:7px;border:1px solid var(--line);background:var(--card);color:var(--text);cursor:pointer}
 button:disabled{opacity:.5;cursor:default}
 main{padding:16px 0 48px}
-section{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:16px}
+section{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:16px;overflow:hidden}
 h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0;padding:12px 16px 4px}
 .row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);gap:4px 16px;align-items:start;padding:10px 16px;border-top:1px solid var(--line)}
 section .row:first-of-type{border-top:0}
@@ -37,11 +37,6 @@ input[type=text],input[type=number],select{font:inherit;width:100%;min-width:0;p
 input[type=number]{width:110px}
 input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
 .unit{color:var(--muted)}
-.combo{position:relative;flex:1;min-width:0}
-.sug{position:absolute;left:0;right:0;top:100%;z-index:5;margin-top:3px;max-height:300px;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.2)}
-.opt{display:flex;flex-direction:column;padding:6px 10px;cursor:pointer;line-height:1.3}
-.opt small{color:var(--muted);font-size:12px;overflow-wrap:anywhere}
-.opt.on,.opt:hover{background:var(--line)}
 .hint{font-size:12.5px;color:var(--muted);overflow-wrap:anywhere}
 .hint.warn{color:var(--warn)}
 .st{font-size:12px;min-width:3.5em;color:var(--muted);white-space:nowrap}
@@ -73,8 +68,8 @@ const el = (tag, props, kids) => {
 };
 let entities = [];        // [[id, friendly_name, unit], ...]
 const byId = new Map();
-const pickers = [];       // {input, hint, domains, sug, commit}
-let openPicker = null;    // picker whose suggestion list is showing
+const pickers = [];       // {input, hint, domains}
+const lists = new Map();  // domains string -> <datalist>
 const controls = new Map(); // key -> {set(value)}
 
 function showMsg(text, isErr) {
@@ -111,63 +106,22 @@ async function save(key, value, st, revert) {
 function domainsOf(f) { return (f.domains || "").split(",").map((s) => s.trim()).filter(Boolean); }
 function matches(id, domains) { return !domains.length || domains.includes(id.split(".")[0]); }
 
+function datalistFor(domainsKey) {
+  if (!lists.has(domainsKey)) {
+    const dl = el("datalist", { id: "dl" + lists.size });
+    document.body.appendChild(dl);
+    lists.set(domainsKey, dl);
+  }
+  return lists.get(domainsKey);
+}
+
 function fillLists() {
+  for (const [key, dl] of lists) {
+    const domains = key ? key.split(",") : [];
+    dl.textContent = "";
+    for (const [id, name] of entities) if (matches(id, domains)) dl.appendChild(el("option", { value: id, label: name || id }));
+  }
   pickers.forEach(updateHint);
-  if (openPicker) showSug(openPicker);
-}
-
-// Entity suggestions. Not a <datalist>: browsers differ on whether one shows
-// anything before you type, and some match only the start of the entity id,
-// never the friendly name. This list opens on focus with every entity of the
-// field's domains and narrows as you type, matching words in id or name.
-const MAX_SUGGESTIONS = 80;
-function showSug(p) {
-  const box = p.sug;
-  box.textContent = "";
-  p.items = [];
-  p.idx = -1;
-  const terms = p.typed ? p.input.value.trim().toLowerCase().split(/\s+/).filter(Boolean) : [];
-  for (const e of entities) {
-    if (!matches(e[0], p.domains)) continue;
-    const hay = (e[0] + " " + (e[1] || "")).toLowerCase();
-    if (!terms.every((t) => hay.includes(t))) continue;
-    p.items.push(e);
-    if (p.items.length >= MAX_SUGGESTIONS) break;
-  }
-  if (!p.items.length || (p.items.length === 1 && p.items[0][0] === p.input.value.trim())) {
-    box.hidden = true;
-    return;
-  }
-  p.items.forEach((e) => {
-    const o = el("div", { className: "opt" }, [el("span", { text: e[1] || e[0] }), el("small", { text: e[0] })]);
-    // mousedown (fired for touches too) + preventDefault keeps the focus in the
-    // input, so blur does not close the list before the pick lands.
-    o.addEventListener("mousedown", (ev) => { ev.preventDefault(); pick(p, e[0]); });
-    box.appendChild(o);
-  });
-  box.hidden = false;
-  openPicker = p;
-}
-
-function hideSug(p) {
-  p.sug.hidden = true;
-  if (openPicker === p) openPicker = null;
-}
-
-function pick(p, id) {
-  p.input.value = id;
-  hideSug(p);
-  p.commit();
-}
-
-function moveSug(p, d) {
-  const opts = p.sug.children;
-  if (p.sug.hidden || !opts.length) return false;
-  if (p.idx >= 0) opts[p.idx].classList.remove("on");
-  // Positions run -1 (back in the input) .. opts.length - 1, wrapping.
-  p.idx = (p.idx + 1 + d + opts.length + 1) % (opts.length + 1) - 1;
-  if (p.idx >= 0) { opts[p.idx].classList.add("on"); opts[p.idx].scrollIntoView({ block: "nearest" }); }
-  return true;
 }
 
 function updateHint(p) {
@@ -187,12 +141,10 @@ function entityControl(f, st) {
   const domains = domainsOf(f);
   const input = el("input", { type: "text", value: f.value, spellcheck: false, autocomplete: "off",
     placeholder: domains.length ? domains[0] + ".…" : "any entity, e.g. sensor.…" });
+  input.setAttribute("list", datalistFor(domains.join(",")).id);
   input.setAttribute("autocapitalize", "off");
-  input.setAttribute("role", "combobox");
-  const sug = el("div", { className: "sug", role: "listbox" });
-  sug.hidden = true;
   const hint = el("div", { className: "hint" });
-  const p = { input, hint, domains, sug, items: [], idx: -1, typed: false };
+  const p = { input, hint, domains };
   pickers.push(p);
   let saved = f.value;
   const commit = () => {
@@ -201,26 +153,12 @@ function entityControl(f, st) {
     updateHint(p);
     if (v !== saved) { const prev = saved; saved = v; save(f.key, v, st, () => { saved = prev; }); }
   };
-  p.commit = commit;
   input.addEventListener("change", commit);
-  // On focus list everything for the field; typing then narrows it.
-  input.addEventListener("focus", () => { p.typed = false; showSug(p); });
-  input.addEventListener("input", () => { p.typed = true; updateHint(p); showSug(p); });
-  input.addEventListener("blur", () => hideSug(p));
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      if (p.sug.hidden) showSug(p);
-      if (moveSug(p, e.key === "ArrowDown" ? 1 : -1)) e.preventDefault();
-    } else if (e.key === "Enter") {
-      if (!p.sug.hidden && p.idx >= 0) pick(p, p.items[p.idx][0]);
-      input.blur();
-    } else if (e.key === "Escape") {
-      hideSug(p);
-    }
-  });
+  input.addEventListener("input", () => updateHint(p));
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") input.blur(); });
   updateHint(p);
   controls.set(f.key, { set(v) { if (document.activeElement !== input) { input.value = v; saved = v; updateHint(p); } } });
-  return [el("div", { className: "line" }, [el("div", { className: "combo" }, [input, sug]), st]), hint];
+  return [el("div", { className: "line" }, [input, st]), hint];
 }
 
 function numberControl(f, st) {

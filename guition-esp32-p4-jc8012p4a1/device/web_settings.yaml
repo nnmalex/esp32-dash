@@ -156,158 +156,45 @@ calendar_json:
         label: "Timer 3"
         domain: [timer]
       - text: climate_entity_select_0
-        group: "Climate: thermostat 1"
-        label: "Thermostat"
-        help: "Each thermostat set gets a card on the climate page; empty slots are not shown. Up to 4 share one row, 5–8 use two rows of smaller cards."
+        group: "Climate"
+        label: "Thermostat 1"
+        help: "Each thermostat gets a card on the climate page. Empty hides it."
         domain: [climate]
-      - text: climate_card_button_select_0_0
-        group: "Climate: thermostat 1"
-        label: "Button 1"
-        help: "Optional buttons on this thermostat's card, e.g. a boost script or a towel-rail switch. Lights, switches and fans toggle; buttons, scenes and scripts run."
-        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
-      - text: climate_card_button_select_0_1
-        group: "Climate: thermostat 1"
-        label: "Button 2"
-        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
-      - text: climate_card_button_select_0_2
-        group: "Climate: thermostat 1"
-        label: "Button 3"
-        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
       - text: climate_entity_select_1
-        group: "Climate: thermostat 2"
-        label: "Thermostat"
+        group: "Climate"
+        label: "Thermostat 2"
         domain: [climate]
-      - text: climate_card_button_select_1_0
-        group: "Climate: thermostat 2"
-        label: "Button 1"
-        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
-      - text: climate_card_button_select_1_1
-        group: "Climate: thermostat 2"
-        label: "Button 2"
-        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
-      - text: climate_card_button_select_1_2
-        group: "Climate: thermostat 2"
-        label: "Button 3"
-        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
       - text: climate_entity_select_2
-        group: "Climate: thermostat 3"
-        label: "Thermostat"
+        group: "Climate"
+        label: "Thermostat 3"
         domain: [climate]
-      - text: climate_card_button_select_2_0
-        group: "Climate: thermostat 3"
-        label: "Button 1"
-        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
-      - text: climate_card_button_select_2_1
-        group: "Climate: thermostat 3"
-        label: "Button 2"
-        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
-      - text: climate_card_button_select_2_2
-        group: "Climate: thermostat 3"
-        label: "Button 3"
-        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
       - text: climate_entity_select_3
-        group: "Climate: thermostat 4"
-        label: "Thermostat"
+        group: "Climate"
+        label: "Thermostat 4"
         domain: [climate]
-      - text: climate_card_button_select_3_0
-        group: "Climate: thermostat 4"
-        label: "Button 1"
-        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
-      - text: climate_card_button_select_3_1
-        group: "Climate: thermostat 4"
-        label: "Button 2"
-        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
-      - text: climate_card_button_select_3_2
-        group: "Climate: thermostat 4"
-        label: "Button 3"
-        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
-      - text: climate_entity_select_4
-        group: "Climate: thermostat 5"
-        label: "Thermostat"
-        domain: [climate]
-      - text: climate_card_button_select_4_0
-        group: "Climate: thermostat 5"
-        label: "Button 1"
-        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
-      - text: climate_card_button_select_4_1
-        group: "Climate: thermostat 5"
-        label: "Button 2"
-        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
-      - text: climate_card_button_select_4_2
-        group: "Climate: thermostat 5"
-        label: "Button 3"
-        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
-      - text: climate_entity_select_5
-        group: "Climate: thermostat 6"
-        label: "Thermostat"
-        domain: [climate]
-      - text: climate_card_button_select_5_0
-        group: "Climate: thermostat 6"
-        label: "Button 1"
-        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
-      - text: climate_card_button_select_5_1
-        group: "Climate: thermostat 6"
-        label: "Button 2"
-        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
-      - text: climate_card_button_select_5_2
-        group: "Climate: thermostat 6"
-        label: "Button 3"
-        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
-      - text: climate_entity_select_6
-        group: "Climate: thermostat 7"
-        label: "Thermostat"
-        domain: [climate]
-      - text: climate_card_button_select_6_0
-        group: "Climate: thermostat 7"
-        label: "Button 1"
-        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
-      - text: climate_card_button_select_6_1
-        group: "Climate: thermostat 7"
-        label: "Button 2"
-        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
-      - text: climate_card_button_select_6_2
-        group: "Climate: thermostat 7"
-        label: "Button 3"
-        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
-      - text: climate_entity_select_7
-        group: "Climate: thermostat 8"
-        label: "Thermostat"
-        domain: [climate]
-      - text: climate_card_button_select_7_0
-        group: "Climate: thermostat 8"
-        label: "Button 1"
-        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
-      - text: climate_card_button_select_7_1
-        group: "Climate: thermostat 8"
-        label: "Button 2"
-        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
-      - text: climate_card_button_select_7_2
-        group: "Climate: thermostat 8"
-        label: "Button 3"
-        domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
       - text: climate_button_select_0
-        group: "Climate: bottom buttons"
+        group: "Climate buttons"
         label: "Button 1"
-        help: "Optional row along the bottom of the climate page; the buttons set share its width. Empty hides the button (and the row when none is set)."
+        help: "Optional row of buttons under the thermostats. Lights, switches and fans toggle; buttons, scenes and scripts run. Empty hides the button."
         domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
       - text: climate_button_select_1
-        group: "Climate: bottom buttons"
+        group: "Climate buttons"
         label: "Button 2"
         domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
       - text: climate_button_select_2
-        group: "Climate: bottom buttons"
+        group: "Climate buttons"
         label: "Button 3"
         domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
       - text: climate_button_select_3
-        group: "Climate: bottom buttons"
+        group: "Climate buttons"
         label: "Button 4"
         domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
       - text: climate_button_select_4
-        group: "Climate: bottom buttons"
+        group: "Climate buttons"
         label: "Button 5"
         domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
       - text: climate_button_select_5
-        group: "Climate: bottom buttons"
+        group: "Climate buttons"
         label: "Button 6"
         domain: [button, input_button, scene, script, automation, light, switch, input_boolean, fan, cover, lock, media_player, climate]
       - number: backlight_day_active_brightness

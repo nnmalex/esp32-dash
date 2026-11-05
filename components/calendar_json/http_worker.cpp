@@ -143,14 +143,6 @@ void HttpWorker::run_(Job *job) const {
       }
       r.body.append(chunk.data(), n);
     }
-    // esp_http_client_read() also returns 0 when the server closes the
-    // connection early, which the loop above cannot tell from a normal end.
-    // Only checkable when the length is known (Content-Length or chunked).
-    if (r.error.empty() && (length > 0 || esp_http_client_is_chunked_response(client)) &&
-        !esp_http_client_is_complete_data_received(client)) {
-      r.error = "connection closed before the whole response arrived";
-      r.body.clear();
-    }
   } while (false);
 
   esp_http_client_close(client);
