@@ -14,8 +14,12 @@
 // first, then internal RAM, for example), so a record on its own is not an
 // error: it matters when it is followed by a crash.
 //
-// install() is called from an early on_boot (device/device.yaml); log_report()
-// from api: on_client_connected.
+// It also keeps a "stage" breadcrumb (stage(), called from on_boot hooks at
+// several priorities and around the climate widget build), so the next boot
+// says how far a crashed boot got.
+//
+// install() is emitted into setup() by calendar_json's to_code; log_report()
+// runs from api: on_client_connected.
 
 #include <cinttypes>
 #include <cstdint>
@@ -35,6 +39,8 @@ struct Record {
   uint32_t caps;     ///< its MALLOC_CAP_* flags
   uint32_t free;     ///< free bytes for those caps at the time
   uint32_t largest;  ///< largest free block for those caps at the time
+  const char *stage;  ///< last stage() reached (a string literal in flash)
+  uint32_t min_internal;  ///< lowest internal free heap seen at a stage()
 };
 
 static constexpr uint32_t MAGIC = 0xA110CD1A;
@@ -56,12 +62,12 @@ static void on_failed_alloc(size_t size, uint32_t caps, const char *function_nam
 
 /// Moves the record left by the previous boot aside and starts recording.
 inline void install() {
-  if (s_current.magic == MAGIC && s_current.fails > 0) {
+  if (s_current.magic == MAGIC) {
     s_previous = s_current;
   } else {
     s_previous.magic = 0;
   }
-  s_current = Record{MAGIC, 0, 0, 0, 0, 0};
+  s_current = Record{MAGIC, 0, 0, 0, 0, 0, "setup() start", 0};
   heap_caps_register_failed_alloc_callback(on_failed_alloc);
 }
 
@@ -76,8 +82,21 @@ inline void keep_this_build() {
   s_kept = err == ESP_OK;
 }
 
+/// Breadcrumb: how far boot got. `name` must be a string literal (it is read
+/// back after a reset, so it has to live in flash, not on the heap or stack).
+inline void stage(const char *name) {
+  if (s_current.magic != MAGIC)
+    return;
+  s_current.stage = name;
+  s_current.min_internal = (uint32_t) heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
+}
+
 inline void log_one(const char *when, const Record &r) {
-  if (r.magic != MAGIC || r.fails == 0)
+  if (r.magic != MAGIC)
+    return;
+  ESP_LOGW("alloc_diag", "%s: last stage reached '%s', lowest internal free heap by then %" PRIu32 " bytes", when,
+           r.stage != nullptr ? r.stage : "?", r.min_internal);
+  if (r.fails == 0)
     return;
   const char *kind = (r.caps & MALLOC_CAP_SPIRAM) ? "PSRAM" : (r.caps & MALLOC_CAP_INTERNAL) ? "internal" : "default";
   ESP_LOGE("alloc_diag",

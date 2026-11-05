@@ -419,13 +419,19 @@ zero-config `ha_token` setup.
   that rollback: the old firmware performing the OTA marks the image
   pending-verify, and the bootloader (flashed with rollback on) reverts it.
   Instead set the substitution `diag_keep_build: "true"` in the device YAML:
-  the build marks itself valid at the start of boot
-  (`alloc_diag::keep_this_build()`), reboots as itself after a crash, and the
+  the build marks itself valid at the start of `setup()`, right after
+  safe_mode's boot-loop check (`alloc_diag::keep_this_build()`, emitted by
+  `calendar_json`'s `to_code` at COMPONENT priority; an `on_boot` hook was
+  too late, the crash came first), reboots as itself after a crash, and the
   dashboard log viewer decodes its report (`PC:` / `BT` lines) against the ELF
   it just built. After 10 failed boots `safe_mode` takes over, which still
   serves logs and OTA. `alloc_diag.h` (`calendar_json`) also records the last
   failed heap allocation (size, caps, free / largest block) in `.noinit` RAM
   and logs it on API connect, which says what ran out when the abort was a failed allocation.
+  It also keeps a boot breadcrumb: `on_boot` hooks at priorities 1100 … -200
+  in `device.yaml` and the climate widget build call `alloc_diag::stage()`,
+  so the next boot (or safe mode) logs the last stage the crashed boot reached
+  and the lowest internal free heap by then.
 - **Check MDI codepoints against the font, not memory.** Several glyphs were
   wrong for a long time (pressure showed `format-wrap-tight`, "windy-variant" a
   globe). Verify with the 7.4.47 CSS

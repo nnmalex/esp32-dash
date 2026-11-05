@@ -29,6 +29,7 @@ CONF_TEXT = "text"
 CONF_NUMBER = "number"
 CONF_SELECT = "select"
 CONF_SWITCH = "switch"
+CONF_DIAG_KEEP_BUILD = "diag_keep_build"
 
 ENTITY_KINDS = (CONF_TEXT, CONF_NUMBER, CONF_SELECT, CONF_SWITCH)
 
@@ -115,6 +116,10 @@ def _consume_settings_sockets(config):
 
 CONFIG_SCHEMA = cv.Schema(
     {
+        # Diagnostics (alloc_diag.h): mark the running build valid at the start
+        # of setup, so a build that crashes during boot is not rolled back and
+        # reports its own crash. Off unless a boot crash is being diagnosed.
+        cv.Optional(CONF_DIAG_KEEP_BUILD, default=False): cv.boolean,
         # Background HTTP worker for the calendar and forecast fetches: runs
         # requests off the main loop and calls back on it (see http_worker.h).
         cv.Optional(CONF_FETCHER): cv.Schema(
@@ -136,6 +141,12 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
+    # Emitted into setup() at this component's (default, COMPONENT) priority:
+    # after safe_mode's boot-loop check (APPLICATION), so safe mode still counts
+    # a boot that then crashes, but before any component's setup() runs.
+    cg.add(cg.RawExpression("esp32_dash::alloc_diag::install()"))
+    if config[CONF_DIAG_KEEP_BUILD]:
+        cg.add(cg.RawExpression("esp32_dash::alloc_diag::keep_this_build()"))
     cg.add_global(
         cg.RawStatement('#include "esphome/components/calendar_json/calendar_json.h"')
     )

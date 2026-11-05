@@ -12,7 +12,8 @@
 
 substitutions:
   # Set to "true" in the device YAML only to diagnose a build that crashes
-  # within a minute of booting: it marks itself valid at once, so the
+  # within a minute of booting: it marks itself valid at the start of setup()
+  # (right after safe_mode's boot count), so the
   # bootloader does not roll it back and its own crash report (decodable by the
   # dashboard log viewer) is shown. It may then boot-loop until safe_mode takes
   # over after 10 boots; safe mode still accepts OTA. Turn it off again after.
@@ -37,16 +38,40 @@ esp32:
 
 
 esphome:
-  # Record failed heap allocations from as early as possible, so an
-  # out-of-memory abort shows what was being allocated in the next boot's log
-  # (components/calendar_json/alloc_diag.h; reported on API connect below).
+  # Boot breadcrumbs (components/calendar_json/alloc_diag.h): each records how
+  # far setup got, so a boot crash's next boot can say where it died. Failed
+  # allocations are recorded from the start of setup() (calendar_json to_code).
   on_boot:
-    - priority: 1000
+    - priority: 1100
       then:
-        - lambda: |-
-            esp32_dash::alloc_diag::install();
-            // Diagnostics only (see the substitution below).
-            if (${diag_keep_build}) esp32_dash::alloc_diag::keep_this_build();
+        - lambda: 'esp32_dash::alloc_diag::stage("on_boot 1100 (after logger, before bus)");'
+    - priority: 900
+      then:
+        - lambda: 'esp32_dash::alloc_diag::stage("on_boot 900 (after bus, before IO)");'
+    - priority: 700
+      then:
+        - lambda: 'esp32_dash::alloc_diag::stage("on_boot 700 (after hardware: display, touch, hosted)");'
+    - priority: 500
+      then:
+        - lambda: 'esp32_dash::alloc_diag::stage("on_boot 500 (after data: globals, template entities)");'
+    - priority: 300
+      then:
+        - lambda: 'esp32_dash::alloc_diag::stage("on_boot 300 (after processor: LVGL, scripts)");'
+    - priority: 210
+      then:
+        - lambda: 'esp32_dash::alloc_diag::stage("on_boot 210 (after WiFi)");'
+    - priority: 150
+      then:
+        - lambda: 'esp32_dash::alloc_diag::stage("on_boot 150 (after network services)");'
+    - priority: 50
+      then:
+        - lambda: 'esp32_dash::alloc_diag::stage("on_boot 50");'
+    - priority: -50
+      then:
+        - lambda: 'esp32_dash::alloc_diag::stage("on_boot -50");'
+    - priority: -200
+      then:
+        - lambda: 'esp32_dash::alloc_diag::stage("on_boot -200 (setup complete)");'
   name: ${name}
   friendly_name: ${friendly_name}
   # 2026.7.0 is the floor: `image:` entries use `platform: file`, which does not
@@ -158,6 +183,8 @@ logger:
 # off the main loop. External component is declared in addon/music.yaml (git)
 # and dev.yaml / builds (local); __init__.py emits the #includes into main.cpp.
 calendar_json:
+  # Diagnostics only: see the diag_keep_build substitution above.
+  diag_keep_build: ${diag_keep_build}
   fetcher:
     id: http_worker
     # Must match http_request's verify_ssl (addon/music.yaml): that component
