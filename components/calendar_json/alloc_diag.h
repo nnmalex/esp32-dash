@@ -120,5 +120,31 @@ inline void log_report() {
            (unsigned) heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL));
 }
 
+// ---------------------------------------------------------------------------
+// Let ordinary heap allocations fall back to PSRAM.
+//
+// ESPHome's psram component sets CONFIG_SPIRAM_USE_CAPS_ALLOC: PSRAM is only
+// reachable through heap_caps_malloc(..., MALLOC_CAP_SPIRAM), so every plain
+// new / malloc / std::string must fit in internal RAM (~768 KB on the P4,
+// shared with IRAM code, .data/.bss and every task stack) and aborts when it
+// does not. The 8-thermostat build aborted during start-up, before any of its
+// own code ran, while the 4-thermostat build booted: internal RAM had simply
+// run out, with ~30 MB of PSRAM unused.
+//
+// heap_caps_malloc_extmem_enable() turns on the same malloc() policy as
+// CONFIG_SPIRAM_USE_MALLOC (Arduino-ESP32's default): requests above the limit
+// go to PSRAM, smaller ones to internal RAM first and to PSRAM when internal
+// RAM is full, instead of failing. Code that needs internal or DMA memory
+// (task stacks, drivers, DMA buffers) asks for it with explicit caps and is
+// unaffected. This runs from a static constructor, before setup() creates any
+// ESPHome component.
+// ---------------------------------------------------------------------------
+static constexpr size_t EXTMEM_LIMIT = 4096;
+
+struct ExtmemEnabler {
+  ExtmemEnabler() { heap_caps_malloc_extmem_enable(EXTMEM_LIMIT); }
+};
+static ExtmemEnabler s_extmem_enabler;
+
 }  // namespace alloc_diag
 }  // namespace esp32_dash

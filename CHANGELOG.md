@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Fix: panel crashing at start-up with the 8-thermostat climate screen
+
+The panel ran out of its small fast internal memory while starting up, even
+though it has plenty of slower PSRAM free, so it crashed and went back to the
+previous firmware. Ordinary memory requests can now use PSRAM when internal
+memory is short (large ones always do), which leaves internal memory for the
+things that need it.
+
 ### Fix: panel restarting after updating to the 8-thermostat climate screen
 
 The update from the previous entry could crash the panel within a minute of
