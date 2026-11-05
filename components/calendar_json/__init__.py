@@ -145,6 +145,12 @@ async def to_code(config):
     cg.add_global(
         cg.RawStatement('#include "esphome/components/calendar_json/http_worker.h"')
     )
+    # Memory diagnostics (alloc_diag.h): start recording failed allocations
+    # early in setup(); device.yaml logs the report on API connect.
+    cg.add_global(
+        cg.RawStatement('#include "esphome/components/calendar_json/alloc_diag.h"')
+    )
+    cg.add(cg.RawExpression("esp32_dash::alloc_diag::install()"))
 
     if fetcher := config.get(CONF_FETCHER):
         var = cg.new_Pvariable(fetcher[CONF_ID])

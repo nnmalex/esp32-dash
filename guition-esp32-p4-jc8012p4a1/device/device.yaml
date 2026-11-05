@@ -95,6 +95,9 @@ api:
         }
     - lvgl.widget.hide: ha_setup_prompt
     - script.execute: subscribe_media_player
+    # Memory report (components/calendar_json/alloc_diag.h). Any API client
+    # triggers it, including the dashboard log viewer.
+    - lambda: 'esp32_dash::alloc_diag::log_report();'
   on_client_disconnected:
     - lvgl.widget.hide: setup_prompt
     - if:

@@ -394,6 +394,15 @@ zero-config `ha_token` setup.
   `heap_caps_malloc(..., MALLOC_CAP_SPIRAM)` for anything sized by external
   data; `HttpWorker` refuses buffered bodies over `HTTP_MAX_BUFFERED_BODY`
   (256 KB) with an error rather than growing without bound.
+- **Memory diagnostics.** `alloc_diag.h` (`calendar_json`) records the last
+  failed heap allocation (size, caps, free / largest block) in `.noinit` RAM,
+  which survives the reset after an abort, and on every API connect (including
+  the dashboard log viewer) logs the internal heap free / largest block /
+  minimum since boot, PSRAM free, and any failed allocation from this boot or
+  the previous one. Added to the 4-thermostat baseline after the 8-thermostat
+  climate build (#63) aborted at start-up and every attempt to fix it blind
+  (#64–#68) failed; `main` was restored to the #62 tree (#69) first. Use its
+  "minimum since boot" to judge how close a change takes internal RAM to empty.
 - **Check MDI codepoints against the font, not memory.** Several glyphs were
   wrong for a long time (pressure showed `format-wrap-tight`, "windy-variant" a
   globe). Verify with the 7.4.47 CSS
