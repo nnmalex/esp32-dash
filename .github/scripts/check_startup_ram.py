@@ -28,14 +28,30 @@ LOW_DRAM_END = 0x4FF3AFC0
 KNOWN_GOOD = 111488  # bytes, #72 on ESPHome 2026.10.2
 
 
-def find_nm():
-    pattern = os.path.expanduser("~/.platformio/packages/toolchain-riscv32-esp/bin/riscv32-esp-elf-nm")
-    hits = glob.glob(pattern) or glob.glob(
-        os.path.expanduser("~/.platformio/packages/**/riscv32-esp-elf-nm"), recursive=True
-    )
-    if not hits:
-        sys.exit("riscv32-esp-elf-nm not found under ~/.platformio")
-    return hits[0]
+def find_nm(elf):
+    # The build records the toolchain it used: CMAKE_NM in the CMakeCache.txt
+    # next to the ELF. Where that toolchain lives depends on the ESPHome version
+    # and OS (~/.platformio before the native ESP-IDF build, the ESPHome cache
+    # directory after), so do not guess when the build can say.
+    cache = os.path.join(os.path.dirname(elf), "CMakeCache.txt")
+    if os.path.exists(cache):
+        with open(cache, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if line.startswith("CMAKE_NM:"):
+                    nm = line.split("=", 1)[1].strip()
+                    if os.path.exists(nm):
+                        return nm
+    patterns = [
+        "~/.platformio/packages/**/riscv32-esp-elf-nm",
+        "~/.cache/esphome/**/riscv32-esp-elf-nm",
+        "~/Library/Caches/esphome/**/riscv32-esp-elf-nm",
+        "~/.espressif/**/riscv32-esp-elf-nm",
+    ]
+    for pattern in patterns:
+        hits = glob.glob(os.path.expanduser(pattern), recursive=True)
+        if hits:
+            return hits[0]
+    sys.exit(f"riscv32-esp-elf-nm not found (no CMAKE_NM in {cache}, none in {', '.join(patterns)})")
 
 
 def main():
@@ -44,7 +60,7 @@ def main():
     if not elfs:
         sys.exit(f"no firmware.elf under {root}")
     elf = max(elfs, key=os.path.getmtime)
-    out = subprocess.run([find_nm(), elf], capture_output=True, text=True, check=True).stdout
+    out = subprocess.run([find_nm(elf), elf], capture_output=True, text=True, check=True).stdout
     syms = {line.split()[-1]: int(line.split()[0], 16) for line in out.splitlines() if len(line.split()) == 3}
     if "_heap_start_low" not in syms:
         print(f"{elf}: no _heap_start_low (not a pre-v3 ESP32-P4 layout); skipping")
