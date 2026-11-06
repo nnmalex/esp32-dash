@@ -866,7 +866,9 @@ script:
   # Tap handlers (called from the LVGL event callbacks in climate_view.yaml)
   # ---------------------------------------------------------------------------
 
-  # +/− : moves the pending target by one step; climate_pending_tick sends it.
+  # +/− : moves the pending target to the next half degree (or the next whole
+  # degree on thermostats whose step is 1 or more); climate_pending_tick sends
+  # it. Off-grid values snap: + on 17.6 gives 18.0, − gives 17.5.
   - id: climate_adjust_target
     parameters:
       slot: int
@@ -879,15 +881,38 @@ script:
           float step = id(clim)->step[slot];
           float mx = id(clim)->max[slot], mn = id(clim)->min[slot];
           if (std::isnan(step) || step <= 0) step = (!std::isnan(mx) && mx > 50) ? 1.0f : 0.5f;
+          step = step >= 1.0f ? roundf(step) : 0.5f;
           float base = std::isnan(id(clim)->pending[slot]) ? id(clim)->target[slot] : id(clim)->pending[slot];
           if (std::isnan(base)) return;
-          float v = roundf((base + dir * step) / step) * step;
+          // Next grid point strictly above/below base (the epsilon keeps an
+          // on-grid value from snapping to itself through float error).
+          float q = base / step;
+          float v = dir > 0 ? (floorf(q + 0.001f) + 1.0f) * step
+                            : (ceilf(q - 0.001f) - 1.0f) * step;
           if (!std::isnan(mn) && v < mn) v = mn;
           if (!std::isnan(mx) && v > mx) v = mx;
           id(clim)->pending[slot] = v;
           id(clim)->pending_ms[slot] = millis();
           id(clim)->pending_sent[slot] = false;
           id(render_climate_card).execute(slot);
+
+  # Header icon: climate.turn_off when on, climate.turn_on when off (HA falls
+  # back to set_hvac_mode for integrations without turn_on/turn_off). The card
+  # redraws when HA reports the new mode.
+  - id: climate_power_pressed
+    parameters:
+      slot: int
+    mode: queued
+    max_runs: 10
+    then:
+      - lambda: |-
+          if (slot < 0 || slot > 7) return;
+          const std::string &entity = id(clim)->entity[slot];
+          const std::string &st = id(clim)->state[slot];
+          if (entity.empty() || st.empty() || st == "unavailable" || st == "unknown") return;
+          std::string action = st == "off" ? "climate.turn_on" : "climate.turn_off";
+          ESP_LOGI("climate", "Thermostat %d: %s %s", slot + 1, action.c_str(), entity.c_str());
+          id(ha_entity_action).execute(action, entity);
 
   # Switch row: switch.toggle / input_boolean.toggle. The row redraws when
   # HA reports the new state.

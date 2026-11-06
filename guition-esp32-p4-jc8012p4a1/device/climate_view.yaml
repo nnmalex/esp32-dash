@@ -213,7 +213,15 @@ script:
             lv_obj_set_height(name, 36);
             lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
             id(clim_name_lbl)[s] = name;
-            id(clim_icon_lbl)[s] = label(hdr, f_icon, 0x666666);
+            // The icon doubles as the on/off button (climate_power_pressed).
+            lv_obj_t *ic = label(hdr, f_icon, 0x666666);
+            lv_obj_add_flag(ic, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_set_ext_click_area(ic, 20);
+            lv_obj_set_style_opa(ic, LV_OPA_50, LV_STATE_PRESSED);
+            lv_obj_add_event_cb(ic, [](lv_event_t *e) {
+              id(climate_power_pressed).execute((int) (intptr_t) lv_event_get_user_data(e));
+            }, LV_EVENT_CLICKED, (void *) (intptr_t) s);
+            id(clim_icon_lbl)[s] = ic;
 
             lv_obj_t *status = label(card, f_small, 0x888888);
             lv_obj_set_width(status, lv_pct(100));
